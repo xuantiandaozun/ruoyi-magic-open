@@ -1,9 +1,10 @@
 package com.ruoyi.project.system.service;
 
 import java.util.List;
+
+import com.mybatisflex.core.service.IService;
 import com.ruoyi.project.system.domain.SysDictData;
 import com.ruoyi.project.system.domain.SysDictType;
-import com.mybatisflex.core.service.IService;
 
 /**
  * 字典 业务层

@@ -1,16 +1,18 @@
 package com.ruoyi.framework.security.service;
 
-import cn.dev33.satoken.stp.StpInterface;
-import com.ruoyi.common.utils.SecurityUtils;
-import com.ruoyi.project.system.service.ISysMenuService;
-import com.ruoyi.project.system.service.ISysRoleService;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.project.system.service.ISysMenuService;
+import com.ruoyi.project.system.service.ISysRoleService;
+
+import cn.dev33.satoken.stp.StpInterface;
 
 /**
  * 权限认证接口实现

@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <!-- 日志存放路径 -->
+<<<<<<< HEAD
 	<property name="log.path" value="/root/java/logs" />
+=======
+	<property name="log.path" value="/home/ruoyi/logs" />
+>>>>>>> 2fe1861 (first commit)
     <!-- 日志输出格式 -->
 	<property name="log.pattern" value="%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n" />
 
@@ -13,6 +17,7 @@
 		</encoder>
 	</appender>
 	
+<<<<<<< HEAD
 	<!-- 异步控制台输出 -->
 	<appender name="async_console" class="ch.qos.logback.classic.AsyncAppender">
 		<discardingThreshold>0</discardingThreshold>
@@ -21,6 +26,8 @@
 		<appender-ref ref="console" />
 	</appender>
 	
+=======
+>>>>>>> 2fe1861 (first commit)
 	<!-- 系统日志输出 -->
 	<appender name="file_info" class="ch.qos.logback.core.rolling.RollingFileAppender">
 	    <file>${log.path}/sys-info.log</file>
@@ -44,6 +51,7 @@
         </filter>
 	</appender>
 	
+<<<<<<< HEAD
 	<!-- 异步系统日志输出 -->
 	<appender name="async_file_info" class="ch.qos.logback.classic.AsyncAppender">
 		<discardingThreshold>0</discardingThreshold>
@@ -52,6 +60,8 @@
 		<appender-ref ref="file_info" />
 	</appender>
 	
+=======
+>>>>>>> 2fe1861 (first commit)
 	<appender name="file_error" class="ch.qos.logback.core.rolling.RollingFileAppender">
 	    <file>${log.path}/sys-error.log</file>
         <!-- 循环政策：基于时间创建日志文件 -->
@@ -74,6 +84,7 @@
         </filter>
     </appender>
 	
+<<<<<<< HEAD
 	<!-- 异步错误日志输出 -->
 	<appender name="async_file_error" class="ch.qos.logback.classic.AsyncAppender">
 		<discardingThreshold>0</discardingThreshold>
@@ -82,6 +93,8 @@
 		<appender-ref ref="file_error" />
 	</appender>
 	
+=======
+>>>>>>> 2fe1861 (first commit)
 	<!-- 用户访问日志输出  -->
     <appender name="sys-user" class="ch.qos.logback.core.rolling.RollingFileAppender">
 		<file>${log.path}/sys-user.log</file>
@@ -101,6 +114,7 @@
 	<!-- Spring日志级别控制  -->
 	<logger name="org.springframework" level="warn" />
 	<!-- MyBatis SQL日志级别控制 -->
+<<<<<<< HEAD
 	<logger name="com.ruoyi.project.**.mapper" level="info" additivity="true" />
 	<!-- 启动时减少DEBUG日志输出 -->
 	<logger name="org.hibernate.validator" level="warn" />
@@ -109,16 +123,31 @@
 
 	<root level="info">
 		<appender-ref ref="async_console" />
+=======
+	<logger name="com.ruoyi.project.**.mapper" level="debug" additivity="true" />
+
+	<root level="info">
+		<appender-ref ref="console" />
+>>>>>>> 2fe1861 (first commit)
 	</root>
 	
 	<!--系统操作日志-->
     <root level="info">
+<<<<<<< HEAD
         <appender-ref ref="async_file_info" />
         <appender-ref ref="async_file_error" />
+=======
+        <appender-ref ref="file_info" />
+        <appender-ref ref="file_error" />
+>>>>>>> 2fe1861 (first commit)
     </root>
 	
 	<!--系统用户操作日志-->
     <logger name="sys-user" level="info">
         <appender-ref ref="sys-user"/>
     </logger>
+<<<<<<< HEAD
 </configuration>
+=======
+</configuration> 
+>>>>>>> 2fe1861 (first commit)

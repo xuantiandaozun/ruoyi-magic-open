@@ -1,6 +1,10 @@
 <template>
   <div class="app-container">
+<<<<<<< HEAD
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="auto" class="flexible-search-form">
+=======
+    <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
+>>>>>>> 2fe1861 (first commit)
 #foreach($column in $columns)
 #if($column.query)
 #set($dictType=$column.dictType)
@@ -12,7 +16,11 @@
 #set($comment=$column.columnComment)
 #end
 #if($column.htmlType == "input")
+<<<<<<< HEAD
       <el-form-item label="${comment}" prop="${column.javaField}" class="search-item">
+=======
+      <el-form-item label="${comment}" prop="${column.javaField}">
+>>>>>>> 2fe1861 (first commit)
         <el-input
           v-model="queryParams.${column.javaField}"
           placeholder="请输入${comment}"
@@ -21,7 +29,11 @@
         />
       </el-form-item>
 #elseif(($column.htmlType == "select" || $column.htmlType == "radio") && "" != $dictType)
+<<<<<<< HEAD
       <el-form-item label="${comment}" prop="${column.javaField}" class="search-item">
+=======
+      <el-form-item label="${comment}" prop="${column.javaField}">
+>>>>>>> 2fe1861 (first commit)
         <el-select v-model="queryParams.${column.javaField}" placeholder="请选择${comment}" clearable>
           <el-option
             v-for="dict in ${dictType}"
@@ -32,13 +44,21 @@
         </el-select>
       </el-form-item>
 #elseif(($column.htmlType == "select" || $column.htmlType == "radio") && $dictType)
+<<<<<<< HEAD
       <el-form-item label="${comment}" prop="${column.javaField}" class="search-item">
+=======
+      <el-form-item label="${comment}" prop="${column.javaField}">
+>>>>>>> 2fe1861 (first commit)
         <el-select v-model="queryParams.${column.javaField}" placeholder="请选择${comment}" clearable>
           <el-option label="请选择字典生成" value="" />
         </el-select>
       </el-form-item>
 #elseif($column.htmlType == "datetime" && $column.queryType != "BETWEEN")
+<<<<<<< HEAD
       <el-form-item label="${comment}" prop="${column.javaField}" class="search-item">
+=======
+      <el-form-item label="${comment}" prop="${column.javaField}">
+>>>>>>> 2fe1861 (first commit)
         <el-date-picker clearable
           v-model="queryParams.${column.javaField}"
           type="date"
@@ -47,7 +67,11 @@
         </el-date-picker>
       </el-form-item>
 #elseif($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+<<<<<<< HEAD
       <el-form-item label="${comment}" class="search-item date-range-item">
+=======
+      <el-form-item label="${comment}" style="width: 308px">
+>>>>>>> 2fe1861 (first commit)
         <el-date-picker
           v-model="daterange${AttrName}"
           value-format="YYYY-MM-DD"
@@ -60,7 +84,11 @@
 #end
 #end
 #end
+<<<<<<< HEAD
       <el-form-item class="search-buttons">
+=======
+      <el-form-item>
+>>>>>>> 2fe1861 (first commit)
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
       </el-form-item>
@@ -118,7 +146,11 @@
 #else
 #set($comment=$column.columnComment)
 #end
+<<<<<<< HEAD
 #if($column.pk && $column.list)
+=======
+#if($column.pk)
+>>>>>>> 2fe1861 (first commit)
       <el-table-column label="${comment}" align="center" prop="${javaField}" />
 #elseif($column.list && $column.htmlType == "datetime")
       <el-table-column label="${comment}" align="center" prop="${javaField}" width="180">
@@ -163,9 +195,14 @@
     />
 
     <!-- 添加或修改${functionName}对话框 -->
+<<<<<<< HEAD
     <el-dialog :title="title" v-model="open" width="auto" :style="{minWidth: '300px', maxWidth: '40vw'}" append-to-body class="custom-dialog">
       <div v-loading="formLoading" style="min-height: 100px;">
         <el-form ref="${businessName}Ref" :model="form" :rules="rules" label-width="auto" label-position="left" class="dialog-form">
+=======
+    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+      <el-form ref="${businessName}Ref" :model="form" :rules="rules" label-width="80px">
+>>>>>>> 2fe1861 (first commit)
 #foreach($column in $columns)
 #set($field=$column.javaField)
 #if($column.insert && !$column.pk)
@@ -221,7 +258,11 @@
               v-for="dict in ${dictType}"
               :key="dict.value"
               :label="dict.value">
+<<<<<<< HEAD
               {{ dict.label }}
+=======
+              {{dict.label}}
+>>>>>>> 2fe1861 (first commit)
             </el-checkbox>
           </el-checkbox-group>
         </el-form-item>
@@ -242,7 +283,11 @@
 #else
               :label="dict.value"
 #end
+<<<<<<< HEAD
             >{{ dict.label }}</el-radio>
+=======
+            >{{dict.label}}</el-radio>
+>>>>>>> 2fe1861 (first commit)
           </el-radio-group>
         </el-form-item>
 #elseif($column.htmlType == "radio" && $dictType)
@@ -278,7 +323,11 @@
             <el-button type="danger" icon="Delete" @click="handleDelete${subClassName}">删除</el-button>
           </el-col>
         </el-row>
+<<<<<<< HEAD
         <el-table :data="${subclassName}List" :row-class-name="row${subClassName}Index" @selection-change="handle${subClassName}SelectionChange" :ref="${subclassName}">
+=======
+        <el-table :data="${subclassName}List" :row-class-name="row${subClassName}Index" @selection-change="handle${subClassName}SelectionChange" ref="${subclassName}">
+>>>>>>> 2fe1861 (first commit)
           <el-table-column type="selection" width="50" align="center" />
           <el-table-column label="序号" align="center" prop="index" width="50"/>
 #foreach($column in $subTable.columns)
@@ -332,12 +381,20 @@
 #end
         </el-table>
 #end
+<<<<<<< HEAD
         </el-form>
       </div>
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="cancel">取 消</el-button>
           <el-button type="primary" @click="submitForm">确 定</el-button>
+=======
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitForm">确 定</el-button>
+          <el-button @click="cancel">取 消</el-button>
+>>>>>>> 2fe1861 (first commit)
         </div>
       </template>
     </el-dialog>
@@ -346,6 +403,7 @@
 
 <script setup name="${BusinessName}">
 import { list${BusinessName}, get${BusinessName}, del${BusinessName}, add${BusinessName}, update${BusinessName} } from "@/api/${moduleName}/${businessName}";
+<<<<<<< HEAD
 import { onMounted, onUnmounted, getCurrentInstance, ref, reactive, toRefs } from 'vue';
 
 const { proxy } = getCurrentInstance();
@@ -355,6 +413,10 @@ const queryRef = ref();
 #if($table.sub)
 const ${subclassName}Ref = ref();
 #end
+=======
+
+const { proxy } = getCurrentInstance();
+>>>>>>> 2fe1861 (first commit)
 #if(${dicts} != '')
 #set($dictsNoSymbol=$dicts.replace("'", ""))
 const { ${dictsNoSymbol} } = proxy.useDict(${dicts});
@@ -366,7 +428,10 @@ const ${subclassName}List = ref([]);
 #end
 const open = ref(false);
 const loading = ref(true);
+<<<<<<< HEAD
 const formLoading = ref(false);
+=======
+>>>>>>> 2fe1861 (first commit)
 const showSearch = ref(true);
 const ids = ref([]);
 #if($table.sub)
@@ -414,6 +479,7 @@ const data = reactive({
 const { queryParams, form, rules } = toRefs(data);
 
 /** 查询${functionName}列表 */
+<<<<<<< HEAD
 async function getList() {
   loading.value = true;
   try {
@@ -437,11 +503,38 @@ async function getList() {
   } finally {
     loading.value = false;
   }
+=======
+function getList() {
+  loading.value = true;
+#foreach ($column in $columns)
+#if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+  queryParams.value.params = {};
+#break
+#end
+#end
+#foreach ($column in $columns)
+#if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+#set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
+  if (null != daterange${AttrName} && '' != daterange${AttrName}) {
+    queryParams.value.params["begin${AttrName}"] = daterange${AttrName}.value[0];
+    queryParams.value.params["end${AttrName}"] = daterange${AttrName}.value[1];
+  }
+#end
+#end
+  list${BusinessName}(queryParams.value).then(response => {
+    ${businessName}List.value = response.rows;
+    total.value = response.total;
+    loading.value = false;
+  });
+>>>>>>> 2fe1861 (first commit)
 }
 
 // 取消按钮
 function cancel() {
+<<<<<<< HEAD
   formLoading.value = false;
+=======
+>>>>>>> 2fe1861 (first commit)
   open.value = false;
   reset();
 }
@@ -460,9 +553,13 @@ function reset() {
 #if($table.sub)
   ${subclassName}List.value = [];
 #end
+<<<<<<< HEAD
   if (${businessName}Ref.value) {
     ${businessName}Ref.value.resetFields();
   }
+=======
+  proxy.resetForm("${businessName}Ref");
+>>>>>>> 2fe1861 (first commit)
 }
 
 /** 搜索按钮操作 */
@@ -479,9 +576,13 @@ function resetQuery() {
   daterange${AttrName}.value = [];
 #end
 #end
+<<<<<<< HEAD
   if (queryRef.value) {
     queryRef.value.resetFields();
   }
+=======
+  proxy.resetForm("queryRef");
+>>>>>>> 2fe1861 (first commit)
   handleQuery();
 }
 
@@ -494,6 +595,7 @@ function handleSelectionChange(selection) {
 
 /** 新增按钮操作 */
 function handleAdd() {
+<<<<<<< HEAD
   try {
     reset();
     formLoading.value = false; // 确保加载状态重置
@@ -588,6 +690,70 @@ async function handleDelete(row) {
       proxy.$modal.msgError("删除失败：" + error);
     }
   }
+=======
+  reset();
+  open.value = true;
+  title.value = "添加${functionName}";
+}
+
+/** 修改按钮操作 */
+function handleUpdate(row) {
+  reset();
+  const _${pkColumn.javaField} = row.${pkColumn.javaField} || ids.value
+  get${BusinessName}(_${pkColumn.javaField}).then(response => {
+    form.value = response.data;
+#foreach ($column in $columns)
+#if($column.htmlType == "checkbox")
+    form.value.$column.javaField = form.value.${column.javaField}.split(",");
+#end
+#end
+#if($table.sub)
+    ${subclassName}List.value = response.data.${subclassName}List;
+#end
+    open.value = true;
+    title.value = "修改${functionName}";
+  });
+}
+
+/** 提交按钮 */
+function submitForm() {
+  proxy.#[[$]]#refs["${businessName}Ref"].validate(valid => {
+    if (valid) {
+#foreach ($column in $columns)
+#if($column.htmlType == "checkbox")
+      form.value.$column.javaField = form.value.${column.javaField}.join(",");
+#end
+#end
+#if($table.sub)
+      form.value.${subclassName}List = ${subclassName}List.value;
+#end
+      if (form.value.${pkColumn.javaField} != null) {
+        update${BusinessName}(form.value).then(response => {
+          proxy.#[[$modal]]#.msgSuccess("修改成功");
+          open.value = false;
+          getList();
+        });
+      } else {
+        add${BusinessName}(form.value).then(response => {
+          proxy.#[[$modal]]#.msgSuccess("新增成功");
+          open.value = false;
+          getList();
+        });
+      }
+    }
+  });
+}
+
+/** 删除按钮操作 */
+function handleDelete(row) {
+  const _${pkColumn.javaField}s = row.${pkColumn.javaField} || ids.value;
+  proxy.#[[$modal]]#.confirm('是否确认删除${functionName}编号为"' + _${pkColumn.javaField}s + '"的数据项？').then(function() {
+    return del${BusinessName}(_${pkColumn.javaField}s);
+  }).then(() => {
+    getList();
+    proxy.#[[$modal]]#.msgSuccess("删除成功");
+  }).catch(() => {});
+>>>>>>> 2fe1861 (first commit)
 }
 
 #if($table.sub)
@@ -600,10 +766,16 @@ function row${subClassName}Index({ row, rowIndex }) {
 function handleAdd${subClassName}() {
   let obj = {};
 #foreach($column in $subTable.columns)
+<<<<<<< HEAD
 #set($javaField=$column.javaField)
 #if($column.pk || $column.javaField == ${subTableFkclassName})
 #elseif($column.list && "" != $javaField)
   obj.${column.javaField} = "";
+=======
+#if($column.pk || $column.javaField == ${subTableFkclassName})
+#elseif($column.list && "" != $javaField)
+  obj.$column.javaField = "";
+>>>>>>> 2fe1861 (first commit)
 #end
 #end
   ${subclassName}List.value.push(obj);
@@ -612,7 +784,11 @@ function handleAdd${subClassName}() {
 /** ${subTable.functionName}删除按钮操作 */
 function handleDelete${subClassName}() {
   if (checked${subClassName}.value.length == 0) {
+<<<<<<< HEAD
     proxy.$modal.msgError("请先选择要删除的${subTable.functionName}数据");
+=======
+    proxy.#[[$modal]]#.msgError("请先选择要删除的${subTable.functionName}数据");
+>>>>>>> 2fe1861 (first commit)
   } else {
     const ${subclassName}s = ${subclassName}List.value;
     const checked${subClassName}s = checked${subClassName}.value;
@@ -632,6 +808,7 @@ function handle${subClassName}SelectionChange(selection) {
 function handleExport() {
   proxy.download('${moduleName}/${businessName}/export', {
     ...queryParams.value
+<<<<<<< HEAD
   }, '${businessName}_' + new Date().getTime() + '.xlsx')
 }
 
@@ -648,3 +825,10 @@ onUnmounted(() => {
 });
 </script>
 
+=======
+  }, `${businessName}_#[[${new Date().getTime()}]]#.xlsx`)
+}
+
+getList();
+</script>
+>>>>>>> 2fe1861 (first commit)

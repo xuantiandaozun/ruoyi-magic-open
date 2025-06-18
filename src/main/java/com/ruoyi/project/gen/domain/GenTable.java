@@ -83,7 +83,6 @@ public class GenTable extends BaseEntity {
 
     /** 生成路径（不填默认项目路径） */
     private String genPath;
-
     /** 数据源名称 */
     private String dataSource;
 

@@ -20,7 +20,11 @@ import ${packageName}.domain.${ClassName};
 import ${packageName}.service.I${ClassName}Service;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 #if($table.dataSource && $table.dataSource != 'master')
+<<<<<<< HEAD
 import com.mybatisflex.annotation.UseDataSource;
+=======
+import com.mybatisflex.core.datasource.UseDataSource;
+>>>>>>> 2fe1861 (first commit)
 #end
 
 /**

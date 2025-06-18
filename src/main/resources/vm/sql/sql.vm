@@ -2,10 +2,15 @@
 -- @SQL_STATEMENT_START
 insert into sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
 values('${functionName}', '${parentMenuId}', '1', '${businessName}', '${moduleName}/${businessName}/index', 1, 0, 'C', '0', '0', '${permissionPrefix}:list', '#', 'admin', sysdate(), '', null, '${functionName}菜单');
+<<<<<<< HEAD
 -- @SQL_STATEMENT_END
 
 -- 记录新插入的主菜单ID
 -- @SQL_STATEMENT_START
+=======
+
+-- 记录新插入的主菜单ID
+>>>>>>> 2fe1861 (first commit)
 SET @parentId = LAST_INSERT_ID();
 -- @SQL_STATEMENT_END
 

@@ -123,7 +123,11 @@
 #else
 #set($comment=$column.columnComment)
 #end
+<<<<<<< HEAD
 #if($column.pk && $column.list)
+=======
+#if($column.pk)
+>>>>>>> 2fe1861 (first commit)
       <el-table-column label="${comment}" align="center" prop="${javaField}" />
 #elseif($column.list && $column.htmlType == "datetime")
       <el-table-column label="${comment}" align="center" prop="${javaField}" width="180">
@@ -509,9 +513,14 @@ export default {
       get${BusinessName}(${pkColumn.javaField}).then(response => {
         this.form = response.data;
 #foreach ($column in $columns)
+<<<<<<< HEAD
 #set($javaField=$column.javaField)
 #if($column.htmlType == "checkbox")
         this.form.${javaField} = this.form.${javaField}.split(",");
+=======
+#if($column.htmlType == "checkbox")
+        this.form.$column.javaField = this.form.${column.javaField}.split(",");
+>>>>>>> 2fe1861 (first commit)
 #end
 #end
 #if($table.sub)
@@ -526,9 +535,14 @@ export default {
       this.#[[$]]#refs["form"].validate(valid => {
         if (valid) {
 #foreach ($column in $columns)
+<<<<<<< HEAD
 #set($javaField=$column.javaField)
 #if($column.htmlType == "checkbox")
           this.form.${javaField} = this.form.${javaField}.join(",");
+=======
+#if($column.htmlType == "checkbox")
+          this.form.$column.javaField = this.form.${column.javaField}.join(",");
+>>>>>>> 2fe1861 (first commit)
 #end
 #end
 #if($table.sub)
@@ -569,10 +583,16 @@ export default {
     handleAdd${subClassName}() {
       let obj = {};
 #foreach($column in $subTable.columns)
+<<<<<<< HEAD
 #set($javaField=$column.javaField)
 #if($column.pk || $column.javaField == ${subTableFkclassName})
 #elseif($column.list && "" != $javaField)
       obj.${column.javaField} = "";
+=======
+#if($column.pk || $column.javaField == ${subTableFkclassName})
+#elseif($column.list && "" != $javaField)
+      obj.$column.javaField = "";
+>>>>>>> 2fe1861 (first commit)
 #end
 #end
       this.${subclassName}List.push(obj);

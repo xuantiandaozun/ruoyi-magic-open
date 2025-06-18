@@ -24,7 +24,6 @@ import com.zaxxer.hikari.HikariDataSource;
 public class DynamicDataSourceManager {
     private static final Logger log = LoggerFactory.getLogger(DynamicDataSourceManager.class);
 
-
     
     @Autowired
     private FlexDataSource flexDataSource; // 直接使用 FlexDataSource

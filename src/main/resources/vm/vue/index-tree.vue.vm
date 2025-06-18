@@ -458,9 +458,14 @@ export default {
       get${BusinessName}(row.${pkColumn.javaField}).then(response => {
         this.form = response.data;
 #foreach ($column in $columns)
+<<<<<<< HEAD
 #set($javaField=$column.javaField)
 #if($column.htmlType == "checkbox")
         this.form.${javaField} = this.form.${javaField}.split(",");
+=======
+#if($column.htmlType == "checkbox")
+        this.form.$column.javaField = this.form.${column.javaField}.split(",");
+>>>>>>> 2fe1861 (first commit)
 #end
 #end
         this.open = true;
@@ -472,9 +477,14 @@ export default {
       this.#[[$]]#refs["form"].validate(valid => {
         if (valid) {
 #foreach ($column in $columns)
+<<<<<<< HEAD
 #set($javaField=$column.javaField)
 #if($column.htmlType == "checkbox")
           this.form.${javaField} = this.form.${javaField}.join(",");
+=======
+#if($column.htmlType == "checkbox")
+          this.form.$column.javaField = this.form.${column.javaField}.join(",");
+>>>>>>> 2fe1861 (first commit)
 #end
 #end
           if (this.form.${pkColumn.javaField} != null) {

@@ -7,21 +7,18 @@ import org.quartz.SchedulerException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.core.annotation.Order;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
 
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
-import com.ruoyi.common.exception.job.TaskException;
 import com.ruoyi.common.utils.job.ScheduleUtils;
 import com.ruoyi.framework.service.BatchInitializationService;
 import com.ruoyi.project.monitor.domain.SysJob;
 import com.ruoyi.project.monitor.mapper.SysJobMapper;
 import com.ruoyi.project.monitor.service.ISysJobService;
-
-import jakarta.annotation.PostConstruct;
 
 /**
  * 定时任务调度服务实现

@@ -13,7 +13,11 @@ RuoYi-Magic 是一个基于 RuoYi 框架二次开发的企业级管理系统，�
 - **核心框架**：Spring Boot 3.2.2
 - **安全框架**：Sa-Token 1.42.0
 - **持久层框架**：MyBatis-Flex 1.10.9
+<<<<<<< HEAD
 - **数据库连接池**：HikariCP
+=======
+- **数据库连接池**：Druid 1.2.24
+>>>>>>> 2fe1861 (first commit)
 - **缓存框架**：Redis
 - **日志管理**：SLF4J + Logback
 - **工具类库**：Hutool 5.8.26、Apache Commons
@@ -35,7 +39,11 @@ RuoYi-Magic 是一个基于 RuoYi 框架二次开发的企业级管理系统，�
 - **代码生成**：支持自定义模板的代码生成功能
 - **多数据源管理**：支持多数据源配置和动态切换
 - **定时任务**：基于 Quartz 的定时任务调度管理
+<<<<<<< HEAD
 - **系统监控**：服务器、Redis 监控
+=======
+- **系统监控**：服务器、Redis、Druid 监控
+>>>>>>> 2fe1861 (first commit)
 - **操作日志**：详细记录用户操作日志
 - **数据字典**：支持多级数据字典管理
 - **MyBatis-Flex 增强**：使用 MyBatis-Flex 提供的监听器、查询构建器等特性
