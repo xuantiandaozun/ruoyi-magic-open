@@ -1,0 +1,53 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# MyBatis-Flex 项目开发规范
+
+## 基本规范
+- Mapper 接口需继承 `com.mybatisflex.core.BaseMapper<T>`
+- 实体类需添加 `@Table`、`@Id` 等 mybatis-flex 注解，确保表字段映射准确
+- 推荐使用 `QueryWrapper` 进行动态 SQL 构建
+- 避免直接拼接 SQL，优先用 Wrapper/注解/Provider
+
+## 代码分层
+- `controller/`：只做参数接收、结果返回
+- `service/impl/`：业务逻辑，调用 mapper
+- `mapper/`：数据库操作，继承 BaseMapper
+- `domain/`：实体类，注解齐全
+
+## 查询与分页
+- 使用 `QueryWrapper` 进行条件查询
+- 分页推荐用 `Page<T>` 及相关方法
+
+## 事务与安全
+- 业务方法加 `@Transactional`（如有多表操作）
+- 严格校验用户输入，防止 SQL 注入
+
+## 复杂 SQL 编写规范
+
+1. **表名与别名分离**：
+   - 使用 `.from("table").as("t")`，`.join("table2").as("t2")`，避免反引号包裹表名+别名导致 SQL 错误。
+2. **字段引用带别名**：
+   - 查询和条件字段均用 `别名.字段名`，如 `r.role_id`，防止多表字段冲突。
+3. **链式调用顺序**：
+   - `.select() -> .from().as() -> .join().as().on() -> .where() -> .and() -> .or()`，结构清晰。
+4. **条件表达式规范**：
+   - 用 `new QueryColumn("别名","字段名")` 明确指定条件字段。
+5. **多表关联**：
+   - 推荐 `.innerJoin(...).as(...).on(...)`，on 条件用字符串表达。
+6. **去重与排序**：
+   - 需要去重时 select 里加 `DISTINCT`，排序用 `.orderBy(...)`。
+7. **可读性与注释**：
+   - 字段多时分行书写，复杂 SQL 写注释说明业务意图。
+8. **避免硬编码**：
+   - 尽量用常量或枚举管理表名、字段名，减少硬编码。
+
+## 其他注意事项
+- 保持 UTF-8 编码、CRLF 换行
+- 路径使用相对路径，避免硬编码
+- 禁止提交本地/环境配置文件
+
+
+

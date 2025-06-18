@@ -1,0 +1,45 @@
+package ${packageName}.mapper;
+
+#if($table.sub)
+import java.util.List;
+#end
+import com.mybatisflex.core.BaseMapper;
+import ${packageName}.domain.${ClassName};
+#if($table.sub)
+import ${packageName}.domain.${subClassName};
+#end
+
+/**
+ * ${functionName}Mapper接口
+ * 
+ * @author ${author}
+ * @date ${datetime}
+ */
+public interface ${ClassName}Mapper extends BaseMapper<${ClassName}>
+{
+    // 遵循MyBatis-Flex规范，保持Mapper接口简洁，复杂查询在Service层实现
+#if($table.sub)
+    /**
+     * 批量删除${subTable.functionName}
+     * 
+     * @param ${pkColumn.javaField}s 需要删除的数据主键集合
+     * @return 结果
+     */
+    int delete${subClassName}By${subTableFkClassName}s(${pkColumn.javaType}[] ${pkColumn.javaField}s);
+    
+    /**
+     * 批量新增${subTable.functionName}
+     * 
+     * @param ${subclassName}List ${subTable.functionName}列表
+     * @return 结果
+     */
+    int batch${subClassName}(List<${subClassName}> ${subclassName}List);
+    
+    /**
+     * 通过${functionName}主键删除${subTable.functionName}信息
+     * 
+     * @param ${pkColumn.javaField} ${functionName}ID
+     * @return 结果
+     */    int delete${subClassName}By${subTableFkClassName}(${pkColumn.javaType} ${pkColumn.javaField});
+#end
+}
