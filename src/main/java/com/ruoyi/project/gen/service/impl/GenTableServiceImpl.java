@@ -372,6 +372,14 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
      */
     @Override
     public void deleteGenTableByIds(Long[] tableIds) {
+        // 删除表字段数据
+        for (Long tableId : tableIds) {
+            List<GenTableColumn> genTableColumns = genTableColumnService.selectGenTableColumnListByTableId(tableId);
+            if (!genTableColumns.isEmpty()) {
+                genTableColumnService.deleteGenTableColumns(genTableColumns);
+            }
+        }
+        // 删除表数据
         this.removeByIds(Arrays.asList(tableIds));
     }
 

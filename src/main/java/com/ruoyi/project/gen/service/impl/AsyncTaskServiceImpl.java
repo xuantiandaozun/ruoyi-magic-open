@@ -76,7 +76,7 @@ public class AsyncTaskServiceImpl implements IAsyncTaskService {
     }
     
     @Override
-    public void updateTaskProgress(String taskId, Integer progress) {
+    public void updateTaskProgress(String taskId, int progress) {
         AsyncTaskInfo taskInfo = getTask(taskId);
         if (taskInfo != null) {
             taskInfo.setProgress(progress);
@@ -111,8 +111,18 @@ public class AsyncTaskServiceImpl implements IAsyncTaskService {
     }
     
     @Override
-    public boolean existsTask(String taskId) {
+    public boolean taskExists(String taskId) {
         String key = TASK_CACHE_PREFIX + taskId;
         return redisCache.hasKey(key);
+    }
+    
+    @Override
+    public void updateTaskExtraInfo(String taskId, String extraInfo) {
+        AsyncTaskInfo taskInfo = getTask(taskId);
+        if (taskInfo != null) {
+            taskInfo.setExtraInfo(extraInfo);
+            saveTask(taskInfo);
+            logger.info("更新任务扩展信息: taskId={}, extraInfo={}", taskId, extraInfo);
+        }
     }
 }

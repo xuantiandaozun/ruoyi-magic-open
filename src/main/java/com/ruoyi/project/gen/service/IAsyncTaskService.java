@@ -15,7 +15,7 @@ public interface IAsyncTaskService {
     void saveTask(AsyncTaskInfo taskInfo);
     
     /**
-     * 获取任务信息
+     * 根据任务ID获取任务信息
      * 
      * @param taskId 任务ID
      * @return 任务信息
@@ -26,7 +26,7 @@ public interface IAsyncTaskService {
      * 更新任务状态
      * 
      * @param taskId 任务ID
-     * @param status 状态
+     * @param status 任务状态
      */
     void updateTaskStatus(String taskId, String status);
     
@@ -34,15 +34,15 @@ public interface IAsyncTaskService {
      * 更新任务进度
      * 
      * @param taskId 任务ID
-     * @param progress 进度
+     * @param progress 任务进度
      */
-    void updateTaskProgress(String taskId, Integer progress);
+    void updateTaskProgress(String taskId, int progress);
     
     /**
      * 更新任务结果
      * 
      * @param taskId 任务ID
-     * @param result 结果
+     * @param result 任务结果
      */
     void updateTaskResult(String taskId, String result);
     
@@ -53,6 +53,14 @@ public interface IAsyncTaskService {
      * @param errorMessage 错误信息
      */
     void updateTaskError(String taskId, String errorMessage);
+    
+    /**
+     * 更新任务扩展信息
+     * 
+     * @param taskId 任务ID
+     * @param extraInfo 扩展信息
+     */
+    void updateTaskExtraInfo(String taskId, String extraInfo);
     
     /**
      * 删除任务
@@ -67,5 +75,5 @@ public interface IAsyncTaskService {
      * @param taskId 任务ID
      * @return 是否存在
      */
-    boolean existsTask(String taskId);
+    boolean taskExists(String taskId);
 }

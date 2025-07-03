@@ -27,8 +27,7 @@ import lombok.experimental.Accessors;
 @EqualsAndHashCode(callSuper = true)
 @Accessors(chain = true)
 @Table("gen_table")
-public class GenTable extends BaseEntity
-{
+public class GenTable extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /** 编号 */
@@ -84,7 +83,7 @@ public class GenTable extends BaseEntity
 
     /** 生成路径（不填默认项目路径） */
     private String genPath;
-    
+
     /** 数据源名称 */
     private String dataSource;
 
@@ -124,45 +123,39 @@ public class GenTable extends BaseEntity
     @Column(ignore = true)
     private String parentMenuName;
 
-    public boolean isSub()
-    {
+    /** 删除标志（0代表存在 2代表删除） */
+    private String delFlag;
+
+    public boolean isSub() {
         return isSub(this.tplCategory);
     }
 
-    public static boolean isSub(String tplCategory)
-    {
+    public static boolean isSub(String tplCategory) {
         return tplCategory != null && StrUtil.equals(GenConstants.TPL_SUB, tplCategory);
     }
 
-    public boolean isTree()
-    {
+    public boolean isTree() {
         return isTree(this.tplCategory);
     }
 
-    public static boolean isTree(String tplCategory)
-    {
+    public static boolean isTree(String tplCategory) {
         return tplCategory != null && StrUtil.equals(GenConstants.TPL_TREE, tplCategory);
     }
 
-    public boolean isCrud()
-    {
+    public boolean isCrud() {
         return isCrud(this.tplCategory);
     }
 
-    public static boolean isCrud(String tplCategory)
-    {
+    public static boolean isCrud(String tplCategory) {
         return tplCategory != null && StrUtil.equals(GenConstants.TPL_CRUD, tplCategory);
     }
 
-    public boolean isSuperColumn(String javaField)
-    {
+    public boolean isSuperColumn(String javaField) {
         return isSuperColumn(this.tplCategory, javaField);
     }
 
-    public static boolean isSuperColumn(String tplCategory, String javaField)
-    {
-        if (isTree(tplCategory))
-        {
+    public static boolean isSuperColumn(String tplCategory, String javaField) {
+        if (isTree(tplCategory)) {
             return StrUtil.equalsAnyIgnoreCase(javaField,
                     ArrayUtils.addAll(GenConstants.TREE_ENTITY, GenConstants.BASE_ENTITY));
         }
