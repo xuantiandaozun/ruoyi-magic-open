@@ -584,7 +584,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         // 获取模板列表
         List<String> templates = VelocityUtils.getTemplateList(table.getTplCategory(), table.getTplWebType());
         for (String template : templates) {
-            if (!StrUtil.containsAny(template, "sql.vm", "api.js.vm", "index.vue.vm", "index-tree.vue.vm")) {
+            if (!StrUtil.containsAny(template, "mapper.xml.vm", "api.js.vm", "index.vue.vm", "index-tree.vue.vm")) {
                 // 渲染模板
                 StringWriter sw = new StringWriter();
                 Template tpl = Velocity.getTemplate(template, Constants.UTF8);
@@ -952,7 +952,20 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
     private String getGenPath(GenTable table, String template) {
         String genPath = table.getGenPath();
         if (StrUtil.isEmpty(genPath)) {
-            return System.getProperty("user.dir") + File.separator + "src" + File.separator;
+            String basePath = System.getProperty("user.dir") + File.separator;
+            // 根据模板类型返回不同的路径
+            if (template.contains(".java.vm")) {
+                return basePath + "src" + File.separator + "main" + File.separator + "java" + File.separator;
+            } else if (template.contains(".xml.vm")) {
+                // 不生成XML文件
+                return null;
+            } else if (template.contains(".vue.vm") || template.contains(".js.vm")) {
+                return basePath + "vue" + File.separator;
+            } else if (template.contains(".sql.vm")) {
+                return basePath;
+            } else {
+                return basePath + "src" + File.separator;
+            }
         }
         
         return genPath + File.separator;
@@ -991,10 +1004,14 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
             try {
                 // 添加到zip
                 if (zip != null) {
-                    zip.putNextEntry(new ZipEntry(VelocityUtils.getFileName(template, table)));
-                    IOUtils.write(sw.toString(), zip, Constants.UTF8);
-                    zip.flush();
-                    zip.closeEntry();
+                    String fileName = VelocityUtils.getFileName(template, table);
+                    // 如果文件名为null，表示不需要生成该文件（如SQL文件）
+                    if (fileName != null) {
+                        zip.putNextEntry(new ZipEntry(fileName));
+                        IOUtils.write(sw.toString(), zip, Constants.UTF8);
+                        zip.flush();
+                        zip.closeEntry();
+                    }
                 }
             } catch (IOException e) {
                 log.error("渲染模板失败，表名：" + table.getTableName(), e);

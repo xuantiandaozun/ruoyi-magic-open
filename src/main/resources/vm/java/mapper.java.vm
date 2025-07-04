@@ -8,6 +8,9 @@ import ${packageName}.domain.${ClassName};
 #if($table.sub)
 import ${packageName}.domain.${subClassName};
 #end
+#if($table.dataSource && $table.dataSource != 'master')
+import com.mybatisflex.annotation.UseDataSource;
+#end
 
 /**
  * ${functionName}Mapper接口
@@ -15,6 +18,9 @@ import ${packageName}.domain.${subClassName};
  * @author ${author}
  * @date ${datetime}
  */
+#if($table.dataSource && $table.dataSource != 'master')
+@UseDataSource("${table.dataSource}")
+#end
 public interface ${ClassName}Mapper extends BaseMapper<${ClassName}>
 {
     // 遵循MyBatis-Flex规范，保持Mapper接口简洁，复杂查询在Service层实现

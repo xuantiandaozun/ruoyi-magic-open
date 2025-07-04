@@ -3,7 +3,6 @@ package ${packageName}.controller;
 import java.util.List;
 import java.util.Arrays;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,9 +18,12 @@ import ${packageName}.domain.${ClassName};
 import ${packageName}.service.I${ClassName}Service;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
-import com.ruoyi.common.utils.poi.ExcelUtil;
+import com.ruoyi.common.utils.poi.MagicExcelUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.paginate.Page;
+import com.ruoyi.framework.web.page.PageDomain;
+import com.ruoyi.framework.web.page.TableSupport;
+import cn.dev33.satoken.annotation.SaCheckPermission;
 #if($table.crud || $table.sub)
 import com.ruoyi.framework.web.page.TableDataInfo;
 #elseif($table.tree)
@@ -43,16 +45,20 @@ public class ${ClassName}Controller extends BaseController
     /**
      * 查询${functionName}列表
      */
-    @PreAuthorize("@ss.hasPermi('${permissionPrefix}:list')")
+    @SaCheckPermission("${permissionPrefix}:list")
     @GetMapping("/list")
 #if($table.crud || $table.sub)
     public TableDataInfo list(${ClassName} ${className})
     {
-        startPage();
-        QueryWrapper queryWrapper = QueryWrapper.create();
-        // 这里需要根据实际业务编写查询条件
+        PageDomain pageDomain = TableSupport.buildPageRequest();
+        Integer pageNum = pageDomain.getPageNum();
+        Integer pageSize = pageDomain.getPageSize();
         
-        Page<${ClassName}> page = ${className}Service.page(getPage(), queryWrapper);
+        // 创建 MyBatisFlex 的 QueryWrapper
+        QueryWrapper queryWrapper = buildFlexQueryWrapper(${className});
+        
+        // 使用 MyBatisFlex 的分页方法
+        Page<${ClassName}> page = ${className}Service.page(new Page<>(pageNum, pageSize), queryWrapper);
         return getDataTable(page);
     }
 #elseif($table.tree)
@@ -69,7 +75,7 @@ public class ${ClassName}Controller extends BaseController
     /**
      * 导出${functionName}列表
      */
-    @PreAuthorize("@ss.hasPermi('${permissionPrefix}:export')")
+    @SaCheckPermission("${permissionPrefix}:export")
     @Log(title = "${functionName}", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
     public void export(HttpServletResponse response, ${ClassName} ${className})
@@ -78,14 +84,14 @@ public class ${ClassName}Controller extends BaseController
         // 这里需要根据实际业务编写查询条件
         
         List<${ClassName}> list = ${className}Service.list(queryWrapper);
-        ExcelUtil<${ClassName}> util = new ExcelUtil<${ClassName}>(${ClassName}.class);
+        MagicExcelUtil<${ClassName}> util = new MagicExcelUtil<>(${ClassName}.class);
         util.exportExcel(response, list, "${functionName}数据");
     }
 
     /**
      * 获取${functionName}详细信息
      */
-    @PreAuthorize("@ss.hasPermi('${permissionPrefix}:query')")
+    @SaCheckPermission("${permissionPrefix}:query")
     @GetMapping(value = "/{${pkColumn.javaField}}")
     public AjaxResult getInfo(@PathVariable("${pkColumn.javaField}") ${pkColumn.javaType} ${pkColumn.javaField})
     {
@@ -95,7 +101,7 @@ public class ${ClassName}Controller extends BaseController
     /**
      * 新增${functionName}
      */
-    @PreAuthorize("@ss.hasPermi('${permissionPrefix}:add')")
+    @SaCheckPermission("${permissionPrefix}:add")
     @Log(title = "${functionName}", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody ${ClassName} ${className})
@@ -110,7 +116,7 @@ public class ${ClassName}Controller extends BaseController
     /**
      * 修改${functionName}
      */
-    @PreAuthorize("@ss.hasPermi('${permissionPrefix}:edit')")
+    @SaCheckPermission("${permissionPrefix}:edit")
     @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
     @PutMapping
     public AjaxResult edit(@RequestBody ${ClassName} ${className})
@@ -125,7 +131,7 @@ public class ${ClassName}Controller extends BaseController
     /**
      * 删除${functionName}
      */
-    @PreAuthorize("@ss.hasPermi('${permissionPrefix}:remove')")
+    @SaCheckPermission("${permissionPrefix}:remove")
     @Log(title = "${functionName}", businessType = BusinessType.DELETE)
 	@DeleteMapping("/{${pkColumn.javaField}s}")
     public AjaxResult remove(@PathVariable ${pkColumn.javaType}[] ${pkColumn.javaField}s)
@@ -133,7 +139,7 @@ public class ${ClassName}Controller extends BaseController
 #if($table.sub)
         return toAjax(${className}Service.removeBatchBy${pkColumn.capJavaField}s(${pkColumn.javaField}s) ? ${pkColumn.javaField}s.length : 0);
 #else
-        return toAjax(${className}Service.removeBatchByIds(Arrays.asList(${pkColumn.javaField}s)) ? ${pkColumn.javaField}s.length : 0);
+        return toAjax(${className}Service.removeByIds(Arrays.asList(${pkColumn.javaField}s)) ? ${pkColumn.javaField}s.length : 0);
 #end
     }
 }

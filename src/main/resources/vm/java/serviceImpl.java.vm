@@ -20,7 +20,7 @@ import ${packageName}.domain.${ClassName};
 import ${packageName}.service.I${ClassName}Service;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 #if($table.dataSource && $table.dataSource != 'master')
-import com.mybatisflex.core.datasource.UseDataSource;
+import com.mybatisflex.annotation.UseDataSource;
 #end
 
 /**

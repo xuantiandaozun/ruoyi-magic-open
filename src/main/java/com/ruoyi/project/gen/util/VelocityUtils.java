@@ -22,10 +22,10 @@ import com.ruoyi.project.gen.domain.GenTableColumn;
 public class VelocityUtils
 {
     /** 项目空间路径 */
-    private static final String PROJECT_PATH = "main/java";
+    private static final String PROJECT_PATH = "src/main/java";
 
     /** mybatis空间路径 */
-    private static final String MYBATIS_PATH = "main/resources/mybatis";
+    private static final String MYBATIS_PATH = "src/main/resources/mybatis";
 
     /** 默认上级菜单，系统工具 */
     private static final String DEFAULT_PARENT_MENU_ID = "3";
@@ -152,7 +152,8 @@ public class VelocityUtils
         templates.add("vm/java/service.java.vm");
         templates.add("vm/java/serviceImpl.java.vm");
         templates.add("vm/java/controller.java.vm");
-        templates.add("vm/xml/mapper.xml.vm");
+        // 移除XML文件生成
+        // templates.add("vm/xml/mapper.xml.vm");
         templates.add("vm/sql/sql.vm");
         templates.add("vm/js/api.js.vm");
         if (GenConstants.TPL_CRUD.equals(tplCategory))
@@ -217,11 +218,12 @@ public class VelocityUtils
         }
         else if (template.contains("mapper.xml.vm"))
         {
-            fileName = StrUtil.format("{}/{}Mapper.xml", mybatisPath, className);
+            // 不生成XML文件
+            return null;
         }
         else if (template.contains("sql.vm"))
         {
-            fileName = businessName + "Menu.sql";
+            fileName = "sql/" + businessName + "_menu.sql";
         }
         else if (template.contains("api.js.vm"))
         {

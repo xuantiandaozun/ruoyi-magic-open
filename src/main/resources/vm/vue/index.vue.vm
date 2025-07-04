@@ -123,7 +123,7 @@
 #else
 #set($comment=$column.columnComment)
 #end
-#if($column.pk)
+#if($column.pk && $column.list)
       <el-table-column label="${comment}" align="center" prop="${javaField}" />
 #elseif($column.list && $column.htmlType == "datetime")
       <el-table-column label="${comment}" align="center" prop="${javaField}" width="180">
@@ -509,8 +509,9 @@ export default {
       get${BusinessName}(${pkColumn.javaField}).then(response => {
         this.form = response.data;
 #foreach ($column in $columns)
+#set($javaField=$column.javaField)
 #if($column.htmlType == "checkbox")
-        this.form.$column.javaField = this.form.${column.javaField}.split(",");
+        this.form.${javaField} = this.form.${javaField}.split(",");
 #end
 #end
 #if($table.sub)
@@ -525,8 +526,9 @@ export default {
       this.#[[$]]#refs["form"].validate(valid => {
         if (valid) {
 #foreach ($column in $columns)
+#set($javaField=$column.javaField)
 #if($column.htmlType == "checkbox")
-          this.form.$column.javaField = this.form.${column.javaField}.join(",");
+          this.form.${javaField} = this.form.${javaField}.join(",");
 #end
 #end
 #if($table.sub)
@@ -567,9 +569,10 @@ export default {
     handleAdd${subClassName}() {
       let obj = {};
 #foreach($column in $subTable.columns)
+#set($javaField=$column.javaField)
 #if($column.pk || $column.javaField == ${subTableFkclassName})
 #elseif($column.list && "" != $javaField)
-      obj.$column.javaField = "";
+      obj.${column.javaField} = "";
 #end
 #end
       this.${subclassName}List.push(obj);

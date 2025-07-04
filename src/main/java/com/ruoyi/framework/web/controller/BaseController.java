@@ -220,6 +220,7 @@ public class BaseController
                     queryWrapper.le("create_time", endCreateTime);
                 }
             }
+            queryWrapper.orderBy("create_time desc");
         }
 
         // 反射获取实体字段值并构建查询条件
@@ -255,6 +256,7 @@ public class BaseController
                 logger.error("构建查询条件异常", e);
             }
         }
+        
         return queryWrapper;
     }
     
