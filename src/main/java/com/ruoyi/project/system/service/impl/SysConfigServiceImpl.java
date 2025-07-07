@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 import com.mybatisflex.core.query.QueryColumn;
@@ -19,6 +20,7 @@ import cn.hutool.core.convert.Convert;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import jakarta.annotation.PostConstruct;
+import org.springframework.scheduling.annotation.Async;
 
 /**
  * 参数配置 服务层实现
@@ -36,6 +38,16 @@ public class SysConfigServiceImpl extends ServiceImpl<SysConfigMapper, SysConfig
      */
     @PostConstruct
     public void init()
+    {
+        initializeConfigCacheAsync();
+    }
+
+    /**
+     * 异步初始化参数缓存
+     */
+    @Async("threadPoolTaskExecutor")
+    @Order(1)
+    public void initializeConfigCacheAsync()
     {
         loadingConfigCache();
     }

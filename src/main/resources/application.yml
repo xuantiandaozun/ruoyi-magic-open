@@ -116,7 +116,7 @@ mybatis-flex:
     # 关闭缓存
     cache-enabled: false
     # 其他配置
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
   global-config:
     # 是否打印banner
     print-banner: false

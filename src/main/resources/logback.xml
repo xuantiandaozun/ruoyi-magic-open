@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <!-- 日志存放路径 -->
-	<property name="log.path" value="/home/ruoyi/logs" />
+	<property name="log.path" value="/root/java/logs" />
     <!-- 日志输出格式 -->
 	<property name="log.pattern" value="%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n" />
 
@@ -11,6 +11,14 @@
 			<pattern>${log.pattern}</pattern>
             <charset>UTF-8</charset> <!-- 添加这一行 -->
 		</encoder>
+	</appender>
+	
+	<!-- 异步控制台输出 -->
+	<appender name="async_console" class="ch.qos.logback.classic.AsyncAppender">
+		<discardingThreshold>0</discardingThreshold>
+		<queueSize>1024</queueSize>
+		<includeCallerData>true</includeCallerData>
+		<appender-ref ref="console" />
 	</appender>
 	
 	<!-- 系统日志输出 -->
@@ -36,6 +44,14 @@
         </filter>
 	</appender>
 	
+	<!-- 异步系统日志输出 -->
+	<appender name="async_file_info" class="ch.qos.logback.classic.AsyncAppender">
+		<discardingThreshold>0</discardingThreshold>
+		<queueSize>1024</queueSize>
+		<includeCallerData>false</includeCallerData>
+		<appender-ref ref="file_info" />
+	</appender>
+	
 	<appender name="file_error" class="ch.qos.logback.core.rolling.RollingFileAppender">
 	    <file>${log.path}/sys-error.log</file>
         <!-- 循环政策：基于时间创建日志文件 -->
@@ -58,6 +74,14 @@
         </filter>
     </appender>
 	
+	<!-- 异步错误日志输出 -->
+	<appender name="async_file_error" class="ch.qos.logback.classic.AsyncAppender">
+		<discardingThreshold>0</discardingThreshold>
+		<queueSize>1024</queueSize>
+		<includeCallerData>false</includeCallerData>
+		<appender-ref ref="file_error" />
+	</appender>
+	
 	<!-- 用户访问日志输出  -->
     <appender name="sys-user" class="ch.qos.logback.core.rolling.RollingFileAppender">
 		<file>${log.path}/sys-user.log</file>
@@ -77,20 +101,24 @@
 	<!-- Spring日志级别控制  -->
 	<logger name="org.springframework" level="warn" />
 	<!-- MyBatis SQL日志级别控制 -->
-	<logger name="com.ruoyi.project.**.mapper" level="debug" additivity="true" />
+	<logger name="com.ruoyi.project.**.mapper" level="info" additivity="true" />
+	<!-- 启动时减少DEBUG日志输出 -->
+	<logger name="org.hibernate.validator" level="warn" />
+	<logger name="com.alibaba.druid" level="warn" />
+	<logger name="org.mybatis" level="warn" />
 
 	<root level="info">
-		<appender-ref ref="console" />
+		<appender-ref ref="async_console" />
 	</root>
 	
 	<!--系统操作日志-->
     <root level="info">
-        <appender-ref ref="file_info" />
-        <appender-ref ref="file_error" />
+        <appender-ref ref="async_file_info" />
+        <appender-ref ref="async_file_error" />
     </root>
 	
 	<!--系统用户操作日志-->
     <logger name="sys-user" level="info">
         <appender-ref ref="sys-user"/>
     </logger>
-</configuration> 
+</configuration>

@@ -1,16 +1,19 @@
 package com.ruoyi.framework.config;
 
+import java.io.IOException;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import cn.dev33.satoken.context.SaHolder;
 import cn.dev33.satoken.filter.SaServletFilter;
 import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.dev33.satoken.util.SaResult;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Sa-Token 配置
@@ -34,6 +37,8 @@ public class SaTokenConfiguration implements WebMvcConfigurer {
                     .notMatch("/login")  
                     .notMatch("/captchaImage")
                     .notMatch("/register")
+                    .notMatch("/mcp/messages")
+                    .notMatch("/sse")
                     // 排除下载接口
                     .notMatch("/common/download/**")
                     // 排除API文档

@@ -6,6 +6,7 @@ import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.core.annotation.Order;
 
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -17,6 +18,7 @@ import com.ruoyi.project.monitor.mapper.SysJobMapper;
 import com.ruoyi.project.monitor.service.ISysJobService;
 
 import jakarta.annotation.PostConstruct;
+import org.springframework.scheduling.annotation.Async;
 
 /**
  * 定时任务调度服务实现
@@ -33,13 +35,28 @@ public class SysJobServiceImpl extends ServiceImpl<SysJobMapper, SysJob> impleme
      * 项目启动时，初始化定时器 主要是防止手动修改数据库导致未同步到定时任务处理（注：不能手动修改数据库ID和任务组名，否则会导致脏数据）
      */
     @PostConstruct
-    public void init() throws SchedulerException, TaskException
+    public void init()
     {
-        scheduler.clear();
-        List<SysJob> jobList = list();
-        for (SysJob job : jobList)
-        {
-            ScheduleUtils.createScheduleJob(scheduler, job);
+        initializeJobsAsync();
+    }
+
+    /**
+     * 异步初始化定时任务
+     */
+    @Async("threadPoolTaskExecutor")
+    @Order(4)
+    public void initializeJobsAsync()
+    {
+        try {
+            scheduler.clear();
+            List<SysJob> jobList = list();
+            for (SysJob job : jobList)
+            {
+                ScheduleUtils.createScheduleJob(scheduler, job);
+            }
+        } catch (SchedulerException | TaskException e) {
+            // 记录异常日志，但不影响应用启动
+            e.printStackTrace();
         }
     }
 

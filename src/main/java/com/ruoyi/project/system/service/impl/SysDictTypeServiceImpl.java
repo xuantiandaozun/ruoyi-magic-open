@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.core.annotation.Order;
 
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -21,6 +22,7 @@ import com.ruoyi.project.system.service.ISysDictTypeService;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import jakarta.annotation.PostConstruct;
+import org.springframework.scheduling.annotation.Async;
 /**
  * 字典 业务层处理
  * 
@@ -39,6 +41,16 @@ public class SysDictTypeServiceImpl extends ServiceImpl<SysDictTypeMapper, SysDi
      */
     @PostConstruct
     public void init()
+    {
+        initializeDictCacheAsync();
+    }
+
+    /**
+     * 异步初始化字典缓存
+     */
+    @Async("threadPoolTaskExecutor")
+    @Order(2)
+    public void initializeDictCacheAsync()
     {
         loadingDictCache();
     }

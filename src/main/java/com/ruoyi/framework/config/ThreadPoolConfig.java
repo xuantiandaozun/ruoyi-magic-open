@@ -39,6 +39,16 @@ public class ThreadPoolConfig
         executor.setKeepAliveSeconds(keepAliveSeconds);
         // 线程池对拒绝任务(无线程可用)的处理策略
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        // 设置线程名称前缀
+        executor.setThreadNamePrefix("async-executor-");
+        // 等待所有任务结束后再关闭线程池
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        // 等待时间
+        executor.setAwaitTerminationSeconds(60);
+        // 初始化线程池
+        executor.initialize();
+        // 预热核心线程池
+        executor.getThreadPoolExecutor().prestartAllCoreThreads();
         return executor;
     }
 

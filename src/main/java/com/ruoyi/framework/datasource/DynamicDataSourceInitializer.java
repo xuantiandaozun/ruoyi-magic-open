@@ -7,7 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.core.annotation.Order;
 
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -31,7 +33,17 @@ public class DynamicDataSourceInitializer implements ApplicationRunner {
     
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        log.info("开始初始化动态数据源...");
+        // 异步初始化动态数据源
+        initializeDataSourcesAsync();
+    }
+    
+    /**
+     * 异步初始化动态数据源
+     */
+    @Async("threadPoolTaskExecutor")
+    @Order(3)
+    public void initializeDataSourcesAsync() {
+        log.info("开始异步初始化动态数据源...");
         
         try {
             // 使用MyBatisFlex查询状态为正常的数据源
@@ -53,9 +65,9 @@ public class DynamicDataSourceInitializer implements ApplicationRunner {
                 }
             }
             
-            log.info("动态数据源初始化完成");
+            log.info("动态数据源异步初始化完成");
         } catch (Exception e) {
-            log.error("初始化动态数据源时发生错误: {}", e.getMessage(), e);
+            log.error("异步初始化动态数据源时发生错误: {}", e.getMessage(), e);
         }
     }
 }
