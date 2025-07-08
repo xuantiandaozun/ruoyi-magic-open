@@ -1,30 +1,33 @@
 package com.ruoyi.project.github.controller;
 
-import java.util.List;
 import java.util.Arrays;
-import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.mybatisflex.core.paginate.Page;
+import com.mybatisflex.core.query.QueryWrapper;
+import com.ruoyi.common.utils.poi.MagicExcelUtil;
 import com.ruoyi.framework.aspectj.lang.annotation.Log;
 import com.ruoyi.framework.aspectj.lang.enums.BusinessType;
-import com.ruoyi.project.github.domain.GithubTrending;
-import com.ruoyi.project.github.service.IGithubTrendingService;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
-import com.ruoyi.common.utils.poi.MagicExcelUtil;
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.core.paginate.Page;
 import com.ruoyi.framework.web.page.PageDomain;
-import com.ruoyi.framework.web.page.TableSupport;
-import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.ruoyi.framework.web.page.TableDataInfo;
+import com.ruoyi.framework.web.page.TableSupport;
+import com.ruoyi.project.github.domain.GithubTrending;
+import com.ruoyi.project.github.service.IGithubTrendingService;
+
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * github流行榜单Controller
@@ -53,6 +56,7 @@ public class GithubTrendingController extends BaseController
         // 创建 MyBatisFlex 的 QueryWrapper
         QueryWrapper queryWrapper = buildFlexQueryWrapper(githubTrending);
         
+        queryWrapper.orderBy("create_time desc,id desc");
         // 使用 MyBatisFlex 的分页方法
         Page<GithubTrending> page = githubTrendingService.page(new Page<>(pageNum, pageSize), queryWrapper);
         return getDataTable(page);

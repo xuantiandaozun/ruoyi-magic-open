@@ -270,6 +270,7 @@
             <version>1.42.0</version>
         </dependency>
 
+
         <!-- hutool 工具包 -->
         <dependency>
             <groupId>cn.hutool</groupId>
@@ -299,12 +300,13 @@
             <groupId>com.alibaba.cloud.ai</groupId>
             <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
         </dependency>
-
+        
+        <!-- 集成MCP -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
         </dependency>
-
+         
         <!-- HttpClient 核心库 -->
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
@@ -318,6 +320,8 @@
             <artifactId>httpcore5</artifactId>
             <version>5.2.3</version>
         </dependency>
+
+
         
     </dependencies>
 
