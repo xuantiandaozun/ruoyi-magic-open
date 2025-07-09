@@ -6,10 +6,14 @@
 - MyBatis-Flex 1.10.9 作为 ORM 框架
 - Sa-Token 1.42.0 进行权限认证
 <<<<<<< HEAD
+<<<<<<< HEAD
 - MySQL 8.x + HikariCP 连接池
 =======
 - MySQL 8.x + Druid 连接池
 >>>>>>> 2fe1861 (first commit)
+=======
+- MySQL 8.x + HikariCP 连接池
+>>>>>>> af4fee7 (refactor(系统优化): 重构数据库连接池为HikariCP并优化启动性能)
 - Redis 缓存和会话管理
 - Spring AI 1.0.0-SNAPSHOT + DeepSeek-Chat 模型
 
@@ -369,9 +373,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 ### 系统监控
 - 使用 Actuator 提供健康检查端点
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 - Druid 监控页面：/druid/index.html
 >>>>>>> 2fe1861 (first commit)
+=======
+>>>>>>> af4fee7 (refactor(系统优化): 重构数据库连接池为HikariCP并优化启动性能)
 - 系统信息监控：CPU、内存、磁盘使用率
 - 在线用户监控和管理
 

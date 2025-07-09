@@ -20,6 +20,9 @@ logging:
 spring:
     datasource:
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> af4fee7 (refactor(系统优化): 重构数据库连接池为HikariCP并优化启动性能)
         type: com.zaxxer.hikari.HikariDataSource
         driver-class-name: com.mysql.cj.jdbc.Driver
         url: jdbc:mysql://localhost:3306/your_database?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
@@ -30,6 +33,7 @@ spring:
             pool-name: HikariPool
             # 最小空闲连接数量
             minimum-idle: 10
+<<<<<<< HEAD
             # 最大连接池数量
             maximum-pool-size: 20
             # 此属性控制从池返回的连接的默认自动提交行为,默认值：true
@@ -91,6 +95,26 @@ spring:
                 login-username: admin
                 login-password: your_password
 >>>>>>> 2fe1861 (first commit)
+=======
+            # 最大连接池数量
+            maximum-pool-size: 20
+            # 此属性控制从池返回的连接的默认自动提交行为,默认值：true
+            auto-commit: true
+            # 此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
+            max-lifetime: 1800000
+            # 数据库连接超时时间,默认30秒，即30000
+            connection-timeout: 30000
+            # 此属性控制连接可以在池中闲置的最长时间，值0表示永远不会从池中删除空闲连接，默认600000即10分钟
+            idle-timeout: 600000
+            # 此属性控制连接测试活跃度的最大时间间隔，默认值为0（禁用），最小允许值为30000ms（30秒）
+            keepalive-time: 0
+            # 此属性确定连接是否在事务中可以被池暂停。推荐值：true
+            allow-pool-suspension: true
+            # 只读数据库
+            read-only: false
+            # 检测连接是否有效
+            connection-test-query: SELECT 1
+>>>>>>> af4fee7 (refactor(系统优化): 重构数据库连接池为HikariCP并优化启动性能)
     # redis 配置
     data:
         redis:

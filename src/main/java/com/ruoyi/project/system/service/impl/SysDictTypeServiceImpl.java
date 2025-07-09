@@ -37,6 +37,14 @@ public class SysDictTypeServiceImpl extends ServiceImpl<SysDictTypeMapper, SysDi
 
     @Autowired
     private SysDictDataMapper dictDataMapper;
+    
+    @Autowired
+    private OptimizedRedisCache optimizedRedisCache;
+    
+    @Autowired
+    private BatchInitializationService batchInitializationService;
+
+
 
     @Autowired
     private OptimizedRedisCache optimizedRedisCache;
@@ -73,7 +81,6 @@ public class SysDictTypeServiceImpl extends ServiceImpl<SysDictTypeMapper, SysDi
             loadingDictCache();
         }
     }
-
     /**
      * 处理字典类型，为每个类型关联对应的字典数据
      */
