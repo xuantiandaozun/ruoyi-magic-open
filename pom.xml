@@ -15,7 +15,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.2</version>
+        <version>3.3.6</version> <!-- 或最新的3.3.x版本 -->
         <relativePath />
     </parent>
         
@@ -25,8 +25,8 @@
         <java.version>17</java.version>
         <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
         <mybatis-flex.version>1.10.9</mybatis-flex.version>
-        <fastjson.version>2.0.53</fastjson.version>
-        <druid.version>1.2.24</druid.version>
+        <fastjson.version>2.0.56</fastjson.version>
+
         <commons.io.version>2.13.0</commons.io.version>
         <bitwalker.version>1.21</bitwalker.version>
         <kaptcha.version>2.3.3</kaptcha.version>
@@ -34,7 +34,7 @@
         <poi.version>4.1.2</poi.version>
         <oshi.version>6.6.5</oshi.version>
         <velocity.version>2.3</velocity.version>
-        <hutool.version>5.8.26</hutool.version>
+        <hutool.version>5.8.32</hutool.version>
         <spring-ai.version>1.0.0</spring-ai.version>
         <spring-ai-alibaba.version>1.0.0.2</spring-ai-alibaba.version>
     </properties>
@@ -89,6 +89,19 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <!-- 排除默认的 Tomcat -->
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-tomcat</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- 添加 Jetty -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jetty</artifactId>
         </dependency>
 
         <!-- redis 缓存操作 -->
@@ -125,11 +138,10 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- 阿里数据库连接池 -->
+        <!-- HikariCP 数据库连接池 -->
         <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>druid-spring-boot-3-starter</artifactId>
-            <version>${druid.version}</version>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
         </dependency>
 
         <!-- 自定义验证注解 -->

@@ -104,7 +104,7 @@
 	<logger name="com.ruoyi.project.**.mapper" level="info" additivity="true" />
 	<!-- 启动时减少DEBUG日志输出 -->
 	<logger name="org.hibernate.validator" level="warn" />
-	<logger name="com.alibaba.druid" level="warn" />
+	<logger name="com.zaxxer.hikari" level="warn" />
 	<logger name="org.mybatis" level="warn" />
 
 	<root level="info">

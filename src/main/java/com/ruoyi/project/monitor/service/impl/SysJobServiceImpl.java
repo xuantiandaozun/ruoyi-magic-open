@@ -4,21 +4,24 @@ import java.util.List;
 
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.core.annotation.Order;
+import org.springframework.scheduling.annotation.Async;
 
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.ruoyi.common.exception.job.TaskException;
 import com.ruoyi.common.utils.job.ScheduleUtils;
+import com.ruoyi.framework.service.BatchInitializationService;
 import com.ruoyi.project.monitor.domain.SysJob;
 import com.ruoyi.project.monitor.mapper.SysJobMapper;
 import com.ruoyi.project.monitor.service.ISysJobService;
 
 import jakarta.annotation.PostConstruct;
-import org.springframework.scheduling.annotation.Async;
 
 /**
  * 定时任务调度服务实现
@@ -28,35 +31,54 @@ import org.springframework.scheduling.annotation.Async;
 @Service
 public class SysJobServiceImpl extends ServiceImpl<SysJobMapper, SysJob> implements ISysJobService
 {
+    private static final Logger log = LoggerFactory.getLogger(SysJobServiceImpl.class);
+    
     @Autowired
     private Scheduler scheduler;
+    
+    @Autowired
+    private BatchInitializationService batchInitializationService;
+
+
 
     /**
-     * 项目启动时，初始化定时器 主要是防止手动修改数据库导致未同步到定时任务处理（注：不能手动修改数据库ID和任务组名，否则会导致脏数据）
-     */
-    @PostConstruct
-    public void init()
-    {
-        initializeJobsAsync();
-    }
-
-    /**
-     * 异步初始化定时任务
+     * 异步初始化定时任务（优化版本）
      */
     @Async("threadPoolTaskExecutor")
     @Order(4)
     public void initializeJobsAsync()
     {
         try {
+            log.info("开始异步初始化定时任务...");
+            long startTime = System.currentTimeMillis();
+            
             scheduler.clear();
-            List<SysJob> jobList = list();
-            for (SysJob job : jobList)
-            {
-                ScheduleUtils.createScheduleJob(scheduler, job);
+            
+            // 使用批量初始化服务获取任务数据
+            BatchInitializationService.InitializationData data = batchInitializationService.loadAllInitializationData();
+            List<SysJob> jobList = data.getJobs();
+            
+            log.info("检测到 {} 个定时任务需要初始化", jobList.size());
+            
+            int successCount = 0;
+            for (SysJob job : jobList) {
+                try {
+                    ScheduleUtils.createScheduleJob(scheduler, job);
+                    successCount++;
+                    log.debug("定时任务 [{}] 初始化成功", job.getJobName());
+                } catch (Exception e) {
+                    log.error("定时任务 [{}] 初始化失败: {}", job.getJobName(), e.getMessage());
+                }
             }
-        } catch (SchedulerException | TaskException e) {
-            // 记录异常日志，但不影响应用启动
-            e.printStackTrace();
+            
+            long endTime = System.currentTimeMillis();
+            log.info("定时任务异步初始化完成，成功: {}/{}, 耗时: {}ms", 
+                    successCount, jobList.size(), endTime - startTime);
+                    
+        } catch (SchedulerException e) {
+            log.error("清空调度器时发生错误", e);
+        } catch (Exception e) {
+            log.error("异步初始化定时任务时发生错误", e);
         }
     }
 

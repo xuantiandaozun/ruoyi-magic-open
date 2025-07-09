@@ -1,5 +1,7 @@
 package com.ruoyi.project.system.domain;
 
+import java.util.List;
+
 import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
@@ -45,4 +47,8 @@ public class SysDictType extends BaseEntity
     /** 删除标志（0代表存在 2代表删除） */
     @Column(isLogicDelete = true)
     private String delFlag;
+    
+    /** 字典数据列表（非数据库字段，用于缓存优化） */
+    @Column(ignore = true)
+    private List<SysDictData> dictDataList;
 }

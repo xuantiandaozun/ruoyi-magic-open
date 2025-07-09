@@ -1,10 +1,19 @@
 {
+    // Java编译配置
     "java.compile.nullAnalysis.mode": "automatic",
     "java.configuration.updateBuildConfiguration": "automatic",
     "java.debug.settings.onBuildFailureProceed": true,
+    
+    // 项目结构配置
     "java.project.sourcePaths": [
         "src/main/java"
     ],
+    "java.project.outputPath": "target/classes",
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar"
+    ],
+    
+    // 终端配置（Windows）
     "terminal.integrated.profiles.windows": {
         "PowerShell": {
             "source": "PowerShell",
@@ -15,17 +24,56 @@
             ]
         }
     },
-    "editor.codeActionsOnSave": {
-        "source.organizeImports": "always"
-    },
     "terminal.integrated.defaultProfile.windows": "PowerShell",
-    "java.project.outputPath": "target/classes",
-    "java.project.referencedLibraries": [
-        "lib/**/*.jar"
-    ],
-    "java.jdt.ls.vmargs": "-Dfile.encoding=UTF8 -XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable",
-    "java.debug.settings.vmArgs": "-Dfile.encoding=UTF-8",
+    
+    // 编辑器配置
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "always",
+        "source.fixAll": "explicit"
+    },
+    
+    // Java Language Server VM参数优化（针对Spring Boot 3.3）
+    "java.jdt.ls.vmargs": "-Dfile.encoding=UTF8 -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -Dsun.zip.disableMemoryMapping=true -Xmx6G -Xms512m -XX:+ShowCodeDetailsInExceptionMessages",
+    
+    // 调试配置优化
+    "java.debug.settings.vmArgs": "-Dfile.encoding=UTF-8 -XX:+ShowCodeDetailsInExceptionMessages",
+    
+    // 测试配置
     "java.test.config": {
-        "vmArgs": ["-Dfile.encoding=UTF-8"]
-    }
+        "vmArgs": [
+            "-Dfile.encoding=UTF-8",
+            "-XX:+ShowCodeDetailsInExceptionMessages"
+        ]
+    },
+    
+    // Spring Boot 3.3 相关配置
+    "java.configuration.maven.userSettings": "",
+    "java.maven.downloadSources": true,
+    "java.maven.downloadJavadoc": true,
+    
+    // 代码格式化和检查
+    "java.format.settings.url": "",
+    "java.checkstyle.configuration": "",
+    "java.spotbugs.enable": false,
+    
+    // 性能优化配置
+    "java.maxConcurrentBuilds": 2,
+    "java.configuration.workspaceCacheLimit": 90,
+    
+    // Spring Boot开发优化
+    "spring-boot.ls.problem.application-properties.unknown-property": "warning",
+    "spring-boot.ls.problem.application-yaml.unknown-property": "warning",
+    
+    // 文件关联
+    "files.associations": {
+        "*.yml": "yaml",
+        "*.yaml": "yaml"
+    },
+    
+    // 自动保存配置
+    "files.autoSave": "onFocusChange",
+    
+    // Git配置
+    "git.autofetch": true,
+    "git.confirmSync": false
 }

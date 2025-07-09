@@ -3,15 +3,20 @@ package com.ruoyi.project.system.service.impl;
 import java.util.Collection;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.ruoyi.common.constant.CacheConstants;
+import com.ruoyi.framework.redis.OptimizedRedisCache;
 import com.ruoyi.framework.redis.RedisCache;
+import com.ruoyi.framework.service.BatchInitializationService;
 import com.ruoyi.project.system.domain.SysConfig;
 import com.ruoyi.project.system.mapper.SysConfigMapper;
 import com.ruoyi.project.system.service.ISysConfigService;
@@ -19,9 +24,6 @@ import com.ruoyi.project.system.service.ISysConfigService;
 import cn.hutool.core.convert.Convert;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import jakarta.annotation.PostConstruct;
-import org.springframework.scheduling.annotation.Async;
-
 /**
  * 参数配置 服务层实现
  * 
@@ -30,26 +32,43 @@ import org.springframework.scheduling.annotation.Async;
 @Service
 public class SysConfigServiceImpl extends ServiceImpl<SysConfigMapper, SysConfig> implements ISysConfigService
 {
+    private static final Logger log = LoggerFactory.getLogger(SysConfigServiceImpl.class);
+    
     @Autowired
     private RedisCache redisCache;
+    
+    @Autowired
+    private OptimizedRedisCache optimizedRedisCache;
+    
+    @Autowired
+    private BatchInitializationService batchInitializationService;
 
     /**
-     * 项目启动时，初始化参数到缓存
-     */
-    @PostConstruct
-    public void init()
-    {
-        initializeConfigCacheAsync();
-    }
-
-    /**
-     * 异步初始化参数缓存
+     * 异步初始化配置缓存（优化版本）
      */
     @Async("threadPoolTaskExecutor")
     @Order(1)
     public void initializeConfigCacheAsync()
     {
-        loadingConfigCache();
+        try {
+            log.info("开始异步初始化系统配置缓存...");
+            long startTime = System.currentTimeMillis();
+            
+            // 使用批量初始化服务获取数据
+            BatchInitializationService.InitializationData data = batchInitializationService.loadAllInitializationData();
+            
+            // 使用优化的Redis缓存批量加载
+            optimizedRedisCache.batchLoadConfigCache(data.getConfigs());
+            
+            long endTime = System.currentTimeMillis();
+            log.info("系统配置缓存异步初始化完成，加载 {} 个配置项，耗时: {}ms", 
+                    data.getConfigs().size(), endTime - startTime);
+                    
+        } catch (Exception e) {
+            log.error("异步初始化系统配置缓存失败，降级到原有方案", e);
+            // 降级到原有方案
+            loadingConfigCache();
+        }
     }
 
     /**

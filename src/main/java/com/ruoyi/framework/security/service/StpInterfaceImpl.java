@@ -5,6 +5,7 @@ import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.project.system.service.ISysMenuService;
 import com.ruoyi.project.system.service.ISysRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import java.util.Set;
  * 权限认证接口实现
  */
 @Component
+@Lazy(false)  // 禁用懒加载，确保Sa-Token能正确找到权限接口实现
 public class StpInterfaceImpl implements StpInterface {
     @Autowired
     private ISysMenuService menuService;
@@ -53,4 +55,4 @@ public class StpInterfaceImpl implements StpInterface {
         Set<String> permissions = menuService.selectMenuPermsByUserId(userId);
         return new ArrayList<>(permissions);
     }
-} 
+}

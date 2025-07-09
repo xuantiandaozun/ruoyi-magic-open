@@ -102,4 +102,9 @@ public interface ISysJobService extends IService<SysJob>
      * @return 结果
      */
     public boolean checkCronExpressionIsValid(String cronExpression);
+    
+    /**
+     * 异步初始化定时任务
+     */
+    public void initializeJobsAsync();
 }

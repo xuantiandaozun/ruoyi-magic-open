@@ -1,6 +1,8 @@
 package com.ruoyi.framework.datasource;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,10 +13,9 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.core.annotation.Order;
 
-import com.mybatisflex.core.query.QueryColumn;
-import com.mybatisflex.core.query.QueryWrapper;
+import com.ruoyi.framework.service.BatchInitializationService;
 import com.ruoyi.project.system.domain.SysDataSource;
-import com.ruoyi.project.system.mapper.SysDataSourceMapper;
+import com.ruoyi.project.system.service.ISysDataSourceService;
 
 /**
  * 动态数据源初始化器，在应用启动时从数据库加载数据源配置
@@ -26,10 +27,10 @@ public class DynamicDataSourceInitializer implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(DynamicDataSourceInitializer.class);
 
     @Autowired
-    private SysDataSourceMapper dataSourceMapper;
+    private ISysDataSourceService dataSourceService;
     
     @Autowired
-    private DynamicDataSourceManager dataSourceManager;
+    private BatchInitializationService batchInitializationService;
     
     @Override
     public void run(ApplicationArguments args) throws Exception {
@@ -46,26 +47,27 @@ public class DynamicDataSourceInitializer implements ApplicationRunner {
         log.info("开始异步初始化动态数据源...");
         
         try {
-            // 使用MyBatisFlex查询状态为正常的数据源
-            QueryWrapper queryWrapper = QueryWrapper.create()
-                .from("sys_data_source")
-                .where(new QueryColumn("status").eq("0"))
-                .and(new QueryColumn("name").ne("MASTER")); // 主数据源由Spring Boot自动配置
+            // 查询状态为正常的数据源
+            SysDataSource queryParam = new SysDataSource();
+            queryParam.setStatus("0");
+            List<SysDataSource> dataSources = dataSourceService.selectSysDataSourceList(queryParam);
             
-            List<SysDataSource> dataSources = dataSourceMapper.selectListByQuery(queryWrapper);
+            // 过滤掉主数据源
+            dataSources.removeIf(ds -> "MASTER".equals(ds.getName()));
+            
             log.info("检测到 {} 个数据源配置需要加载", dataSources.size());
             
-            for (SysDataSource dataSource : dataSources) {
-                // 直接使用SysDataSource对象进行添加，不再转换为DataSourceInfo
-                boolean success = dataSourceManager.addOrUpdateDataSource(dataSource);
-                if (success) {
-                    log.info("数据源 [{}] 加载成功", dataSource.getName());
-                } else {
-                    log.error("数据源 [{}] 加载失败", dataSource.getName());
-                }
+            if (!dataSources.isEmpty()) {
+                // 使用批量初始化服务进行优化的初始化
+                CompletableFuture<Void> batchInitFuture = batchInitializationService.batchInitializeDataSources(dataSources);
+                
+                // 设置超时时间，避免无限等待
+                batchInitFuture.get(5, TimeUnit.MINUTES);
+                
+                log.info("动态数据源批量异步初始化完成");
+            } else {
+                log.info("没有需要初始化的动态数据源");
             }
-            
-            log.info("动态数据源异步初始化完成");
         } catch (Exception e) {
             log.error("异步初始化动态数据源时发生错误: {}", e.getMessage(), e);
         }

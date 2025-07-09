@@ -49,7 +49,6 @@ public class SaTokenConfiguration implements WebMvcConfigurer {
                     .notMatch("/webjars/**")
                     .notMatch("/*/api-docs")
                     .notMatch("/doc.html")
-                    .notMatch("/druid/**")
                     .check(r -> StpUtil.checkLogin());
             })
             .setError(e -> {

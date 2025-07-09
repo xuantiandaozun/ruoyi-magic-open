@@ -628,8 +628,17 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
             return;
         }
 
-        // 查询表列信息
-        List<GenTableColumn> tableColumns = genTableColumnService.selectGenTableColumnListByTableId(table.getTableId());
+        // 查询表列信息 - 确保使用主数据源查询元数据表
+        List<GenTableColumn> tableColumns;
+        try {
+            // 临时切换回主数据源查询gen_table_column表
+            DynamicDataSourceContextHolder.setDataSourceType("master");
+            tableColumns = genTableColumnService.selectGenTableColumnListByTableId(table.getTableId());
+        } finally {
+            // 清理数据源上下文
+            DynamicDataSourceContextHolder.clearDataSourceType();
+        }
+        
         if (CollUtil.isEmpty(tableColumns)) {
             throw new ServiceException("同步数据失败，表字段不存在");
         }
@@ -711,20 +720,38 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
      */
     @Override
     public void synchDbWithDataSource(String tableName, String dataSourceName) {
-        // 获取生成表信息
-        GenTable table = this.selectGenTableByName(tableName);
-        if (table == null) {
-            throw new ServiceException("同步数据失败，表信息不存在");
+        // 获取生成表信息 - 确保使用主数据源查询元数据表
+        GenTable table;
+        SysDataSource sysDataSource;
+        try {
+            // 临时切换到主数据源查询元数据表
+            DynamicDataSourceContextHolder.setDataSourceType("master");
+            table = this.selectGenTableByName(tableName);
+            if (table == null) {
+                throw new ServiceException("同步数据失败，表信息不存在");
+            }
+            
+            // 获取数据源信息
+            sysDataSource = sysDataSourceService.selectSysDataSourceByName(dataSourceName);
+            if (sysDataSource == null || StrUtil.isEmpty(sysDataSource.getDatabaseName())) {
+                throw new ServiceException("数据源不存在或数据库名称未配置");
+            }
+        } finally {
+            // 清理数据源上下文
+            DynamicDataSourceContextHolder.clearDataSourceType();
         }
 
-        // 获取数据源信息
-        SysDataSource sysDataSource = sysDataSourceService.selectSysDataSourceByName(dataSourceName);
-        if (sysDataSource == null || StrUtil.isEmpty(sysDataSource.getDatabaseName())) {
-            throw new ServiceException("数据源不存在或数据库名称未配置");
+        // 查询表列信息 - 确保使用主数据源查询元数据表
+        List<GenTableColumn> tableColumns;
+        try {
+            // 临时切换回主数据源查询gen_table_column表
+            DynamicDataSourceContextHolder.setDataSourceType("master");
+            tableColumns = genTableColumnService.selectGenTableColumnListByTableId(table.getTableId());
+        } finally {
+            // 清理数据源上下文
+            DynamicDataSourceContextHolder.clearDataSourceType();
         }
-
-        // 查询表列信息
-        List<GenTableColumn> tableColumns = genTableColumnService.selectGenTableColumnListByTableId(table.getTableId());
+        
         if (CollUtil.isEmpty(tableColumns)) {
             throw new ServiceException("同步数据失败，表字段不存在");
         }

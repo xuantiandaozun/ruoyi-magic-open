@@ -33,6 +33,10 @@ import com.ruoyi.project.system.service.ISysMenuService;
 
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HttpUtil;
+import cn.hutool.core.io.FileUtil;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 数据库表操作工具
@@ -70,15 +74,16 @@ public class DatabaseTableTool {
     private ISysMenuService sysMenuService;
 
     /**
-     * 保存表定义信息到系统
+     * 保存表定义信息和字段信息到系统（不创建实际表）
      * 
      * @param table      表信息
+     * @param columns    列信息列表
      * @param dataSource 数据源名称
      * @param taskId     任务ID
-     * @return 保存的表信息（包含生成的tableId）
+     * @return 保存结果的字符串描述
      */
-    @Tool(name = "saveGenTable", description = "保存表定义信息到系统，返回包含tableId的表对象")
-    public GenTable saveGenTable(GenTable table, String dataSource, String taskId) {
+    @Tool(name = "saveGenTable", description = "保存表定义信息和字段信息到系统，不创建实际表，返回包含tableId的字符串结果")
+    public String saveGenTable(GenTable table, List<Object> columns, String dataSource, String taskId) {
         try {
             logger.info("saveGenTable保存表定义信息: {}, taskId: {}", table, taskId);
 
@@ -103,7 +108,7 @@ public class DatabaseTableTool {
             // 初始化表信息
             table.setCreateBy("admin");
 
-            // 保存表基本信息(不包含列)
+            // 保存表基本信息
             genTableService.save(table);
 
             // 更新任务进度
@@ -111,7 +116,48 @@ public class DatabaseTableTool {
                 asyncTaskService.updateTaskProgress(taskId, 40);
             }
 
-            return table;
+            // 保存字段信息
+            if (columns != null && !columns.isEmpty()) {
+                // 更新任务进度
+                if (StrUtil.isNotBlank(taskId)) {
+                    asyncTaskService.updateTaskProgress(taskId, 60);
+                    
+                    // 更新任务extraInfo，记录当前正在创建表和字段的信息
+                    String extraInfo = String.format("{\"currentAction\":\"创建表结构\",\"tableName\":\"%s\",\"fieldCount\":%d}", 
+                            table.getTableName(), columns.size());
+                    asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
+                }
+
+                // 把 List<Object> 转成 List<GenTableColumn>
+                List<GenTableColumn> genTableColumns = new ArrayList<>();
+                for (Object obj : columns) {
+                    GenTableColumn column = objectMapper.convertValue(obj, GenTableColumn.class);
+                    column.setTableId(table.getTableId());
+                    column.setColumnId(IdUtil.getSnowflakeNextId());
+                    genTableColumns.add(column);
+                }
+
+                // 保存表的列信息
+                for (GenTableColumn column : genTableColumns) {
+                    // 更新任务extraInfo，记录当前正在保存的字段信息
+                    if (StrUtil.isNotBlank(taskId)) {
+                        String extraInfo = String.format("{\"currentAction\":\"保存字段\",\"tableName\":\"%s\",\"columnName\":\"%s\",\"columnComment\":\"%s\"}", 
+                                table.getTableName(), column.getColumnName(), column.getColumnComment());
+                        asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
+                    }
+                    genTableColumnService.insertGenTableColumn(column);
+                }
+            }
+
+            String result = "表定义[" + table.getTableName() + "]保存成功，tableId=" + table.getTableId().toString() + 
+                    "，共包含" + (columns != null ? columns.size() : 0) + "个字段。注意：实际表尚未创建，需要调用syncTableToDatabase方法同步到数据库。";
+            
+            // 更新任务完成状态
+            if (StrUtil.isNotBlank(taskId)) {
+                asyncTaskService.updateTaskResult(taskId, result);
+            }
+
+            return result;
         } catch (Exception e) {
             logger.error("保存表定义失败", e);
             if (StrUtil.isNotBlank(taskId)) {
@@ -122,47 +168,21 @@ public class DatabaseTableTool {
     }
 
     /**
-     * 保存表字段信息到系统并创建数据库表
+     * 根据tableId同步表到数据库
      * 
-     * @param tableId   表ID
-     * @param columns   列信息列表
-     * @param tableName 表名
-     * @param taskId    任务ID
+     * @param tableId 表ID
+     * @param taskId  任务ID
      * @return 操作结果
      */
-    @Tool(name = "saveGenTableColumns", description = "保存表字段信息并在数据库中创建实际的表")
-    public String saveGenTableColumns(Long tableId, List<Object> columns, String tableName, String taskId) {
+    @Tool(name = "syncTableToDatabase", description = "根据tableId将表定义同步到数据库，创建实际的表")
+    public String syncTableToDatabase(String tableId, String taskId) {
         try {
-            logger.info("saveGenTableColumns创建表: {}, taskId: {}", tableName, taskId);
+            logger.info("syncTableToDatabase同步表到数据库: tableId={}, taskId={}", tableId, taskId);
 
-            // 更新任务进度
-            if (StrUtil.isNotBlank(taskId)) {
-                asyncTaskService.updateTaskProgress(taskId, 60);
-                
-                // 更新任务extraInfo，记录当前正在创建表和字段的信息
-                String extraInfo = String.format("{\"currentAction\":\"创建表结构\",\"tableName\":\"%s\",\"fieldCount\":%d}", 
-                        tableName, columns.size());
-                asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
-            }
-
-            // 把 List<Object> 转成 List<GenTableColumn>
-            List<GenTableColumn> genTableColumns = new ArrayList<>();
-            for (Object obj : columns) {
-                GenTableColumn column = objectMapper.convertValue(obj, GenTableColumn.class);
-                column.setTableId(tableId);
-                column.setColumnId(IdUtil.getSnowflakeNextId());
-                genTableColumns.add(column);
-            }
-
-            // 保存表的列信息
-            for (GenTableColumn column : genTableColumns) {
-                // 更新任务extraInfo，记录当前正在保存的字段信息
-                if (StrUtil.isNotBlank(taskId)) {
-                    String extraInfo = String.format("{\"currentAction\":\"保存字段\",\"tableName\":\"%s\",\"columnName\":\"%s\",\"columnComment\":\"%s\"}", 
-                            tableName, column.getColumnName(), column.getColumnComment());
-                    asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
-                }
-                genTableColumnService.insertGenTableColumn(column);
+            // 获取表信息
+            GenTable table = genTableService.selectGenTableById(Long.valueOf(tableId));
+            if (table == null) {
+                throw new ServiceException("表定义不存在，tableId=" + tableId);
             }
 
             // 更新任务进度
@@ -170,14 +190,14 @@ public class DatabaseTableTool {
                 asyncTaskService.updateTaskProgress(taskId, 80);
                 
                 // 更新任务extraInfo，记录当前正在同步表到数据库
-                String extraInfo = String.format("{\"currentAction\":\"同步表到数据库\",\"tableName\":\"%s\"}", tableName);
+                String extraInfo = String.format("{\"currentAction\":\"同步表到数据库\",\"tableName\":\"%s\"}", table.getTableName());
                 asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
             }
 
             // 创建实际表
-            genTableService.synchDb(tableName);
+            genTableService.synchDb(table.getTableName());
 
-            String result = "表[" + tableName + "]创建成功，共包含" + genTableColumns.size() + "个字段。";
+            String result = "表[" + table.getTableName() + "]同步到数据库成功，tableId=" + tableId + "。";
             
             // 更新任务完成状态
             if (StrUtil.isNotBlank(taskId)) {
@@ -186,11 +206,11 @@ public class DatabaseTableTool {
 
             return result;
         } catch (Exception e) {
-            logger.error("创建表失败", e);
+            logger.error("同步表到数据库失败", e);
             if (StrUtil.isNotBlank(taskId)) {
-                asyncTaskService.updateTaskError(taskId, "创建表失败：" + e.getMessage());
+                asyncTaskService.updateTaskError(taskId, "同步表到数据库失败：" + e.getMessage());
             }
-            throw new ServiceException("创建表失败：" + e.getMessage());
+            throw new ServiceException("同步表到数据库失败：" + e.getMessage());
         }
     }
     
@@ -198,13 +218,19 @@ public class DatabaseTableTool {
      * 根据ID获取GenTable数据
      * 
      * @param id 表ID
-     * @return GenTable对象
+     * @return GenTable对象的字符串描述
      */
     @Tool(name = "getGenTableById", description = "根据ID获取表定义信息")
-    public GenTable getGenTableById(Long id) {
+    public String getGenTableById(String id) {
         try {
             logger.info("getGenTableById获取表信息: {}", id);
-            return genTableService.selectGenTableById(id);
+            GenTable table = genTableService.selectGenTableById(Long.valueOf(id));
+            if (table == null) {
+                return "表定义不存在，tableId=" + id;
+            }
+            return String.format("表信息: tableId=%s, tableName=%s, tableComment=%s, dataSource=%s, createBy=%s, createTime=%s",
+                    table.getTableId().toString(), table.getTableName(), table.getTableComment(), 
+                    table.getDataSource(), table.getCreateBy(), table.getCreateTime());
         } catch (Exception e) {
             logger.error("获取表信息失败", e);
             throw new ServiceException("获取表信息失败：" + e.getMessage());
@@ -215,13 +241,24 @@ public class DatabaseTableTool {
      * 根据tableId获取GenTableColumn列表
      * 
      * @param tableId 表ID
-     * @return GenTableColumn列表
+     * @return GenTableColumn列表的字符串描述
      */
     @Tool(name = "getGenTableColumnsByTableId", description = "根据表ID获取表字段列表")
-    public List<GenTableColumn> getGenTableColumnsByTableId(Long tableId) {
+    public String getGenTableColumnsByTableId(String tableId) {
         try {
             logger.info("getGenTableColumnsByTableId获取表字段列表: {}", tableId);
-            return genTableColumnService.selectGenTableColumnListByTableId(tableId);
+            List<GenTableColumn> columns = genTableColumnService.selectGenTableColumnListByTableId(Long.valueOf(tableId));
+            if (columns == null || columns.isEmpty()) {
+                return "表字段列表为空，tableId=" + tableId;
+            }
+            StringBuilder result = new StringBuilder();
+            result.append("表字段列表(共").append(columns.size()).append("个字段):\n");
+            for (GenTableColumn column : columns) {
+                result.append(String.format("- columnId=%s, columnName=%s, columnComment=%s, columnType=%s, javaType=%s, isPk=%s, isRequired=%s\n",
+                        column.getColumnId().toString(), column.getColumnName(), column.getColumnComment(),
+                        column.getColumnType(), column.getJavaType(), column.getIsPk(), column.getIsRequired()));
+            }
+            return result.toString();
         } catch (Exception e) {
             logger.error("获取表字段列表失败", e);
             throw new ServiceException("获取表字段列表失败：" + e.getMessage());
@@ -286,10 +323,10 @@ public class DatabaseTableTool {
      * @param tableComment 表注释（可选，用于模糊查询）
      * @param pageNum 页码
      * @param pageSize 每页记录数
-     * @return 表列表（分页）
+     * @return 表列表的字符串描述
      */
     @Tool(name = "getTablesFromDataSource", description = "获取指定数据源的所有表")
-    public Page<GenTable> getTablesFromDataSource(String dataSourceName, String tableName, String tableComment, Integer pageNum, Integer pageSize) {
+    public String getTablesFromDataSource(String dataSourceName, String tableName, String tableComment, Integer pageNum, Integer pageSize) {
         try {
             logger.info("getTablesFromDataSource获取数据源[{}]的表列表", dataSourceName);
             GenTable genTable = new GenTable();
@@ -299,7 +336,17 @@ public class DatabaseTableTool {
             if (StrUtil.isNotBlank(tableComment)) {
                 genTable.setTableComment(tableComment);
             }
-            return genTableService.selectDbTableListByDataSource(genTable, dataSourceName);
+            Page<GenTable> page = genTableService.selectDbTableListByDataSource(genTable, dataSourceName);
+            if (page == null || page.getRecords().isEmpty()) {
+                return "数据源[" + dataSourceName + "]中没有找到匹配的表";
+            }
+            StringBuilder result = new StringBuilder();
+            result.append("数据源[").append(dataSourceName).append("]表列表(共").append(page.getTotalRow()).append("条记录):\n");
+            for (GenTable table : page.getRecords()) {
+                result.append(String.format("- tableName=%s, tableComment=%s, createTime=%s\n",
+                        table.getTableName(), table.getTableComment(), table.getCreateTime()));
+            }
+            return result.toString();
         } catch (Exception e) {
             logger.error("获取数据源表列表失败", e);
             throw new ServiceException("获取数据源表列表失败：" + e.getMessage());
@@ -311,13 +358,43 @@ public class DatabaseTableTool {
      * 
      * @param tableName 表名
      * @param dataSourceName 数据源名称
-     * @return 表字段列表
+     * @return 表字段列表的字符串描述
      */
     @Tool(name = "getTableStructureFromDataSource", description = "获取指定数据源的表结构")
-    public List<GenTableColumn> getTableStructureFromDataSource(String tableName, String dataSourceName) {
+    public String getTableStructureFromDataSource(String tableName, String dataSourceName) {
         try {
             logger.info("getTableStructureFromDataSource获取数据源[{}]表[{}]的结构", dataSourceName, tableName);
-            return genTableColumnService.selectDbTableColumnsByNameAndDataSource(tableName, dataSourceName);
+            
+            // 如果不是主数据源，则切换数据源
+            if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+                DynamicDataSourceContextHolder.setDataSourceType(dataSourceName);
+            }
+            
+            try {
+                // 获取数据源信息以获取数据库名称
+                SysDataSource sysDataSource = sysDataSourceService.selectSysDataSourceByName(dataSourceName);
+                if (sysDataSource == null || StrUtil.isEmpty(sysDataSource.getDatabaseName())) {
+                    throw new ServiceException("数据源不存在或数据库名称未配置");
+                }
+                
+                List<GenTableColumn> columns = genTableColumnService.selectDbTableColumnsByNameAndDataSource(tableName, sysDataSource.getDatabaseName());
+                if (columns == null || columns.isEmpty()) {
+                    return "数据源[" + dataSourceName + "]中表[" + tableName + "]的结构为空";
+                }
+                StringBuilder result = new StringBuilder();
+                result.append("数据源[").append(dataSourceName).append("]表[").append(tableName).append("]结构(共").append(columns.size()).append("个字段):\n");
+                for (GenTableColumn column : columns) {
+                    result.append(String.format("- columnName=%s, columnComment=%s, columnType=%s, isNullable=%s, isPk=%s\n",
+                            column.getColumnName(), column.getColumnComment(), column.getColumnType(),
+                            column.getIsRequired(), column.getIsPk()));
+                }
+                return result.toString();
+            } finally {
+                // 如果不是主数据源，操作完成后清理数据源上下文
+                if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+                    DynamicDataSourceContextHolder.clearDataSourceType();
+                }
+            }
         } catch (Exception e) {
             logger.error("获取表结构失败", e);
             throw new ServiceException("获取表结构失败：" + e.getMessage());
@@ -328,10 +405,10 @@ public class DatabaseTableTool {
      * 直接查询数据库表结构
      * 
      * @param tableName 表名
-     * @return 表结构信息
+     * @return 表结构信息的字符串描述
      */
     @Tool(name = "getTableStructureByName", description = "直接查询数据库表结构")
-    public List<Row> getTableStructureByName(String tableName) {
+    public String getTableStructureByName(String tableName) {
         try {
             logger.info("getTableStructureByName查询表结构: {}", tableName);
             String sql = "SELECT column_name, column_type, column_comment, " +
@@ -343,7 +420,18 @@ public class DatabaseTableTool {
                     "WHERE table_schema = (SELECT DATABASE()) AND table_name = ? " +
                     "ORDER BY ordinal_position";
             
-            return Db.selectListBySql(sql, tableName);
+            List<Row> rows = Db.selectListBySql(sql, tableName);
+            if (rows == null || rows.isEmpty()) {
+                return "表[" + tableName + "]不存在或结构为空";
+            }
+            StringBuilder result = new StringBuilder();
+            result.append("表[").append(tableName).append("]结构(共").append(rows.size()).append("个字段):\n");
+            for (Row row : rows) {
+                result.append(String.format("- columnName=%s, columnType=%s, columnComment=%s, isRequired=%s, isPk=%s, sort=%s, isIncrement=%s\n",
+                        row.getString("column_name"), row.getString("column_type"), row.getString("column_comment"),
+                        row.getString("is_required"), row.getString("is_pk"), row.getString("sort"), row.getString("is_increment")));
+            }
+            return result.toString();
         } catch (Exception e) {
             logger.error("查询表结构失败", e);
             throw new ServiceException("查询表结构失败：" + e.getMessage());
@@ -356,10 +444,10 @@ public class DatabaseTableTool {
      * @param dataSourceName 数据源名称
      * @param tableName 表名（可选，用于模糊查询）
      * @param tableComment 表注释（可选，用于模糊查询）
-     * @return 表列表
+     * @return 表列表的字符串描述
      */
     @Tool(name = "getAllTablesFromDataSource", description = "直接查询指定数据源的所有表")
-    public List<Row> getAllTablesFromDataSource(String dataSourceName, String tableName, String tableComment) {
+    public String getAllTablesFromDataSource(String dataSourceName, String tableName, String tableComment) {
         try {
             logger.info("getAllTablesFromDataSource查询数据源[{}]的所有表", dataSourceName);
             
@@ -388,15 +476,28 @@ public class DatabaseTableTool {
                 sqlBuilder.append("ORDER BY create_time DESC");
                 
                 // 执行查询
+                List<Row> rows;
                 if (StrUtil.isNotBlank(tableName) && StrUtil.isNotBlank(tableComment)) {
-                    return Db.selectListBySql(sqlBuilder.toString(), tableName, tableComment);
+                    rows = Db.selectListBySql(sqlBuilder.toString(), tableName, tableComment);
                 } else if (StrUtil.isNotBlank(tableName)) {
-                    return Db.selectListBySql(sqlBuilder.toString(), tableName);
+                    rows = Db.selectListBySql(sqlBuilder.toString(), tableName);
                 } else if (StrUtil.isNotBlank(tableComment)) {
-                    return Db.selectListBySql(sqlBuilder.toString(), tableComment);
+                    rows = Db.selectListBySql(sqlBuilder.toString(), tableComment);
                 } else {
-                    return Db.selectListBySql(sqlBuilder.toString());
+                    rows = Db.selectListBySql(sqlBuilder.toString());
                 }
+                
+                if (rows == null || rows.isEmpty()) {
+                    return "数据源[" + dataSourceName + "]中没有找到匹配的表";
+                }
+                StringBuilder result = new StringBuilder();
+                result.append("数据源[").append(dataSourceName).append("]表列表(共").append(rows.size()).append("条记录):\n");
+                for (Row row : rows) {
+                    result.append(String.format("- tableName=%s, tableComment=%s, createTime=%s, updateTime=%s\n",
+                            row.getString("table_name"), row.getString("table_comment"), 
+                            row.getString("create_time"), row.getString("update_time")));
+                }
+                return result.toString();
             } finally {
                 // 如果不是主数据源，操作完成后清理数据源上下文
                 if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
@@ -412,13 +513,24 @@ public class DatabaseTableTool {
     /**
      * 获取所有数据源列表
      * 
-     * @return 数据源列表
+     * @return 数据源列表的字符串描述
      */
     @Tool(name = "getAllDataSources", description = "获取所有数据源列表")
-    public List<SysDataSource> getAllDataSources() {
+    public String getAllDataSources() {
         try {
             logger.info("getAllDataSources获取所有数据源列表");
-            return sysDataSourceService.selectSysDataSourceList(new SysDataSource());
+            List<SysDataSource> dataSources = sysDataSourceService.selectSysDataSourceList(new SysDataSource());
+            if (dataSources == null || dataSources.isEmpty()) {
+                return "没有找到任何数据源";
+            }
+            StringBuilder result = new StringBuilder();
+            result.append("数据源列表(共").append(dataSources.size()).append("个数据源):\n");
+            for (SysDataSource dataSource : dataSources) {
+                result.append(String.format("- dataSourceId=%s, name=%s, databaseName=%s, url=%s, status=%s\n",
+                        dataSource.getDataSourceId().toString(), dataSource.getName(), dataSource.getDatabaseName(),
+                        dataSource.getUrl(), dataSource.getStatus()));
+            }
+            return result.toString();
         } catch (Exception e) {
             logger.error("获取数据源列表失败", e);
             throw new ServiceException("获取数据源列表失败：" + e.getMessage());
@@ -429,13 +541,19 @@ public class DatabaseTableTool {
      * 根据数据源名称获取数据源信息
      * 
      * @param dataSourceName 数据源名称
-     * @return 数据源信息
+     * @return 数据源信息的字符串描述
      */
     @Tool(name = "getDataSourceByName", description = "根据数据源名称获取数据源信息")
-    public SysDataSource getDataSourceByName(String dataSourceName) {
+    public String getDataSourceByName(String dataSourceName) {
         try {
             logger.info("getDataSourceByName获取数据源信息: {}", dataSourceName);
-            return sysDataSourceService.selectSysDataSourceByName(dataSourceName);
+            SysDataSource dataSource = sysDataSourceService.selectSysDataSourceByName(dataSourceName);
+            if (dataSource == null) {
+                return "数据源[" + dataSourceName + "]不存在";
+            }
+            return String.format("数据源信息: dataSourceId=%s, name=%s, databaseName=%s, url=%s, username=%s, status=%s",
+                    dataSource.getDataSourceId().toString(), dataSource.getName(), dataSource.getDatabaseName(),
+                    dataSource.getUrl(), dataSource.getUsername(), dataSource.getStatus());
         } catch (Exception e) {
             logger.error("获取数据源信息失败", e);
             throw new ServiceException("获取数据源信息失败：" + e.getMessage());
@@ -450,10 +568,10 @@ public class DatabaseTableTool {
      * @param tableComment 表注释（可选，用于模糊查询）
      * @param pageNum 页码，默认1
      * @param pageSize 每页记录数，最大500
-     * @return 表信息列表
+     * @return 表信息列表的字符串描述
      */
     @Tool(name = "getTableInfoFromDataSource", description = "根据数据源获取指定表信息，限制返回数量不超过500条")
-    public List<Row> getTableInfoFromDataSource(String dataSourceName, String tableName, String tableComment, Integer pageNum, Integer pageSize) {
+    public String getTableInfoFromDataSource(String dataSourceName, String tableName, String tableComment, Integer pageNum, Integer pageSize) {
         try {
             logger.info("getTableInfoFromDataSource获取数据源[{}]的表信息", dataSourceName);
             
@@ -494,15 +612,29 @@ public class DatabaseTableTool {
                 int offset = (pageNum - 1) * pageSize;
                 
                 // 执行查询
+                List<Row> rows;
                 if (StrUtil.isNotBlank(tableName) && StrUtil.isNotBlank(tableComment)) {
-                    return Db.selectListBySql(sqlBuilder.toString(), tableName, tableComment, offset, pageSize);
+                    rows = Db.selectListBySql(sqlBuilder.toString(), tableName, tableComment, offset, pageSize);
                 } else if (StrUtil.isNotBlank(tableName)) {
-                    return Db.selectListBySql(sqlBuilder.toString(), tableName, offset, pageSize);
+                    rows = Db.selectListBySql(sqlBuilder.toString(), tableName, offset, pageSize);
                 } else if (StrUtil.isNotBlank(tableComment)) {
-                    return Db.selectListBySql(sqlBuilder.toString(), tableComment, offset, pageSize);
+                    rows = Db.selectListBySql(sqlBuilder.toString(), tableComment, offset, pageSize);
                 } else {
-                    return Db.selectListBySql(sqlBuilder.toString(), offset, pageSize);
+                    rows = Db.selectListBySql(sqlBuilder.toString(), offset, pageSize);
                 }
+                
+                if (rows == null || rows.isEmpty()) {
+                    return "数据源[" + dataSourceName + "]中没有找到匹配的表信息";
+                }
+                StringBuilder result = new StringBuilder();
+                result.append("数据源[").append(dataSourceName).append("]表信息(共").append(rows.size()).append("条记录):\n");
+                for (Row row : rows) {
+                    result.append(String.format("- tableName=%s, tableComment=%s, createTime=%s, updateTime=%s, tableRows=%s, dataLength=%s\n",
+                            row.getString("table_name"), row.getString("table_comment"), 
+                            row.getString("create_time"), row.getString("update_time"),
+                            row.getString("table_rows"), row.getString("data_length")));
+                }
+                return result.toString();
             } finally {
                 // 如果不是主数据源，操作完成后清理数据源上下文
                 if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
@@ -521,13 +653,23 @@ public class DatabaseTableTool {
      * 查询字典类型列表
      * 
      * @param dictType 字典类型查询条件
-     * @return 字典类型列表
+     * @return 字典类型列表的字符串描述
      */
     @Tool(name = "getDictTypeList", description = "查询字典类型列表")
-    public List<SysDictType> getDictTypeList(SysDictType dictType) {
+    public String getDictTypeList(SysDictType dictType) {
         try {
             logger.info("getDictTypeList查询字典类型列表");
-            return sysDictTypeService.selectDictTypeList(dictType);
+            List<SysDictType> dictTypes = sysDictTypeService.selectDictTypeList(dictType);
+            if (dictTypes == null || dictTypes.isEmpty()) {
+                return "没有找到任何字典类型";
+            }
+            StringBuilder result = new StringBuilder();
+            result.append("字典类型列表(共").append(dictTypes.size()).append("个类型):\n");
+            for (SysDictType dt : dictTypes) {
+                result.append(String.format("- dictId=%s, dictName=%s, dictType=%s, status=%s\n",
+                        dt.getDictId().toString(), dt.getDictName(), dt.getDictType(), dt.getStatus()));
+            }
+            return result.toString();
         } catch (Exception e) {
             logger.error("查询字典类型列表失败", e);
             throw new ServiceException("查询字典类型列表失败：" + e.getMessage());
@@ -574,13 +716,23 @@ public class DatabaseTableTool {
      * 查询字典数据列表
      * 
      * @param dictData 字典数据查询条件
-     * @return 字典数据列表
+     * @return 字典数据列表的字符串描述
      */
     @Tool(name = "getDictDataList", description = "查询字典数据列表")
-    public List<SysDictData> getDictDataList(SysDictData dictData) {
+    public String getDictDataList(SysDictData dictData) {
         try {
             logger.info("getDictDataList查询字典数据列表");
-            return sysDictDataService.selectDictDataList(dictData);
+            List<SysDictData> dictDataList = sysDictDataService.selectDictDataList(dictData);
+            if (dictDataList == null || dictDataList.isEmpty()) {
+                return "没有找到任何字典数据";
+            }
+            StringBuilder result = new StringBuilder();
+            result.append("字典数据列表(共").append(dictDataList.size()).append("条数据):\n");
+            for (SysDictData dd : dictDataList) {
+                result.append(String.format("- dictCode=%s, dictLabel=%s, dictValue=%s, dictType=%s, status=%s\n",
+                        dd.getDictCode().toString(), dd.getDictLabel(), dd.getDictValue(), dd.getDictType(), dd.getStatus()));
+            }
+            return result.toString();
         } catch (Exception e) {
             logger.error("查询字典数据列表失败", e);
             throw new ServiceException("查询字典数据列表失败：" + e.getMessage());
@@ -629,13 +781,23 @@ public class DatabaseTableTool {
      * 查询系统参数列表
      * 
      * @param config 系统参数查询条件
-     * @return 系统参数列表
+     * @return 系统参数列表的字符串描述
      */
     @Tool(name = "getConfigList", description = "查询系统参数列表")
-    public List<SysConfig> getConfigList(SysConfig config) {
+    public String getConfigList(SysConfig config) {
         try {
             logger.info("getConfigList查询系统参数列表");
-            return sysConfigService.selectConfigList(config);
+            List<SysConfig> configList = sysConfigService.selectConfigList(config);
+            if (configList == null || configList.isEmpty()) {
+                return "没有找到任何系统参数";
+            }
+            StringBuilder result = new StringBuilder();
+            result.append("系统参数列表(共").append(configList.size()).append("个参数):\n");
+            for (SysConfig cfg : configList) {
+                result.append(String.format("- configId=%s, configName=%s, configKey=%s, configValue=%s, configType=%s\n",
+                        cfg.getConfigId().toString(), cfg.getConfigName(), cfg.getConfigKey(), cfg.getConfigValue(), cfg.getConfigType()));
+            }
+            return result.toString();
         } catch (Exception e) {
             logger.error("查询系统参数列表失败", e);
             throw new ServiceException("查询系统参数列表失败：" + e.getMessage());
@@ -702,17 +864,29 @@ public class DatabaseTableTool {
      * 
      * @param menu 菜单查询条件
      * @param userId 用户ID（可选，用于权限过滤）
-     * @return 菜单列表
+     * @return 菜单列表的字符串描述
      */
     @Tool(name = "getMenuList", description = "查询主数据源的菜单列表")
-    public List<SysMenu> getMenuList(SysMenu menu, Long userId) {
+    public String getMenuList(SysMenu menu, Long userId) {
         try {
             logger.info("getMenuList查询菜单列表, userId: {}", userId);
+            List<SysMenu> menuList;
             if (userId != null) {
-                return sysMenuService.selectMenuList(menu, userId);
+                menuList = sysMenuService.selectMenuList(menu, userId);
             } else {
-                return sysMenuService.selectMenuList(menu, null);
+                menuList = sysMenuService.selectMenuList(menu, null);
             }
+            if (menuList == null || menuList.isEmpty()) {
+                return "没有找到任何菜单";
+            }
+            StringBuilder result = new StringBuilder();
+            result.append("菜单列表(共").append(menuList.size()).append("个菜单):\n");
+            for (SysMenu m : menuList) {
+                result.append(String.format("- menuId=%s, menuName=%s, parentId=%s, orderNum=%s, path=%s, menuType=%s, visible=%s, status=%s\n",
+                        m.getMenuId().toString(), m.getMenuName(), m.getParentId().toString(), m.getOrderNum().toString(), 
+                        m.getPath(), m.getMenuType(), m.getVisible(), m.getStatus()));
+            }
+            return result.toString();
         } catch (Exception e) {
             logger.error("查询菜单列表失败", e);
             throw new ServiceException("查询菜单列表失败：" + e.getMessage());
@@ -723,13 +897,24 @@ public class DatabaseTableTool {
      * 根据用户ID查询菜单树
      * 
      * @param userId 用户ID
-     * @return 菜单树列表
+     * @return 菜单树列表的字符串描述
      */
     @Tool(name = "getMenuTreeByUserId", description = "根据用户ID查询菜单树")
-    public List<SysMenu> getMenuTreeByUserId(Long userId) {
+    public String getMenuTreeByUserId(Long userId) {
         try {
             logger.info("getMenuTreeByUserId查询用户菜单树: {}", userId);
-            return sysMenuService.selectMenuList(userId);
+            List<SysMenu> menuList = sysMenuService.selectMenuList(userId);
+            if (menuList == null || menuList.isEmpty()) {
+                return "用户[" + userId + "]没有任何菜单权限";
+            }
+            StringBuilder result = new StringBuilder();
+            result.append("用户[").append(userId).append("]菜单树(共").append(menuList.size()).append("个菜单):\n");
+            for (SysMenu m : menuList) {
+                result.append(String.format("- menuId=%s, menuName=%s, parentId=%s, orderNum=%s, path=%s, menuType=%s, visible=%s, status=%s\n",
+                        m.getMenuId().toString(), m.getMenuName(), m.getParentId().toString(), m.getOrderNum().toString(), 
+                        m.getPath(), m.getMenuType(), m.getVisible(), m.getStatus()));
+            }
+            return result.toString();
         } catch (Exception e) {
             logger.error("查询用户菜单树失败", e);
             throw new ServiceException("查询用户菜单树失败：" + e.getMessage());
@@ -740,13 +925,20 @@ public class DatabaseTableTool {
      * 根据菜单ID查询菜单信息
      * 
      * @param menuId 菜单ID
-     * @return 菜单信息
+     * @return 菜单信息的字符串描述
      */
     @Tool(name = "getMenuById", description = "根据菜单ID查询菜单信息")
-    public SysMenu getMenuById(Long menuId) {
+    public String getMenuById(Long menuId) {
         try {
             logger.info("getMenuById查询菜单信息: {}", menuId);
-            return sysMenuService.getById(menuId);
+            SysMenu menu = sysMenuService.getById(menuId);
+            if (menu == null) {
+                return "菜单[" + menuId + "]不存在";
+            }
+            return String.format("菜单信息: menuId=%s, menuName=%s, parentId=%s, orderNum=%s, path=%s, component=%s, menuType=%s, visible=%s, status=%s, perms=%s, icon=%s, remark=%s",
+                    menu.getMenuId().toString(), menu.getMenuName(), menu.getParentId().toString(), menu.getOrderNum().toString(),
+                    menu.getPath(), menu.getComponent(), menu.getMenuType(), menu.getVisible(), menu.getStatus(),
+                    menu.getPerms(), menu.getIcon(), menu.getRemark());
         } catch (Exception e) {
             logger.error("查询菜单信息失败", e);
             throw new ServiceException("查询菜单信息失败：" + e.getMessage());
@@ -868,10 +1060,10 @@ public class DatabaseTableTool {
      * @param tableName 表名
      * @param whereCondition 查询条件（Map格式，key为字段名，value为字段值）
      * @param limit 限制返回记录数，最大500
-     * @return 查询结果
+     * @return 查询结果的字符串描述
      */
     @Tool(name = "queryDataFromTable", description = "查询指定数据源的表中的数据")
-    public List<Row> queryDataFromTable(String dataSourceName, String tableName, java.util.Map<String, Object> whereCondition, Integer limit) {
+    public String queryDataFromTable(String dataSourceName, String tableName, java.util.Map<String, Object> whereCondition, Integer limit) {
         try {
             logger.info("queryDataFromTable查询数据源[{}]的表[{}]中的数据", dataSourceName, tableName);
             
@@ -913,7 +1105,18 @@ public class DatabaseTableTool {
                 params.add(limit);
                 
                 // 执行查询
-                return Db.selectListBySql(sqlBuilder.toString(), params.toArray());
+                List<Row> rows = Db.selectListBySql(sqlBuilder.toString(), params.toArray());
+                
+                if (rows == null || rows.isEmpty()) {
+                    return "表[" + tableName + "]中没有找到匹配的数据";
+                }
+                
+                StringBuilder result = new StringBuilder();
+                result.append("表[").append(tableName).append("]查询结果(共").append(rows.size()).append("条记录):\n");
+                for (Row row : rows) {
+                    result.append("- ").append(row.toString()).append("\n");
+                }
+                return result.toString();
             } finally {
                 // 操作完成后清理数据源上下文
                 DynamicDataSourceContextHolder.clearDataSourceType();
@@ -922,5 +1125,215 @@ public class DatabaseTableTool {
             logger.error("查询数据失败", e);
             throw new ServiceException("查询数据失败：" + e.getMessage());
         }
+    }
+
+    // ==================== MD文件读取工具 ====================
+
+    /**
+     * 读取OSS上的MD文件内容并进行适量压缩
+     * 
+     * @param ossUrl MD文件的OSS地址
+     * @return 压缩后的MD文件内容
+     */
+    @Tool(name = "readMarkdownFromOss", description = "读取OSS上的MD文件内容并进行适量压缩，确保AI能够正确理解")
+    public String readMarkdownFromOss(String ossUrl) {
+        try {
+            logger.info("readMarkdownFromOss读取MD文件: {}", ossUrl);
+            
+            // 验证URL格式
+            if (StrUtil.isBlank(ossUrl)) {
+                throw new ServiceException("MD文件地址不能为空");
+            }
+            
+            if (!ossUrl.toLowerCase().startsWith("http")) {
+                throw new ServiceException("MD文件地址必须是有效的HTTP/HTTPS URL");
+            }
+            
+            // 创建临时文件
+            String tempDir = System.getProperty("java.io.tmpdir");
+            String fileName = "temp_md_" + System.currentTimeMillis() + ".md";
+            File tempFile = new File(tempDir, fileName);
+            
+            try {
+                // 使用hutool的HttpUtil下载文件到临时目录
+                HttpUtil.downloadFile(ossUrl, tempFile);
+                
+                // 读取下载的文件内容
+                String content = FileUtil.readString(tempFile, StandardCharsets.UTF_8);
+                
+                if (StrUtil.isBlank(content)) {
+                    return "文件内容为空";
+                }
+                
+                // 对内容进行适量压缩，保证AI理解的准确性
+                String compressedContent = compressMarkdownContent(content);
+                
+                logger.info("MD文件读取成功，原始长度: {}, 压缩后长度: {}", content.length(), compressedContent.length());
+                return compressedContent;
+                
+            } finally {
+                // 清理临时文件
+                if (tempFile.exists()) {
+                    FileUtil.del(tempFile);
+                    logger.debug("临时文件已删除: {}", tempFile.getAbsolutePath());
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.error("读取MD文件失败: {}", ossUrl, e);
+            throw new ServiceException("读取MD文件失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 压缩Markdown内容，保留关键信息，确保AI能够正确理解
+     * 
+     * @param content 原始MD内容
+     * @return 压缩后的内容
+     */
+    private String compressMarkdownContent(String content) {
+        if (StrUtil.isBlank(content)) {
+            return content;
+        }
+        
+        StringBuilder compressed = new StringBuilder();
+        String[] lines = content.split("\\n");
+        
+        boolean inCodeBlock = false;
+        String codeBlockType = "";
+        StringBuilder codeContent = new StringBuilder();
+        
+        for (String line : lines) {
+            String trimmedLine = line.trim();
+            
+            // 处理代码块
+            if (trimmedLine.startsWith("```")) {
+                if (inCodeBlock) {
+                    // 代码块结束
+                    inCodeBlock = false;
+                    // 保留代码块，但适当压缩
+                    compressed.append("```").append(codeBlockType).append("\\n");
+                    String compressedCode = compressCodeBlock(codeContent.toString());
+                    compressed.append(compressedCode);
+                    compressed.append("\\n```\\n");
+                    codeContent.setLength(0);
+                    codeBlockType = "";
+                } else {
+                    // 代码块开始
+                    inCodeBlock = true;
+                    codeBlockType = trimmedLine.substring(3).trim();
+                }
+                continue;
+            }
+            
+            if (inCodeBlock) {
+                // 在代码块内
+                codeContent.append(line).append("\\n");
+                continue;
+            }
+            
+            // 跳过空行（但保留一些结构）
+            if (trimmedLine.isEmpty()) {
+                // 只在前一行不是空行时添加空行
+                if (compressed.length() > 0 && !compressed.toString().endsWith("\\n\\n")) {
+                    compressed.append("\\n");
+                }
+                continue;
+            }
+            
+            // 保留标题
+            if (trimmedLine.startsWith("#")) {
+                compressed.append(line).append("\\n");
+                continue;
+            }
+            
+            // 保留列表项
+            if (trimmedLine.startsWith("-") || trimmedLine.startsWith("*") || 
+                trimmedLine.startsWith("+") || trimmedLine.matches("^\\d+\\.")) {
+                compressed.append(line).append("\\n");
+                continue;
+            }
+            
+            // 保留表格
+            if (trimmedLine.contains("|")) {
+                compressed.append(line).append("\\n");
+                continue;
+            }
+            
+            // 保留引用
+            if (trimmedLine.startsWith(">")) {
+                compressed.append(line).append("\\n");
+                continue;
+            }
+            
+            // 普通段落 - 移除多余空格，但保留基本格式
+            String cleanedLine = line.replaceAll("\\s+", " ").trim();
+            if (cleanedLine.length() > 0) {
+                compressed.append(cleanedLine).append("\\n");
+            }
+        }
+        
+        // 最终清理：移除多余的空行
+        String result = compressed.toString();
+        result = result.replaceAll("\\n{3,}", "\\n\\n"); // 最多保留两个连续换行
+        
+        return result.trim();
+    }
+    
+    /**
+     * 压缩代码块内容
+     * 
+     * @param codeContent 代码内容
+     * @return 压缩后的代码内容
+     */
+    private String compressCodeBlock(String codeContent) {
+        if (StrUtil.isBlank(codeContent)) {
+            return codeContent;
+        }
+        
+        String[] lines = codeContent.split("\\n");
+        StringBuilder compressed = new StringBuilder();
+        
+        for (String line : lines) {
+            String trimmedLine = line.trim();
+            
+            // 跳过空行和注释行（但保留一些重要注释）
+            if (trimmedLine.isEmpty()) {
+                continue;
+            }
+            
+            // 保留重要的注释（包含关键词的）
+            if (trimmedLine.startsWith("//") || trimmedLine.startsWith("#") || 
+                trimmedLine.startsWith("/*") || trimmedLine.startsWith("*")) {
+                if (containsImportantKeywords(trimmedLine)) {
+                    compressed.append(line).append("\\n");
+                }
+                continue;
+            }
+            
+            // 保留所有非注释代码行
+            compressed.append(line).append("\\n");
+        }
+        
+        return compressed.toString();
+    }
+    
+    /**
+     * 检查注释是否包含重要关键词
+     * 
+     * @param comment 注释内容
+     * @return 是否包含重要关键词
+     */
+    private boolean containsImportantKeywords(String comment) {
+        String lowerComment = comment.toLowerCase();
+        String[] keywords = {"todo", "fixme", "note", "important", "warning", "注意", "重要", "说明", "参数", "返回", "异常"};
+        
+        for (String keyword : keywords) {
+            if (lowerComment.contains(keyword)) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 }

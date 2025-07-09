@@ -6,13 +6,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.alibaba.druid.pool.DruidDataSource;
+import com.zaxxer.hikari.HikariDataSource;
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.SecurityUtils;
-import com.ruoyi.framework.config.properties.DruidProperties;
+
 import com.ruoyi.framework.datasource.DataSourceUtils;
 import com.ruoyi.framework.datasource.DynamicDataSourceManager;
 import com.ruoyi.project.system.domain.SysDataSource;
@@ -28,11 +28,7 @@ import cn.hutool.core.util.StrUtil;
  * @author ruoyi-magic
  */
 @Service
-public class SysDataSourceServiceImpl extends ServiceImpl<SysDataSourceMapper, SysDataSource> implements ISysDataSourceService {    @Autowired
-    
-    private DruidProperties druidProperties;
-
-    
+public class SysDataSourceServiceImpl extends ServiceImpl<SysDataSourceMapper, SysDataSource> implements ISysDataSourceService {
     @Autowired
     private DynamicDataSourceManager dataSourceManager;
 
@@ -253,16 +249,23 @@ public class SysDataSourceServiceImpl extends ServiceImpl<SysDataSourceMapper, S
                 dsToTest = dbDs;
             }
         }
-        DruidDataSource testDataSource = null;
+        HikariDataSource testDataSource = null;
         try {
-            testDataSource = new DruidDataSource();
-            testDataSource.setUrl(dsToTest.getUrl());
+            testDataSource = new HikariDataSource();
+            testDataSource.setJdbcUrl(dsToTest.getUrl());
             testDataSource.setUsername(dsToTest.getUsername());
             testDataSource.setPassword(dsToTest.getPassword());
             testDataSource.setDriverClassName(dsToTest.getDriverClassName());
-            druidProperties.dataSource(testDataSource);
-            testDataSource.init();
-            return testDataSource.isEnable();
+            
+            // 设置连接池参数
+            testDataSource.setMinimumIdle(1);
+            testDataSource.setMaximumPoolSize(1);
+            testDataSource.setConnectionTimeout(5000);
+            testDataSource.setConnectionTestQuery("SELECT 1");
+            
+            // 测试连接
+            testDataSource.getConnection().close();
+            return true;
         } catch (Exception e) {
             return false;
         } finally {

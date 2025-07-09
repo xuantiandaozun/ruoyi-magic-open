@@ -10,11 +10,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.alibaba.druid.pool.DruidDataSource;
 import com.mybatisflex.core.datasource.FlexDataSource;
 import com.ruoyi.common.exception.ServiceException;
-import com.ruoyi.framework.config.properties.DruidProperties;
 import com.ruoyi.project.system.domain.SysDataSource;
+import com.zaxxer.hikari.HikariDataSource;
 
 /**
  * 动态数据源管理
@@ -25,8 +24,7 @@ import com.ruoyi.project.system.domain.SysDataSource;
 public class DynamicDataSourceManager {
     private static final Logger log = LoggerFactory.getLogger(DynamicDataSourceManager.class);
 
-    @Autowired
-    private DruidProperties druidProperties;
+
     
     @Autowired
     private FlexDataSource flexDataSource; // 直接使用 FlexDataSource
@@ -44,28 +42,27 @@ public class DynamicDataSourceManager {
         String key = sysDataSource.getName();
         try {
             // 创建数据源
-            DruidDataSource dataSource = new DruidDataSource();
-            dataSource.setUrl(sysDataSource.getUrl());
+            HikariDataSource dataSource = new HikariDataSource();
+            dataSource.setJdbcUrl(sysDataSource.getUrl());
             dataSource.setUsername(sysDataSource.getUsername());
             dataSource.setPassword(sysDataSource.getPassword());
             dataSource.setDriverClassName(sysDataSource.getDriverClassName());
             
-            druidProperties.dataSource(dataSource);
-            
-            // 初始化并检测连接是否有效
-            dataSource.init();
-            if (!dataSource.isEnable()) {
-                log.warn("数据源 {} (URL: {}) 初始化后未启用。", key, sysDataSource.getUrl());
-                return false;
-            }
+            // 设置连接池参数
+            dataSource.setMinimumIdle(5);
+            dataSource.setMaximumPoolSize(20);
+            dataSource.setConnectionTimeout(30000);
+            dataSource.setIdleTimeout(600000);
+            dataSource.setMaxLifetime(1800000);
+            dataSource.setConnectionTestQuery("SELECT 1");
             
             DataSource oldDataSource = managedDataSources.get(key);
             
             flexDataSource.addDataSource(key, dataSource);
             managedDataSources.put(key, dataSource); // 更新 managedDataSources
             
-            if (oldDataSource instanceof DruidDataSource && oldDataSource != dataSource) {
-                ((DruidDataSource) oldDataSource).close();
+            if (oldDataSource instanceof HikariDataSource && oldDataSource != dataSource) {
+                ((HikariDataSource) oldDataSource).close();
                 log.info("已关闭旧的数据源实例: {}", key);
             }
             
@@ -98,8 +95,8 @@ public class DynamicDataSourceManager {
             flexDataSource.removeDatasource(name); // 从 FlexDataSource 移除
             managedDataSources.remove(name); // 从 managedDataSources 移除
             
-            if (removedDataSource instanceof DruidDataSource) {
-                ((DruidDataSource) removedDataSource).close();
+            if (removedDataSource instanceof HikariDataSource) {
+                ((HikariDataSource) removedDataSource).close();
                 log.info("已关闭数据源 {}", name);
             }
             

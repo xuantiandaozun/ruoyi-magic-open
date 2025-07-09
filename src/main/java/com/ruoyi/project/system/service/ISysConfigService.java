@@ -57,4 +57,9 @@ public interface ISysConfigService extends IService<SysConfig>
      * @return 结果
      */
     public boolean checkConfigKeyUnique(SysConfig config);
+    
+    /**
+     * 异步初始化配置缓存
+     */
+    public void initializeConfigCacheAsync();
 }

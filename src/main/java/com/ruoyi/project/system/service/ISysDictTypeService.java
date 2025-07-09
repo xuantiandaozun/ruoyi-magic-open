@@ -65,4 +65,9 @@ public interface ISysDictTypeService extends IService<SysDictType>
      * @return 结果
      */
     public boolean checkDictTypeUnique(SysDictType dict);
+    
+    /**
+     * 异步初始化字典缓存
+     */
+    public void initializeDictCacheAsync();
 }

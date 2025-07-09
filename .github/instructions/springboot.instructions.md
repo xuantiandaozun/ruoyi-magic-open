@@ -5,7 +5,7 @@
 - Spring Boot 3.2.2 + Java 17
 - MyBatis-Flex 1.10.9 作为 ORM 框架
 - Sa-Token 1.42.0 进行权限认证
-- MySQL 8.x + Druid 连接池
+- MySQL 8.x + HikariCP 连接池
 - Redis 缓存和会话管理
 - Spring AI 1.0.0-SNAPSHOT + DeepSeek-Chat 模型
 
@@ -364,7 +364,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
 ### 系统监控
 - 使用 Actuator 提供健康检查端点
-- Druid 监控页面：/druid/index.html
 - 系统信息监控：CPU、内存、磁盘使用率
 - 在线用户监控和管理
 

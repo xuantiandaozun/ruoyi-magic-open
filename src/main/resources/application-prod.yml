@@ -51,54 +51,34 @@ spring:
             # 设置总上传的文件大小
             max-request-size: 20MB
     datasource:
-        type: com.alibaba.druid.pool.DruidDataSource
-        driverClassName: com.mysql.cj.jdbc.Driver
-        druid:
-            # 主库数据源
-            master:
-                url: jdbc:mysql://127.0.0.1:3306/ruoyi-vue?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8
-                username: ruoyi
-                password: ZN2bBnciAmyf7NaG
-            # 从库数据源
-            slave:
-                # 从数据源开关/默认关闭
-                enabled: false
-                url: 
-                username: 
-                password: 
-            # 初始连接数
-            initialSize: 10
-            # 最小连接池数量
-            minIdle: 20
+        type: com.zaxxer.hikari.HikariDataSource
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        url: jdbc:mysql://127.0.0.1:3306/ruoyi-vue?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8
+        username: ruoyi
+        password: ZN2bBnciAmyf7NaG
+        hikari:
+            # 连接池名称
+            pool-name: HikariPool
+            # 最小空闲连接数量
+            minimum-idle: 20
             # 最大连接池数量
-            maxActive: 100
-            # 配置获取连接等待超时的时间
-            maxWait: 60000
-            # 配置连接超时时间
-            connectTimeout: 30000
-            # 配置网络超时时间
-            socketTimeout: 60000
-            # 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
-            timeBetweenEvictionRunsMillis: 60000
-            # 配置一个连接在池中最小生存的时间，单位是毫秒
-            minEvictableIdleTimeMillis: 300000
-            # 配置一个连接在池中最大生存的时间，单位是毫秒
-            maxEvictableIdleTimeMillis: 900000
-            # 配置检测连接是否有效
-            validationQuery: SELECT 1 FROM DUAL
-            testWhileIdle: true
-            testOnBorrow: false
-            testOnReturn: false
-            webStatFilter: 
-                enabled: true
-            statViewServlet:
-                enabled: true
-                # 设置白名单，不填则允许所有访问
-                allow:
-                url-pattern: /druid/*
-                # 控制台管理用户名和密码
-                login-username: admin
-                login-password: 123456
+            maximum-pool-size: 100
+            # 此属性控制从池返回的连接的默认自动提交行为,默认值：true
+            auto-commit: true
+            # 此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
+            max-lifetime: 1800000
+            # 数据库连接超时时间,默认30秒，即30000
+            connection-timeout: 30000
+            # 此属性控制连接可以在池中闲置的最长时间，值0表示永远不会从池中删除空闲连接，默认600000即10分钟
+            idle-timeout: 600000
+            # 此属性控制连接测试活跃度的最大时间间隔，默认值为0（禁用），最小允许值为30000ms（30秒）
+            keepalive-time: 0
+            # 此属性确定连接是否在事务中可以被池暂停。推荐值：true
+            allow-pool-suspension: true
+            # 只读数据库
+            read-only: false
+            # 检测连接是否有效
+            connection-test-query: SELECT 1
     # redis 配置
     data:
         redis:
@@ -152,4 +132,4 @@ xss:
     # 排除链接（个用逗号分隔）
     excludes: /system/notice
     # 匹配链接
-    urlPatterns: /system/*,/monitor/*,/tool/* 
+    urlPatterns: /system/*,/monitor/*,/tool/*
