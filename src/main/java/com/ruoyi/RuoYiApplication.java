@@ -11,7 +11,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableAsync;
 
-import com.ruoyi.project.gen.tools.DatabaseTableTool;
+import com.ruoyi.project.gen.tools.ai.AiDatabaseTableTool;
+import com.ruoyi.project.gen.tools.ai.DatabaseTableTool;
 
 /**
  * 启动程序
@@ -37,9 +38,9 @@ public class RuoYiApplication
 
 
     @Bean
-    public ToolCallbackProvider weatherTools(DatabaseTableTool openMeteoService) {
+    public ToolCallbackProvider weatherTools(DatabaseTableTool openMeteoService,AiDatabaseTableTool aiDatabaseTableTool) {
         return MethodToolCallbackProvider.builder()
-                .toolObjects(openMeteoService)
+                .toolObjects(openMeteoService,aiDatabaseTableTool)
                 .build();
     }
 

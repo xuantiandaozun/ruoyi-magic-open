@@ -1,5 +1,7 @@
-package com.ruoyi.project.gen.tools;
+package com.ruoyi.project.gen.tools.ai;
 
+import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,16 +33,14 @@ import com.ruoyi.project.system.service.ISysDictDataService;
 import com.ruoyi.project.system.service.ISysDictTypeService;
 import com.ruoyi.project.system.service.ISysMenuService;
 
-import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpUtil;
-import cn.hutool.core.io.FileUtil;
-import java.io.File;
-import java.nio.charset.StandardCharsets;
 
 /**
  * 数据库表操作工具
  * 提供给AI模型调用的工具，用于创建和管理数据库表
+ * 
  */
 @Service
 public class DatabaseTableTool {
@@ -73,248 +73,9 @@ public class DatabaseTableTool {
     @Autowired
     private ISysMenuService sysMenuService;
 
-    /**
-     * 保存表定义信息和字段信息到系统（不创建实际表）
-     * 
-     * @param table      表信息
-     * @param columns    列信息列表
-     * @param dataSource 数据源名称
-     * @param taskId     任务ID
-     * @return 保存结果的字符串描述
-     */
-    @Tool(name = "saveGenTable", description = "保存表定义信息和字段信息到系统，不创建实际表，返回包含tableId的字符串结果")
-    public String saveGenTable(GenTable table, List<Object> columns, String dataSource, String taskId) {
-        try {
-            logger.info("saveGenTable保存表定义信息: {}, taskId: {}", table, taskId);
 
-            // 更新任务进度
-            if (StrUtil.isNotBlank(taskId)) {
-                asyncTaskService.updateTaskProgress(taskId, 20);
-                
-                // 更新任务extraInfo，记录当前正在创建的表信息
-                String extraInfo = String.format("{\"currentAction\":\"创建表定义\",\"tableName\":\"%s\",\"tableComment\":\"%s\"}", 
-                        table.getTableName(), table.getTableComment());
-                asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
-            }
 
-            table.setTableId(IdUtil.getSnowflakeNextId());
-
-            // 设置数据源
-            if (StrUtil.isBlank(dataSource)) {
-                dataSource = "master";
-            }
-            table.setDataSource(dataSource);
-
-            // 初始化表信息
-            table.setCreateBy("admin");
-
-            // 保存表基本信息
-            genTableService.save(table);
-
-            // 更新任务进度
-            if (StrUtil.isNotBlank(taskId)) {
-                asyncTaskService.updateTaskProgress(taskId, 40);
-            }
-
-            // 保存字段信息
-            if (columns != null && !columns.isEmpty()) {
-                // 更新任务进度
-                if (StrUtil.isNotBlank(taskId)) {
-                    asyncTaskService.updateTaskProgress(taskId, 60);
-                    
-                    // 更新任务extraInfo，记录当前正在创建表和字段的信息
-                    String extraInfo = String.format("{\"currentAction\":\"创建表结构\",\"tableName\":\"%s\",\"fieldCount\":%d}", 
-                            table.getTableName(), columns.size());
-                    asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
-                }
-
-                // 把 List<Object> 转成 List<GenTableColumn>
-                List<GenTableColumn> genTableColumns = new ArrayList<>();
-                for (Object obj : columns) {
-                    GenTableColumn column = objectMapper.convertValue(obj, GenTableColumn.class);
-                    column.setTableId(table.getTableId());
-                    column.setColumnId(IdUtil.getSnowflakeNextId());
-                    genTableColumns.add(column);
-                }
-
-                // 保存表的列信息
-                for (GenTableColumn column : genTableColumns) {
-                    // 更新任务extraInfo，记录当前正在保存的字段信息
-                    if (StrUtil.isNotBlank(taskId)) {
-                        String extraInfo = String.format("{\"currentAction\":\"保存字段\",\"tableName\":\"%s\",\"columnName\":\"%s\",\"columnComment\":\"%s\"}", 
-                                table.getTableName(), column.getColumnName(), column.getColumnComment());
-                        asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
-                    }
-                    genTableColumnService.insertGenTableColumn(column);
-                }
-            }
-
-            String result = "表定义[" + table.getTableName() + "]保存成功，tableId=" + table.getTableId().toString() + 
-                    "，共包含" + (columns != null ? columns.size() : 0) + "个字段。注意：实际表尚未创建，需要调用syncTableToDatabase方法同步到数据库。";
-            
-            // 更新任务完成状态
-            if (StrUtil.isNotBlank(taskId)) {
-                asyncTaskService.updateTaskResult(taskId, result);
-            }
-
-            return result;
-        } catch (Exception e) {
-            logger.error("保存表定义失败", e);
-            if (StrUtil.isNotBlank(taskId)) {
-                asyncTaskService.updateTaskError(taskId, "保存表定义失败：" + e.getMessage());
-            }
-            throw new ServiceException("保存表定义失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 根据tableId同步表到数据库
-     * 
-     * @param tableId 表ID
-     * @param taskId  任务ID
-     * @return 操作结果
-     */
-    @Tool(name = "syncTableToDatabase", description = "根据tableId将表定义同步到数据库，创建实际的表")
-    public String syncTableToDatabase(String tableId, String taskId) {
-        try {
-            logger.info("syncTableToDatabase同步表到数据库: tableId={}, taskId={}", tableId, taskId);
-
-            // 获取表信息
-            GenTable table = genTableService.selectGenTableById(Long.valueOf(tableId));
-            if (table == null) {
-                throw new ServiceException("表定义不存在，tableId=" + tableId);
-            }
-
-            // 更新任务进度
-            if (StrUtil.isNotBlank(taskId)) {
-                asyncTaskService.updateTaskProgress(taskId, 80);
-                
-                // 更新任务extraInfo，记录当前正在同步表到数据库
-                String extraInfo = String.format("{\"currentAction\":\"同步表到数据库\",\"tableName\":\"%s\"}", table.getTableName());
-                asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
-            }
-
-            // 创建实际表
-            genTableService.synchDb(table.getTableName());
-
-            String result = "表[" + table.getTableName() + "]同步到数据库成功，tableId=" + tableId + "。";
-            
-            // 更新任务完成状态
-            if (StrUtil.isNotBlank(taskId)) {
-                asyncTaskService.updateTaskResult(taskId, result);
-            }
-
-            return result;
-        } catch (Exception e) {
-            logger.error("同步表到数据库失败", e);
-            if (StrUtil.isNotBlank(taskId)) {
-                asyncTaskService.updateTaskError(taskId, "同步表到数据库失败：" + e.getMessage());
-            }
-            throw new ServiceException("同步表到数据库失败：" + e.getMessage());
-        }
-    }
-    
-    /**
-     * 根据ID获取GenTable数据
-     * 
-     * @param id 表ID
-     * @return GenTable对象的字符串描述
-     */
-    @Tool(name = "getGenTableById", description = "根据ID获取表定义信息")
-    public String getGenTableById(String id) {
-        try {
-            logger.info("getGenTableById获取表信息: {}", id);
-            GenTable table = genTableService.selectGenTableById(Long.valueOf(id));
-            if (table == null) {
-                return "表定义不存在，tableId=" + id;
-            }
-            return String.format("表信息: tableId=%s, tableName=%s, tableComment=%s, dataSource=%s, createBy=%s, createTime=%s",
-                    table.getTableId().toString(), table.getTableName(), table.getTableComment(), 
-                    table.getDataSource(), table.getCreateBy(), table.getCreateTime());
-        } catch (Exception e) {
-            logger.error("获取表信息失败", e);
-            throw new ServiceException("获取表信息失败：" + e.getMessage());
-        }
-    }
-    
-    /**
-     * 根据tableId获取GenTableColumn列表
-     * 
-     * @param tableId 表ID
-     * @return GenTableColumn列表的字符串描述
-     */
-    @Tool(name = "getGenTableColumnsByTableId", description = "根据表ID获取表字段列表")
-    public String getGenTableColumnsByTableId(String tableId) {
-        try {
-            logger.info("getGenTableColumnsByTableId获取表字段列表: {}", tableId);
-            List<GenTableColumn> columns = genTableColumnService.selectGenTableColumnListByTableId(Long.valueOf(tableId));
-            if (columns == null || columns.isEmpty()) {
-                return "表字段列表为空，tableId=" + tableId;
-            }
-            StringBuilder result = new StringBuilder();
-            result.append("表字段列表(共").append(columns.size()).append("个字段):\n");
-            for (GenTableColumn column : columns) {
-                result.append(String.format("- columnId=%s, columnName=%s, columnComment=%s, columnType=%s, javaType=%s, isPk=%s, isRequired=%s\n",
-                        column.getColumnId().toString(), column.getColumnName(), column.getColumnComment(),
-                        column.getColumnType(), column.getJavaType(), column.getIsPk(), column.getIsRequired()));
-            }
-            return result.toString();
-        } catch (Exception e) {
-            logger.error("获取表字段列表失败", e);
-            throw new ServiceException("获取表字段列表失败：" + e.getMessage());
-        }
-    }
-    
-    /**
-     * 根据ID修改GenTable
-     * 
-     * @param genTable 表信息
-     * @return 操作结果
-     */
-    @Tool(name = "updateGenTable", description = "根据ID修改表定义信息")
-    public String updateGenTable(GenTable genTable) {
-        try {
-            logger.info("updateGenTable修改表信息: {}", genTable);
-            genTableService.updateGenTable(genTable);
-            return "表[" + genTable.getTableName() + "]修改成功";
-        } catch (Exception e) {
-            logger.error("修改表信息失败", e);
-            throw new ServiceException("修改表信息失败：" + e.getMessage());
-        }
-    }
-    
-    /**
-     * 根据ID修改GenTableColumn
-     * 
-     * @param genTableColumn 表字段信息
-     * @param taskId 任务ID，用于更新任务的extraInfo
-     * @param tableName 表名，用于构建extraInfo
-     * @return 操作结果
-     */
-    @Tool(name = "updateGenTableColumn", description = "根据ID修改表字段信息")
-    public String updateGenTableColumn(GenTableColumn genTableColumn, String taskId, String tableName) {
-        try {
-            logger.info("updateGenTableColumn修改表字段信息: {}, taskId: {}", genTableColumn, taskId);
-            
-            // 如果提供了任务ID，更新任务的extraInfo
-            if (StrUtil.isNotBlank(taskId)) {
-                String extraInfo = String.format("{\"tableName\":\"%s\",\"columnName\":\"%s\",\"columnComment\":\"%s\"}", 
-                        tableName, 
-                        genTableColumn.getColumnName(),
-                        genTableColumn.getColumnComment());
-                
-                asyncTaskService.updateTaskExtraInfo(taskId, extraInfo);
-                logger.info("更新任务扩展信息: 正在优化字段 {}", genTableColumn.getColumnName());
-            }
-            
-            boolean result = genTableColumnService.updateGenTableColumn(genTableColumn);
-            return result ? "字段[" + genTableColumn.getColumnName() + "]修改成功" : "字段修改失败";
-        } catch (Exception e) {
-            logger.error("修改表字段信息失败", e);
-            throw new ServiceException("修改表字段信息失败：" + e.getMessage());
-        }
-    }
-    
+   
     /**
      * 获取指定数据源的所有表
      * 
@@ -428,7 +189,7 @@ public class DatabaseTableTool {
             result.append("表[").append(tableName).append("]结构(共").append(rows.size()).append("个字段):\n");
             for (Row row : rows) {
                 result.append(String.format("- columnName=%s, columnType=%s, columnComment=%s, isRequired=%s, isPk=%s, sort=%s, isIncrement=%s\n",
-                        row.getString("column_name"), row.getString("column_type"), row.getString("column_comment"),
+                        row.getString("COLUMN_NAME"), row.getString("COLUMN_TYPE"), row.getString("COLUMN_COMMENT"),
                         row.getString("is_required"), row.getString("is_pk"), row.getString("sort"), row.getString("is_increment")));
             }
             return result.toString();
@@ -494,8 +255,8 @@ public class DatabaseTableTool {
                 result.append("数据源[").append(dataSourceName).append("]表列表(共").append(rows.size()).append("条记录):\n");
                 for (Row row : rows) {
                     result.append(String.format("- tableName=%s, tableComment=%s, createTime=%s, updateTime=%s\n",
-                            row.getString("table_name"), row.getString("table_comment"), 
-                            row.getString("create_time"), row.getString("update_time")));
+                            row.getString("TABLE_NAME"), row.getString("TABLE_COMMENT"), 
+                            row.getString("CREATE_TIME"), row.getString("UPDATE_TIME")));
                 }
                 return result.toString();
             } finally {
@@ -520,16 +281,18 @@ public class DatabaseTableTool {
         try {
             logger.info("getAllDataSources获取所有数据源列表");
             List<SysDataSource> dataSources = sysDataSourceService.selectSysDataSourceList(new SysDataSource());
-            if (dataSources == null || dataSources.isEmpty()) {
-                return "没有找到任何数据源";
-            }
+            
             StringBuilder result = new StringBuilder();
-            result.append("数据源列表(共").append(dataSources.size()).append("个数据源):\n");
-            for (SysDataSource dataSource : dataSources) {
-                result.append(String.format("- dataSourceId=%s, name=%s, databaseName=%s, url=%s, status=%s\n",
-                        dataSource.getDataSourceId().toString(), dataSource.getName(), dataSource.getDatabaseName(),
-                        dataSource.getUrl(), dataSource.getStatus()));
+            // 手动添加主数据源
+            result.append("MASTER");
+            
+            // 添加其他数据源名称
+            if (dataSources != null && !dataSources.isEmpty()) {
+                for (SysDataSource dataSource : dataSources) {
+                    result.append(",").append(dataSource.getName());
+                }
             }
+            
             return result.toString();
         } catch (Exception e) {
             logger.error("获取数据源列表失败", e);
@@ -630,9 +393,9 @@ public class DatabaseTableTool {
                 result.append("数据源[").append(dataSourceName).append("]表信息(共").append(rows.size()).append("条记录):\n");
                 for (Row row : rows) {
                     result.append(String.format("- tableName=%s, tableComment=%s, createTime=%s, updateTime=%s, tableRows=%s, dataLength=%s\n",
-                            row.getString("table_name"), row.getString("table_comment"), 
-                            row.getString("create_time"), row.getString("update_time"),
-                            row.getString("table_rows"), row.getString("data_length")));
+                            row.getString("TABLE_NAME"), row.getString("TABLE_COMMENT"), 
+                            row.getString("CREATE_TIME"), row.getString("UPDATE_TIME"),
+                            row.getString("TABLE_ROWS"), row.getString("DATA_LENGTH")));
                 }
                 return result.toString();
             } finally {
@@ -698,12 +461,24 @@ public class DatabaseTableTool {
      * 修改字典类型
      * 
      * @param dictType 字典类型信息
+     * @param dictId 字典类型ID（字符串格式，避免bigint溢出）
      * @return 操作结果
      */
     @Tool(name = "updateDictType", description = "修改字典类型")
-    public String updateDictType(SysDictType dictType) {
+    public String updateDictType(SysDictType dictType, String dictId) {
         try {
-            logger.info("updateDictType修改字典类型: {}", dictType);
+            logger.info("updateDictType修改字典类型: {}, dictId: {}", dictType, dictId);
+            
+            // 如果提供了字符串ID，设置到实体类中
+            if (StrUtil.isNotBlank(dictId)) {
+                try {
+                    dictType.setDictId(Long.parseLong(dictId));
+                } catch (NumberFormatException e) {
+                    logger.error("字典类型ID格式错误: {}", dictId);
+                    throw new ServiceException("字典类型ID格式错误：" + dictId);
+                }
+            }
+            
             boolean result = sysDictTypeService.updateById(dictType);
             return result ? "字典类型[" + dictType.getDictName() + "]修改成功" : "字典类型修改失败";
         } catch (Exception e) {
@@ -761,12 +536,24 @@ public class DatabaseTableTool {
      * 修改字典数据
      * 
      * @param dictData 字典数据信息
+     * @param dictCode 字典数据编码（字符串格式，避免bigint溢出）
      * @return 操作结果
      */
     @Tool(name = "updateDictData", description = "修改字典数据")
-    public String updateDictData(SysDictData dictData) {
+    public String updateDictData(SysDictData dictData, String dictCode) {
         try {
-            logger.info("updateDictData修改字典数据: {}", dictData);
+            logger.info("updateDictData修改字典数据: {}, dictCode: {}", dictData, dictCode);
+            
+            // 如果提供了字符串ID，设置到实体类中
+            if (StrUtil.isNotBlank(dictCode)) {
+                try {
+                    dictData.setDictCode(Long.parseLong(dictCode));
+                } catch (NumberFormatException e) {
+                    logger.error("字典数据编码格式错误: {}", dictCode);
+                    throw new ServiceException("字典数据编码格式错误：" + dictCode);
+                }
+            }
+            
             boolean result = sysDictDataService.updateById(dictData);
             return result ? "字典数据[" + dictData.getDictLabel() + "]修改成功" : "字典数据修改失败";
         } catch (Exception e) {
@@ -826,12 +613,24 @@ public class DatabaseTableTool {
      * 修改系统参数
      * 
      * @param config 系统参数信息
+     * @param configId 系统参数ID（字符串格式，避免bigint溢出）
      * @return 操作结果
      */
     @Tool(name = "updateConfig", description = "修改系统参数")
-    public String updateConfig(SysConfig config) {
+    public String updateConfig(SysConfig config, String configId) {
         try {
-            logger.info("updateConfig修改系统参数: {}", config);
+            logger.info("updateConfig修改系统参数: {}, configId: {}", config, configId);
+            
+            // 如果提供了字符串ID，设置到实体类中
+            if (StrUtil.isNotBlank(configId)) {
+                try {
+                    config.setConfigId(Long.parseLong(configId));
+                } catch (NumberFormatException e) {
+                    logger.error("系统参数ID格式错误: {}", configId);
+                    throw new ServiceException("系统参数ID格式错误：" + configId);
+                }
+            }
+            
             boolean result = sysConfigService.updateById(config);
             return result ? "系统参数[" + config.getConfigName() + "]修改成功" : "系统参数修改失败";
         } catch (Exception e) {

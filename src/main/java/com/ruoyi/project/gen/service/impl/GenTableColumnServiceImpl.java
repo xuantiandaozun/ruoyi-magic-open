@@ -134,4 +134,16 @@ public class GenTableColumnServiceImpl extends ServiceImpl<GenTableColumnMapper,
         List<Row> rows = Db.selectListBySql(sql, dbName, tableName);
         return rows.stream().map(row -> row.toEntity(GenTableColumn.class)).collect(Collectors.toList());
     }
+    
+    /**
+     * 根据字段ID查询字段信息
+     * 
+     * @param columnId 字段ID
+     * @return 字段信息
+     */
+    @Override
+    public GenTableColumn selectGenTableColumnById(Long columnId)
+    {
+        return this.getById(columnId);
+    }
 }

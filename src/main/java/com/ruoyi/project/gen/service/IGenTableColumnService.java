@@ -66,4 +66,12 @@ public interface IGenTableColumnService extends IService<GenTableColumn>
      * @return 列信息
      */
     public List<GenTableColumn> selectDbTableColumnsByNameAndDataSource(String tableName, String dbName);
+    
+    /**
+     * 根据字段ID查询字段信息
+     * 
+     * @param columnId 字段ID
+     * @return 字段信息
+     */
+    public GenTableColumn selectGenTableColumnById(Long columnId);
 }
