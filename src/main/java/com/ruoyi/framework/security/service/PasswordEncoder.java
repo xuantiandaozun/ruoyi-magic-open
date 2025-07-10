@@ -1,9 +1,10 @@
 package com.ruoyi.framework.security.service;
 
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Component;
 import java.security.MessageDigest;
 import java.util.Objects;
+
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Component;
 
 /**
  * 密码加密器
@@ -46,7 +47,7 @@ public class PasswordEncoder {
 
     public static void main(String[] args) {
         PasswordEncoder passwordEncoder = new PasswordEncoder();
-        String encodedPassword = passwordEncoder.encode("123456");
+        String encodedPassword = passwordEncoder.encode("qwer@2395");
         System.out.println(encodedPassword);
     }
 } 

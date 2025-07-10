@@ -391,7 +391,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     public boolean updateUserAvatar(String userName, String avatar)
     {
         return DbChain.table("sys_user")
-            .where("user_name", userName)
+            .where("user_id = ?", userName)
             .set("avatar", avatar)
             .update();
     }

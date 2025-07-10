@@ -93,8 +93,9 @@ public class SysProfileController extends BaseController {
         if (!file.isEmpty()) {
             try {
                 String avatar = FileUploadUtils.upload(RuoYiConfig.getAvatarPath(), file, MimeTypeUtils.IMAGE_EXTENSION);
-                if (userService.updateUserAvatar(StpUtil.getLoginIdAsString(), avatar)) {
-                    return success(avatar);
+                boolean updateUserAvatar = userService.updateUserAvatar(StpUtil.getLoginIdAsString(), avatar);
+                if (updateUserAvatar) {
+                    return success("操作成功", avatar);
                 }
             } catch (Exception e) {
                 return error(e.getMessage());
