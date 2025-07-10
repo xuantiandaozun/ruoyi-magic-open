@@ -46,11 +46,7 @@ public class SysDictTypeServiceImpl extends ServiceImpl<SysDictTypeMapper, SysDi
 
 
 
-    @Autowired
-    private OptimizedRedisCache optimizedRedisCache;
 
-    @Autowired
-    private BatchInitializationService batchInitializationService;
 
     /**
      * 异步初始化字典缓存（优化版本）

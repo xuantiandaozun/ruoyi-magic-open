@@ -425,14 +425,9 @@ async function handleUpdate(row) {
   get${BusinessName}(row.${pkColumn.javaField}).then(response => {
     form.value = response.data;
 #foreach ($column in $columns)
-<<<<<<< HEAD
 #set($javaField=$column.javaField)
 #if($column.htmlType == "checkbox")
     form.value.${javaField} = form.value.${javaField}.split(",");
-=======
-#if($column.htmlType == "checkbox")
-    form.value.$column.javaField = form.value.${column.javaField}.split(",");
->>>>>>> 2fe1861 (first commit)
 #end
 #end
     open.value = true;
@@ -445,14 +440,9 @@ function submitForm() {
   proxy.#[[$]]#refs["${businessName}Ref"].validate(valid => {
     if (valid) {
 #foreach ($column in $columns)
-<<<<<<< HEAD
 #set($javaField=$column.javaField)
 #if($column.htmlType == "checkbox")
       form.value.${javaField} = form.value.${javaField}.join(",");
-=======
-#if($column.htmlType == "checkbox")
-      form.value.$column.javaField = form.value.${column.javaField}.join(",");
->>>>>>> 2fe1861 (first commit)
 #end
 #end
       if (form.value.${pkColumn.javaField} != null) {

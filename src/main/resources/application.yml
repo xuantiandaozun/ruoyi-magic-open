@@ -66,10 +66,6 @@ spring:
     active: dev
   # 数据源配置
   datasource:
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> af4fee7 (refactor(系统优化): 重构数据库连接池为HikariCP并优化启动性能)
     hikari:
       # HikariCP连接池配置
       # 连接池名称
@@ -78,7 +74,6 @@ spring:
       minimum-idle: 5
       # 最大连接池数量
       maximum-pool-size: 20
-<<<<<<< HEAD
 
 # 为CDS做准备
 management:
@@ -86,17 +81,6 @@ management:
     web:
       exposure:
         include: health,info
-=======
-    druid:
-      # 开启 WebStatFilter
-      web-stat-filter:
-        enabled: true
-      # 开启 StatViewServlet
-      stat-view-servlet:
-        enabled: true
-
->>>>>>> 2fe1861 (first commit)
-=======
 
 # 为CDS做准备
 management:
@@ -120,23 +104,6 @@ sa-token:
   is-share: true
   # 是否输出操作日志
   is-log: false
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
-# MyBatis-Plus配置
-mybatis-plus:
-  mapper-locations: classpath:mybatis/**/*Mapper.xml
-  type-aliases-package: com.ruoyi.project.**.domain
-  configuration:
-    map-underscore-to-camel-case: true
-    cache-enabled: false
-  global-config:
-    db-config:
-      id-type: auto
->>>>>>> 2fe1861 (first commit)
-=======
->>>>>>> af4fee7 (refactor(系统优化): 重构数据库连接池为HikariCP并优化启动性能)
       
 # MyBatis-Flex配置
 mybatis-flex:
@@ -150,8 +117,6 @@ mybatis-flex:
   configuration:
     # 下划线转驼峰
     map-underscore-to-camel-case: true
-<<<<<<< HEAD
-<<<<<<< HEAD
     # 其他配置
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
     lazy-loading-enabled: true
@@ -165,27 +130,6 @@ mybatis-flex:
     # 批量执行优化
     default-executor-type: simple
     default-statement-timeout: 30
-=======
-    # 关闭缓存
-    cache-enabled: false
-    # 其他配置
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
->>>>>>> 2fe1861 (first commit)
-=======
-    # 其他配置
-    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
-    lazy-loading-enabled: true
-    aggressive-lazy-loading: false
-    multiple-result-sets-enabled: true
-    use-column-label: true
-    auto-mapping-behavior: partial
-    # 开启二级缓存
-    cache-enabled: true
-    local-cache-scope: session
-    # 批量执行优化
-    default-executor-type: simple
-    default-statement-timeout: 30
->>>>>>> af4fee7 (refactor(系统优化): 重构数据库连接池为HikariCP并优化启动性能)
   global-config:
     # 是否打印banner
     print-banner: false

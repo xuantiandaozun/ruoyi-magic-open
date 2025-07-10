@@ -17,7 +17,6 @@ import java.util.List;
 #elseif($table.tree)
 import com.ruoyi.framework.web.domain.TreeEntity;
 #end
-<<<<<<< HEAD
 #set($hasDateField = false)
 #foreach ($column in $columns)
 #if($column.javaType == 'Date')
@@ -28,9 +27,6 @@ import com.ruoyi.framework.web.domain.TreeEntity;
 #if($hasDateField)
 import com.fasterxml.jackson.annotation.JsonFormat;
 #end
-=======
-import com.fasterxml.jackson.annotation.JsonFormat;
->>>>>>> 2fe1861 (first commit)
 
 /**
  * ${functionName}对象 ${tableName}
