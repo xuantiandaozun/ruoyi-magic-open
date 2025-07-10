@@ -82,13 +82,6 @@ management:
       exposure:
         include: health,info
 
-# 为CDS做准备
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
->>>>>>> af4fee7 (refactor(系统优化): 重构数据库连接池为HikariCP并优化启动性能)
 
 # Sa-Token配置
 sa-token:
