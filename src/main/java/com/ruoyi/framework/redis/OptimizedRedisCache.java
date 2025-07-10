@@ -1,5 +1,6 @@
 package com.ruoyi.framework.redis;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -52,21 +53,17 @@ public class OptimizedRedisCache {
         long startTime = System.currentTimeMillis();
         
         try {
-            // 使用Pipeline批量操作
-            redisTemplate.executePipelined(new RedisCallback<Object>() {
-                @Override
-                public Object doInRedis(RedisConnection connection) throws DataAccessException {
-                    for (SysConfig config : configs) {
-                        if (StrUtil.isNotBlank(config.getConfigKey()) && StrUtil.isNotBlank(config.getConfigValue())) {
-                            String cacheKey = getCacheKey(config.getConfigKey());
-                            byte[] keyBytes = cacheKey.getBytes();
-                            byte[] valueBytes = config.getConfigValue().getBytes();
-                            connection.set(keyBytes, valueBytes);
-                        }
-                    }
-                    return null;
+            // 使用batchSetCache批量操作，确保序列化一致性
+            Map<String, Object> cacheDataMap = new HashMap<>(configs.size());
+            for (SysConfig config : configs) {
+                if (StrUtil.isNotBlank(config.getConfigKey()) && StrUtil.isNotBlank(config.getConfigValue())) {
+                    String cacheKey = getCacheKey(config.getConfigKey());
+                    cacheDataMap.put(cacheKey, config.getConfigValue());
                 }
-            });
+            }
+            
+            // 使用统一的批量设置方法
+            batchSetCache(cacheDataMap, null);
             
             long endTime = System.currentTimeMillis();
             log.info("批量加载系统配置完成，耗时: {}ms", endTime - startTime);
@@ -92,30 +89,17 @@ public class OptimizedRedisCache {
         long startTime = System.currentTimeMillis();
         
         try {
-            // 使用Pipeline批量操作
-            redisTemplate.executePipelined(new RedisCallback<Object>() {
-                @Override
-                public Object doInRedis(RedisConnection connection) throws DataAccessException {
-                    for (SysDictType dictType : dictTypes) {
-                        if (StrUtil.isNotBlank(dictType.getDictType()) && CollUtil.isNotEmpty(dictType.getDictDataList())) {
-                            String cacheKey = getDictCacheKey(dictType.getDictType());
-                            // 序列化字典数据列表
-                            try {
-                                byte[] keyBytes = cacheKey.getBytes();
-                                @SuppressWarnings("unchecked")
-                                RedisSerializer<Object> serializer = (RedisSerializer<Object>) redisTemplate.getDefaultSerializer();
-                                byte[] valueBytes = serializer.serialize(dictType.getDictDataList());
-                                if (valueBytes != null) {
-                                    connection.set(keyBytes, valueBytes);
-                                }
-                            } catch (Exception e) {
-                                log.warn("序列化字典数据失败: {}", dictType.getDictType(), e);
-                            }
-                        }
-                    }
-                    return null;
+            // 使用batchSetCache批量操作，确保序列化一致性
+            Map<String, Object> cacheDataMap = new HashMap<>(dictTypes.size());
+            for (SysDictType dictType : dictTypes) {
+                if (StrUtil.isNotBlank(dictType.getDictType()) && CollUtil.isNotEmpty(dictType.getDictDataList())) {
+                    String cacheKey = getDictCacheKey(dictType.getDictType());
+                    cacheDataMap.put(cacheKey, dictType.getDictDataList());
                 }
-            });
+            }
+            
+            // 使用统一的批量设置方法
+            batchSetCache(cacheDataMap, null);
             
             long endTime = System.currentTimeMillis();
             log.info("批量加载字典数据完成，耗时: {}ms", endTime - startTime);
@@ -147,9 +131,7 @@ public class OptimizedRedisCache {
                     for (Map.Entry<String, Object> entry : cacheData.entrySet()) {
                         try {
                             byte[] keyBytes = entry.getKey().getBytes();
-                            @SuppressWarnings("unchecked")
-                            RedisSerializer<Object> serializer = (RedisSerializer<Object>) redisTemplate.getDefaultSerializer();
-                            byte[] valueBytes = serializer.serialize(entry.getValue());
+                            RedisSerializer<Object> serializer = (RedisSerializer<Object>) redisTemplate.getValueSerializer();                            byte[] valueBytes = serializer.serialize(entry.getValue());
                             if (valueBytes != null) {
                                 if (expireTime != null && expireTime > 0) {
                                     connection.setEx(keyBytes, expireTime, valueBytes);
