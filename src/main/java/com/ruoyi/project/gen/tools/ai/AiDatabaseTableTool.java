@@ -1,7 +1,9 @@
 package com.ruoyi.project.gen.tools.ai;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +12,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mybatisflex.core.paginate.Page;
+import com.mybatisflex.core.query.QueryColumn;
+import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.framework.datasource.DynamicDataSourceContextHolder;
 import com.ruoyi.project.gen.domain.GenTable;
 import com.ruoyi.project.gen.domain.GenTableColumn;
 import com.ruoyi.project.gen.service.IAsyncTaskService;
@@ -53,7 +59,7 @@ public class AiDatabaseTableTool {
      * @param request 保存表请求对象
      * @return 保存结果的字符串描述
      */
-    @Tool(name = "saveGenTable", description = "保存表定义信息和字段信息到系统，不创建实际表，返回包含tableId的字符串结果")
+    @Tool(name = "saveGenTable", description = "将代码生成器的表定义（GenTable）和字段定义（GenTableColumn）保存到系统数据库，这只是元数据记录，并不会在数据库中创建实际的物理表。需要调用 syncTableToDatabase 方法才能将表结构同步到数据库中")
     public String saveGenTable(SaveGenTableRequest request) {
         try {
             logger.info("saveGenTable保存表定义信息: {}", request);
@@ -95,7 +101,7 @@ public class AiDatabaseTableTool {
 
             // 设置数据源
             if (StrUtil.isBlank(dataSource)) {
-                dataSource = "master";
+                dataSource = DynamicDataSourceContextHolder.MASTER;
             }
             table.setDataSource(dataSource);
 
@@ -167,7 +173,7 @@ public class AiDatabaseTableTool {
      * @param request 批量保存表请求对象
      * @return 保存结果的字符串描述
      */
-    @Tool(name = "batchSaveGenTable", description = "批量保存表定义信息和字段信息到系统，不创建实际表，返回包含tableId的字符串结果")
+    @Tool(name = "batchSaveGenTable", description = "批量将代码生成器的表定义（GenTable）和字段定义（GenTableColumn）保存到系统数据库，这只是元数据记录，并不会在数据库中创建实际的物理表。需要调用 syncTableToDatabase 方法才能将表结构同步到数据库中")
     public String batchSaveGenTable(BatchSaveGenTableRequest request) {
         try {
             logger.info("batchSaveGenTable批量保存表定义信息: {}", request);
@@ -231,7 +237,7 @@ public class AiDatabaseTableTool {
 
                     // 设置数据源
                     if (StrUtil.isBlank(dataSource)) {
-                        dataSource = "master";
+                        dataSource = DynamicDataSourceContextHolder.MASTER;
                     }
                     table.setDataSource(dataSource);
 
@@ -298,7 +304,7 @@ public class AiDatabaseTableTool {
      * @param taskId  任务ID
      * @return 操作结果
      */
-    @Tool(name = "syncTableToDatabase", description = "根据tableId将表定义同步到数据库，创建实际的表")
+    @Tool(name = "syncTableToDatabase", description = "根据 tableId 将之前保存的表定义（GenTable）同步到数据库中，创建或更新实际的物理表结构。这是一个 DDL 操作。")
     public String syncTableToDatabase(String tableId, String taskId) {
         try {
             logger.info("syncTableToDatabase同步表到数据库: tableId={}, taskId={}", tableId, taskId);
@@ -353,7 +359,7 @@ public class AiDatabaseTableTool {
      * @param tableId 表ID（字符串格式）
      * @return 表信息的字符串描述
      */
-    @Tool(name = "getGenTableById", description = "根据ID获取表定义信息")
+    @Tool(name = "getGenTableById", description = "根据 tableId 查询代码生成器的表定义（GenTable）的元数据。这只是查询元数据，不涉及物理数据库表。")
     public String getGenTableById(String tableId) {
         try {
             logger.info("getGenTableById获取表信息: {}", tableId);
@@ -387,7 +393,7 @@ public class AiDatabaseTableTool {
      * @param tableId 表ID（字符串格式）
      * @return 字段列表的字符串描述
      */
-    @Tool(name = "getGenTableColumnsByTableId", description = "根据表ID获取表字段列表")
+    @Tool(name = "getGenTableColumnsByTableId", description = "根据 tableId 查询代码生成器的表字段定义（GenTableColumn）的元数据列表。这只是查询元数据，不涉及物理数据库表。")
     public String getGenTableColumnsByTableId(String tableId) {
         try {
             logger.info("getGenTableColumnsByTableId获取表字段列表: {}", tableId);
@@ -427,7 +433,7 @@ public class AiDatabaseTableTool {
      * @param request 更新表请求对象
      * @return 操作结果
      */
-    @Tool(name = "updateGenTable", description = "根据ID修改表定义信息")
+    @Tool(name = "updateGenTable", description = "根据 tableId 更新代码生成器的表定义（GenTable）的元数据。这只是修改元数据，不涉及物理数据库表。如果需要同步到数据库，请调用 syncTableToDatabase 方法。")
     public String updateGenTable(UpdateGenTableRequest request) {
         try {
             logger.info("updateGenTable修改表信息: {}", request);
@@ -516,7 +522,7 @@ public class AiDatabaseTableTool {
      * @param request 批量更新表请求对象
      * @return 操作结果
      */
-    @Tool(name = "batchUpdateGenTable", description = "批量修改表定义信息")
+    @Tool(name = "batchUpdateGenTable", description = "根据 tableId 列表，批量更新代码生成器的表定义（GenTable）的元数据。这只是修改元数据，不涉及物理数据库表。如果需要同步到数据库，请调用 syncTableToDatabase 方法。")
     public String batchUpdateGenTable(BatchUpdateGenTableRequest request) {
         try {
             logger.info("batchUpdateGenTable批量修改表信息: {}", request);
@@ -654,8 +660,8 @@ public class AiDatabaseTableTool {
      * @param request 更新字段请求对象
      * @return 操作结果
      */
-    @Tool(name = "updateGenTableColumn", description = "根据ID修改表字段信息")
-    public String updateGenTableColumn(UpdateGenTableColumnRequest request) {
+    @Tool(name = "updateGenTableColumn", description = "根据 columnId 更新代码生成器的表字段定义（GenTableColumn）的元数据。这只是修改元数据，不涉及物理数据库表。如果需要同步到数据库，请调用 syncTableToDatabase 方法。")
+    public Map<String, Object> updateGenTableColumn(UpdateGenTableColumnRequest request) {
         try {
             logger.info("updateGenTableColumn修改表字段信息: {}", request);
             
@@ -747,7 +753,17 @@ public class AiDatabaseTableTool {
             }
             
             boolean result = genTableColumnService.updateGenTableColumn(genTableColumn);
-            return result ? "字段[" + genTableColumn.getColumnName() + "]修改成功" : "字段修改失败";
+            
+            Map<String, Object> resultMap = new HashMap<>();
+            resultMap.put("success", result);
+            resultMap.put("columnId", request.getColumnId());
+            resultMap.put("columnName", genTableColumn.getColumnName());
+            resultMap.put("columnComment", genTableColumn.getColumnComment());
+            resultMap.put("tableId", genTableColumn.getTableId());
+            resultMap.put("taskId", request.getTaskId());
+            resultMap.put("message", result ? "字段[" + genTableColumn.getColumnName() + "]修改成功" : "字段修改失败");
+            
+            return resultMap;
         } catch (Exception e) {
             logger.error("修改表字段信息失败", e);
             throw new ServiceException("修改表字段信息失败：" + e.getMessage());
@@ -760,8 +776,8 @@ public class AiDatabaseTableTool {
      * @param request 批量更新字段请求对象
      * @return 操作结果
      */
-    @Tool(name = "batchUpdateGenTableColumn", description = "批量修改表字段信息")
-    public String batchUpdateGenTableColumn(BatchUpdateGenTableColumnRequest request) {
+    @Tool(name = "batchUpdateGenTableColumn", description = "根据 columnId 列表，批量更新代码生成器的表字段定义（GenTableColumn）的元数据。这只是修改元数据，不涉及物理数据库表。如果需要同步到数据库，请调用 syncTableToDatabase 方法。")
+    public Map<String, Object> batchUpdateGenTableColumn(BatchUpdateGenTableColumnRequest request) {
         try {
             logger.info("batchUpdateGenTableColumn批量修改表字段信息: {}", request);
             
@@ -886,24 +902,102 @@ public class AiDatabaseTableTool {
                 }
             }
             
+            Map<String, Object> resultMap = new HashMap<>();
+            resultMap.put("taskId", taskId);
+            resultMap.put("totalColumns", totalColumns);
+            resultMap.put("processedColumns", currentColumn);
+            resultMap.put("results", results);
+            
             StringBuilder finalResult = new StringBuilder();
             finalResult.append("批量修改表字段完成，共处理").append(totalColumns).append("个字段：\n");
             for (String result : results) {
                 finalResult.append(result).append("\n");
             }
+            resultMap.put("message", finalResult.toString());
             
             // 更新任务完成状态
             if (StrUtil.isNotBlank(taskId)) {
                 asyncTaskService.updateTaskResult(taskId, finalResult.toString());
             }
 
-            return finalResult.toString();
+            return resultMap;
         } catch (Exception e) {
             logger.error("批量修改表字段信息失败", e);
             if (StrUtil.isNotBlank(request.getTaskId())) {
                 asyncTaskService.updateTaskError(request.getTaskId(), "批量修改表字段信息失败：" + e.getMessage());
             }
             throw new ServiceException("批量修改表字段信息失败：" + e.getMessage());
+        }
+    }
+
+
+
+    /**
+     * 分页查询代码生成器的表定义
+     * 
+     * @param tableName 表名称
+     * @param tableComment 表描述
+     * @param pageNum 页码
+     * @param pageSize 每页记录数
+     * @return 查询结果
+     */
+    @Tool(name = "getGenTableList", description = "分页查询代码生成器的表定义列表")
+    public Map<String, Object> getGenTableList(String tableName, String tableComment, Integer pageNum, Integer pageSize) {
+        try {
+            logger.info("getGenTableList分页查询表定义列表, tableName: {}, tableComment: {}", tableName, tableComment);
+            
+            // 限制每页最大500条记录
+            if (pageSize == null || pageSize > 500) {
+                pageSize = 500;
+            }
+            if (pageNum == null || pageNum < 1) {
+                pageNum = 1;
+            }
+            
+            // 构建查询条件
+            QueryWrapper queryWrapper = QueryWrapper.create()
+                    .select()
+                    .from("gen_table");
+            
+            // 添加表名称条件
+            if (StrUtil.isNotBlank(tableName)) {
+                queryWrapper.and(new QueryColumn("table_name").like(tableName));
+            }
+            
+            // 添加表描述条件
+            if (StrUtil.isNotBlank(tableComment)) {
+                queryWrapper.and(new QueryColumn("table_comment").like(tableComment));
+            }
+            
+            // 添加排序
+            queryWrapper.orderBy(new QueryColumn("create_time").desc());
+
+            // 创建分页对象
+            Page<GenTable> pageObj = Page.of(pageNum, pageSize);
+            
+            // 执行分页查询
+            Page<GenTable> page = genTableService.page(pageObj, queryWrapper);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("pageNum", pageNum);
+            result.put("pageSize", pageSize);
+            result.put("totalCount", page != null ? page.getTotalRow() : 0);
+            result.put("totalPage", page != null ? page.getTotalPage() : 0);
+            
+            if (page == null || page.getRecords().isEmpty()) {
+                result.put("message", "没有找到匹配的表定义");
+                result.put("tableList", new ArrayList<>());
+                return result;
+            }
+            
+            List<GenTable> tableList = new ArrayList<>(page.getRecords());
+            result.put("tableList", tableList);
+            result.put("message", "查询表定义列表成功");
+            
+            return result;
+        } catch (Exception e) {
+            logger.error("查询表定义列表失败", e);
+            throw new ServiceException("查询表定义列表失败：" + e.getMessage());
         }
     }
 }

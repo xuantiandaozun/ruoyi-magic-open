@@ -479,7 +479,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
      */
     private List<GenTableColumn> getTableColumns(GenTable table) {
         String dataSource = table.getDataSource();
-        if (StrUtil.isNotEmpty(dataSource) && !StrUtil.equals(dataSource, "master")) {
+        if (StrUtil.isNotEmpty(dataSource) && !StrUtil.equals(dataSource, DynamicDataSourceContextHolder.MASTER)) {
             return executeWithDataSource(dataSource, () -> {
                 SysDataSource sysDataSource = sysDataSourceService.selectSysDataSourceByName(dataSource);
                 if (sysDataSource != null && StrUtil.isNotEmpty(sysDataSource.getDatabaseName())) {
@@ -623,7 +623,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         
         // 检查数据源，如果不是主数据源，则调用synchDbWithDataSource方法
         String dataSource = table.getDataSource();
-        if (StrUtil.isNotEmpty(dataSource) && !StrUtil.equals(dataSource, "master")) {
+        if (StrUtil.isNotEmpty(dataSource) && !StrUtil.equals(dataSource, DynamicDataSourceContextHolder.MASTER)) {
             synchDbWithDataSource(tableName, dataSource);
             return;
         }
@@ -632,7 +632,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         List<GenTableColumn> tableColumns;
         try {
             // 临时切换回主数据源查询gen_table_column表
-            DynamicDataSourceContextHolder.setDataSourceType("master");
+            DynamicDataSourceContextHolder.setDataSourceType(DynamicDataSourceContextHolder.MASTER);
             tableColumns = genTableColumnService.selectGenTableColumnListByTableId(table.getTableId());
         } finally {
             // 清理数据源上下文
@@ -725,7 +725,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         SysDataSource sysDataSource;
         try {
             // 临时切换到主数据源查询元数据表
-            DynamicDataSourceContextHolder.setDataSourceType("master");
+            DynamicDataSourceContextHolder.setDataSourceType(DynamicDataSourceContextHolder.MASTER);
             table = this.selectGenTableByName(tableName);
             if (table == null) {
                 throw new ServiceException("同步数据失败，表信息不存在");
@@ -745,7 +745,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         List<GenTableColumn> tableColumns;
         try {
             // 临时切换回主数据源查询gen_table_column表
-            DynamicDataSourceContextHolder.setDataSourceType("master");
+            DynamicDataSourceContextHolder.setDataSourceType(DynamicDataSourceContextHolder.MASTER);
             tableColumns = genTableColumnService.selectGenTableColumnListByTableId(table.getTableId());
         } finally {
             // 清理数据源上下文

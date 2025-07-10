@@ -26,6 +26,7 @@
         <maven-jar-plugin.version>3.3.0</maven-jar-plugin.version>
         <mybatis-flex.version>1.10.9</mybatis-flex.version>
         <fastjson.version>2.0.56</fastjson.version>
+        <maven.build.timestamp.format>yyyyMMdd-HHmmss</maven.build.timestamp.format>
 
         <commons.io.version>2.13.0</commons.io.version>
         <bitwalker.version>1.21</bitwalker.version>
@@ -351,7 +352,7 @@
 
 
     <build>
-        <finalName>${project.artifactId}</finalName>
+        <finalName>${project.artifactId}-${maven.build.timestamp}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -373,6 +374,30 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo>删除旧的JAR文件和.original文件，只保留最新的一个</echo>
+                                <delete>
+                                    <fileset dir="${project.build.directory}" includes="${project.artifactId}-*.jar,${project.artifactId}-*.jar.original">
+                                        <exclude name="${project.build.finalName}.jar"/>
+                                        <exclude name="${project.build.finalName}.jar.original"/>
+                                    </fileset>
+                                </delete>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -42,7 +42,7 @@ import com.ruoyi.project.gen.domain.vo.CreateImportTableRequest;
 import com.ruoyi.project.gen.service.IAsyncTaskService;
 import com.ruoyi.project.gen.service.IGenTableColumnService;
 import com.ruoyi.project.gen.service.IGenTableService;
-import com.ruoyi.project.gen.tools.ai.DatabaseTableTool;
+import com.ruoyi.project.gen.tools.ai.AiDatabaseTableTool;
 import com.ruoyi.project.gen.util.VelocityUtils;
 import com.ruoyi.project.system.domain.SysDataSource;
 import com.ruoyi.project.system.service.ISysDataSourceService;
@@ -84,7 +84,7 @@ public class GenController extends BaseController {
     private ISysDataSourceService sysDataSourceService;
 
     @Autowired
-    private DatabaseTableTool databaseTableTool;
+    private AiDatabaseTableTool databaseTableTool;
 
     @Autowired
     private ObservationRegistry observationRegistry;
