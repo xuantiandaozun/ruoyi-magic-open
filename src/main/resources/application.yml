@@ -8,6 +8,64 @@ ruoyi:
   copyrightYear: 2024
   # 验证码类型 math 数字计算 char 字符验证
   captchaType: math
+  # 云存储配置
+  cloud-storage:
+    # 存储类型：local-本地存储, aliyun-阿里云OSS, tencent-腾讯云COS, amazon-亚马逊S3, azure-微软Azure
+    type: local
+    # 阿里云OSS配置
+    aliyun:
+      # 访问密钥ID
+      access-key-id: your-access-key-id
+      # 访问密钥Secret
+      access-key-secret: your-access-key-secret
+      # 存储桶名称
+      bucket-name: your-bucket-name
+      # 端点地址（如：https://oss-cn-hangzhou.aliyuncs.com）
+      endpoint: https://oss-cn-hangzhou.aliyuncs.com
+      # 文件前缀路径（可选，如：upload/）
+      prefix: upload/
+      # 自定义域名（可选）
+      custom-domain: 
+    # 腾讯云COS配置
+    tencent:
+      # 访问密钥ID
+      secret-id: your-secret-id
+      # 访问密钥Key
+      secret-key: your-secret-key
+      # 存储桶名称
+      bucket-name: your-bucket-name
+      # 地域（如：ap-guangzhou）
+      region: ap-guangzhou
+      # 文件前缀路径（可选）
+      prefix: upload/
+      # 自定义域名（可选）
+      custom-domain: 
+    # 亚马逊S3配置
+    amazon:
+      # 访问密钥ID
+      access-key-id: your-access-key-id
+      # 访问密钥Secret
+      access-key-secret: your-access-key-secret
+      # 存储桶名称
+      bucket-name: your-bucket-name
+      # 地域（如：us-east-1）
+      region: us-east-1
+      # 端点地址（可选）
+      endpoint: 
+      # 文件前缀路径（可选）
+      prefix: upload/
+      # 自定义域名（可选）
+      custom-domain: 
+    # 微软Azure配置
+    azure:
+      # 连接字符串
+      connection-string: your-connection-string
+      # 容器名称
+      container-name: your-container-name
+      # 文件前缀路径（可选）
+      prefix: upload/
+      # 自定义域名（可选）
+      custom-domain: 
 
 # knife4j的增强配置，不需要增强可以不配
 knife4j:

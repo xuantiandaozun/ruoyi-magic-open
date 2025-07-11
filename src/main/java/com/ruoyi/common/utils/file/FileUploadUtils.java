@@ -10,13 +10,53 @@ import com.ruoyi.common.constant.Constants;
 import com.ruoyi.common.exception.file.FileNameLengthLimitExceededException;
 import com.ruoyi.common.exception.file.FileSizeLimitExceededException;
 import com.ruoyi.common.exception.file.InvalidExtensionException;
+import com.ruoyi.common.storage.FileStorageService;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
 import com.ruoyi.common.utils.uuid.Seq;
 import com.ruoyi.framework.config.RuoYiConfig;
+import com.ruoyi.common.utils.spring.SpringUtils;
 
 /**
  * 文件上传工具类
+ * 
+ * <p>主要功能：</p>
+ * <ul>
+ *   <li>统一文件上传接口：根据yml配置自动选择本地存储或云存储</li>
+ *   <li>支持多种云存储：阿里云OSS、腾讯云COS、亚马逊S3、微软Azure</li>
+ *   <li>向后兼容：保留原有的强制本地存储和云存储方法</li>
+ *   <li>云存储目录规范：按文件类型和时间自动分类存储</li>
+ * </ul>
+ * 
+ * <p>配置说明：</p>
+ * <pre>
+ * # application.yml
+ * ruoyi:
+ *   cloud-storage:
+ *     type: local    # 本地存储
+ *     # type: aliyun  # 阿里云OSS
+ *     # type: tencent # 腾讯云COS
+ *     # type: amazon  # 亚马逊S3
+ *     # type: azure   # 微软Azure
+ * </pre>
+ * 
+ * <p>云存储目录结构：</p>
+ * <pre>
+ * 文件类型/年份/月份/日期/文件名
+ * ├── images/2024/01/15/photo_123456.jpg      # 图片文件
+ * ├── documents/2024/01/15/report_123456.pdf  # 文档文件
+ * ├── videos/2024/01/15/video_123456.mp4      # 视频文件
+ * ├── media/2024/01/15/audio_123456.mp3       # 音频文件
+ * ├── archives/2024/01/15/data_123456.zip     # 压缩文件
+ * └── others/2024/01/15/file_123456.xxx       # 其他文件
+ * </pre>
+ * 
+ * <p>推荐使用方法：</p>
+ * <ul>
+ *   <li>{@link #upload(MultipartFile)} - 使用默认配置上传</li>
+ *   <li>{@link #upload(String, MultipartFile)} - 指定基础目录上传</li>
+ *   <li>{@link #upload(String, MultipartFile, String[])} - 完整参数上传</li>
+ * </ul>
  *
  * @author ruoyi
  */
@@ -49,10 +89,11 @@ public class FileUploadUtils
 
     /**
      * 以默认配置进行文件上传
+     * 根据yml配置自动选择本地存储或云存储
      *
      * @param file 上传的文件
-     * @return 文件名称
-     * @throws Exception
+     * @return 文件访问URL或文件路径
+     * @throws IOException 上传异常
      */
     public static final String upload(MultipartFile file) throws IOException
     {
@@ -67,12 +108,33 @@ public class FileUploadUtils
     }
 
     /**
-     * 根据文件路径上传
+     * 强制使用本地存储上传文件（向后兼容方法）
+     * 注意：此方法会忽略yml配置，强制使用本地存储
      *
-     * @param baseDir 相对应用的基目录
      * @param file 上传的文件
      * @return 文件名称
-     * @throws IOException
+     * @throws IOException 上传异常
+     */
+    public static final String uploadLocal(MultipartFile file) throws IOException
+    {
+        try
+        {
+            return uploadToLocal(getDefaultBaseDir(), file, MimeTypeUtils.DEFAULT_ALLOWED_EXTENSION);
+        }
+        catch (Exception e)
+        {
+            throw new IOException(e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 根据文件路径上传
+     * 根据yml配置自动选择本地存储或云存储
+     *
+     * @param baseDir 相对应用的基目录（仅本地存储时使用）
+     * @param file 上传的文件
+     * @return 文件名称或URL
+     * @throws IOException 上传异常
      */
     public static final String upload(String baseDir, MultipartFile file) throws IOException
     {
@@ -87,7 +149,41 @@ public class FileUploadUtils
     }
 
     /**
-     * 文件上传
+     * 统一文件上传方法
+     * 根据yml配置自动选择本地存储或云存储
+     *
+     * @param baseDir 相对应用的基目录（仅本地存储时使用）
+     * @param file 上传的文件
+     * @param allowedExtension 上传文件类型
+     * @return 返回上传成功的文件名或URL
+     * @throws FileSizeLimitExceededException 如果超出最大大小
+     * @throws FileNameLengthLimitExceededException 文件名太长
+     * @throws IOException 比如读写文件出错时
+     * @throws InvalidExtensionException 文件校验异常
+     */
+    public static final String upload(String baseDir, MultipartFile file, String[] allowedExtension)
+            throws FileSizeLimitExceededException, IOException, FileNameLengthLimitExceededException,
+            InvalidExtensionException
+    {
+        try {
+            // 获取存储配置
+            FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+            String storageType = fileStorageService.getCurrentStorageType();
+            
+            // 根据配置选择存储方式
+            if ("local".equalsIgnoreCase(storageType)) {
+                return uploadToLocal(baseDir, file, allowedExtension);
+            } else {
+                return uploadToCloud(file, allowedExtension);
+            }
+        } catch (Exception e) {
+            // 如果获取配置失败，默认使用本地存储
+            return uploadToLocal(baseDir, file, allowedExtension);
+        }
+    }
+
+    /**
+     * 本地文件上传
      *
      * @param baseDir 相对应用的基目录
      * @param file 上传的文件
@@ -98,7 +194,7 @@ public class FileUploadUtils
      * @throws IOException 比如读写文件出错时
      * @throws InvalidExtensionException 文件校验异常
      */
-    public static final String upload(String baseDir, MultipartFile file, String[] allowedExtension)
+    private static final String uploadToLocal(String baseDir, MultipartFile file, String[] allowedExtension)
             throws FileSizeLimitExceededException, IOException, FileNameLengthLimitExceededException,
             InvalidExtensionException
     {
@@ -118,12 +214,128 @@ public class FileUploadUtils
     }
 
     /**
-     * 编码文件名
+     * 云存储文件上传
+     *
+     * @param file 上传的文件
+     * @param allowedExtension 上传文件类型
+     * @return 返回上传成功的文件URL
+     * @throws Exception 上传异常
+     */
+    private static final String uploadToCloud(MultipartFile file, String[] allowedExtension) throws Exception
+    {
+        // 文件校验
+        int fileNameLength = Objects.requireNonNull(file.getOriginalFilename()).length();
+        if (fileNameLength > FileUploadUtils.DEFAULT_FILE_NAME_LENGTH)
+        {
+            throw new FileNameLengthLimitExceededException(FileUploadUtils.DEFAULT_FILE_NAME_LENGTH);
+        }
+
+        assertAllowed(file, allowedExtension);
+
+        // 为云存储生成规范的文件名（包含分类目录）
+        String fileName = extractCloudFilename(file);
+
+        // 使用文件存储服务上传
+        FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+        return fileStorageService.upload(file, fileName);
+    }
+
+    /**
+     * 编码文件名（本地存储使用）
      */
     public static final String extractFilename(MultipartFile file)
     {
         return StrUtil.format("{}/{}_{}.{}", DateUtil.format(DateUtil.date(), "yyyy/MM/dd"),
                 FilenameUtils.getBaseName(file.getOriginalFilename()), Seq.getId(Seq.uploadSeqType), getExtension(file));
+    }
+
+    /**
+     * 为云存储生成规范的文件名（包含分类目录）
+     * 目录结构：文件类型/年份/月份/日期/文件名
+     * 例如：images/2024/01/15/filename_123456.jpg
+     *      documents/2024/01/15/filename_123456.pdf
+     *      videos/2024/01/15/filename_123456.mp4
+     */
+    public static final String extractCloudFilename(MultipartFile file)
+    {
+        String extension = getExtension(file);
+        String fileType = getFileTypeCategory(extension);
+        String datePath = DateUtil.format(DateUtil.date(), "yyyy/MM/dd");
+        String baseName = FilenameUtils.getBaseName(file.getOriginalFilename());
+        String uniqueId = Seq.getId(Seq.uploadSeqType);
+        
+        return StrUtil.format("{}/{}/{}_{}.{}", fileType, datePath, baseName, uniqueId, extension);
+    }
+
+    /**
+     * 根据文件扩展名获取文件类型分类
+     * 
+     * @param extension 文件扩展名
+     * @return 文件类型分类目录名
+     */
+    private static final String getFileTypeCategory(String extension)
+    {
+        if (StrUtil.isEmpty(extension))
+        {
+            return "others";
+        }
+        
+        String ext = extension.toLowerCase();
+        
+        // 图片类型
+        for (String imageExt : MimeTypeUtils.IMAGE_EXTENSION)
+        {
+            if (imageExt.equalsIgnoreCase(ext))
+            {
+                return "images";
+            }
+        }
+        
+        // 视频类型
+        for (String videoExt : MimeTypeUtils.VIDEO_EXTENSION)
+        {
+            if (videoExt.equalsIgnoreCase(ext))
+            {
+                return "videos";
+            }
+        }
+        
+        // 媒体类型（音频等）
+        for (String mediaExt : MimeTypeUtils.MEDIA_EXTENSION)
+        {
+            if (mediaExt.equalsIgnoreCase(ext))
+            {
+                return "media";
+            }
+        }
+        
+        // Flash类型
+        for (String flashExt : MimeTypeUtils.FLASH_EXTENSION)
+        {
+            if (flashExt.equalsIgnoreCase(ext))
+            {
+                return "flash";
+            }
+        }
+        
+        // 文档类型
+        if ("pdf".equalsIgnoreCase(ext) || "doc".equalsIgnoreCase(ext) || "docx".equalsIgnoreCase(ext) ||
+            "xls".equalsIgnoreCase(ext) || "xlsx".equalsIgnoreCase(ext) || "ppt".equalsIgnoreCase(ext) ||
+            "pptx".equalsIgnoreCase(ext) || "txt".equalsIgnoreCase(ext) || "html".equalsIgnoreCase(ext) ||
+            "htm".equalsIgnoreCase(ext))
+        {
+            return "documents";
+        }
+        
+        // 压缩文件
+        if ("zip".equalsIgnoreCase(ext) || "rar".equalsIgnoreCase(ext) || "gz".equalsIgnoreCase(ext) ||
+            "bz2".equalsIgnoreCase(ext) || "7z".equalsIgnoreCase(ext) || "tar".equalsIgnoreCase(ext))
+        {
+            return "archives";
+        }
+        
+        // 其他类型
+        return "others";
     }
 
     public static final File getAbsoluteFile(String uploadDir, String fileName) throws IOException
@@ -228,5 +440,97 @@ public class FileUploadUtils
             extension = MimeTypeUtils.getExtension(Objects.requireNonNull(file.getContentType()));
         }
         return extension;
+    }
+
+    /**
+     * 强制使用云存储上传文件（向后兼容方法）
+     * 注意：此方法会忽略yml配置，强制使用云存储
+     *
+     * @param file 上传的文件
+     * @param allowedExtension 允许的文件扩展名
+     * @return 文件访问URL
+     * @throws Exception 上传异常
+     */
+    public static final String uploadWithCloudStorage(MultipartFile file, String[] allowedExtension) throws Exception
+    {
+        // 文件校验
+        int fileNameLength = Objects.requireNonNull(file.getOriginalFilename()).length();
+        if (fileNameLength > FileUploadUtils.DEFAULT_FILE_NAME_LENGTH)
+        {
+            throw new FileNameLengthLimitExceededException(FileUploadUtils.DEFAULT_FILE_NAME_LENGTH);
+        }
+
+        assertAllowed(file, allowedExtension);
+
+        // 为云存储生成规范的文件名（包含分类目录）
+        String fileName = extractCloudFilename(file);
+
+        // 使用文件存储服务上传
+        FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+        return fileStorageService.upload(file, fileName);
+    }
+
+    /**
+     * 强制使用云存储上传文件（指定文件名，向后兼容方法）
+     * 注意：此方法会忽略yml配置，强制使用云存储
+     *
+     * @param file 上传的文件
+     * @param fileName 指定的文件名
+     * @param allowedExtension 允许的文件扩展名
+     * @return 文件访问URL
+     * @throws Exception 上传异常
+     */
+    public static final String uploadWithCloudStorage(MultipartFile file, String fileName, String[] allowedExtension) throws Exception
+    {
+        // 文件校验
+        int fileNameLength = Objects.requireNonNull(file.getOriginalFilename()).length();
+        if (fileNameLength > FileUploadUtils.DEFAULT_FILE_NAME_LENGTH)
+        {
+            throw new FileNameLengthLimitExceededException(FileUploadUtils.DEFAULT_FILE_NAME_LENGTH);
+        }
+
+        assertAllowed(file, allowedExtension);
+
+        // 使用文件存储服务上传
+        FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+        return fileStorageService.upload(file, fileName);
+    }
+
+    /**
+     * 删除文件
+     *
+     * @param fileName 文件名
+     * @return 是否删除成功
+     */
+    public static final boolean deleteFile(String fileName)
+    {
+        try
+        {
+            FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+            return fileStorageService.delete(fileName);
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+    }
+
+    /**
+     * 获取文件访问URL
+     *
+     * @param fileName 文件名
+     * @return 文件访问URL
+     */
+    public static final String getFileUrl(String fileName)
+    {
+        try
+        {
+            FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+            return fileStorageService.getFileUrl(fileName);
+        }
+        catch (Exception e)
+        {
+            return "";
+        }
     }
 }

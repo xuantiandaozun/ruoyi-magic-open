@@ -290,7 +290,36 @@
             <version>${hutool.version}</version>
         </dependency>
 
-  
+        <!-- 阿里云OSS -->
+        <dependency>
+            <groupId>com.aliyun.oss</groupId>
+            <artifactId>aliyun-sdk-oss</artifactId>
+            <version>3.17.4</version>
+        </dependency>
+
+        <!-- 腾讯云COS -->
+        <dependency>
+            <groupId>com.qcloud</groupId>
+            <artifactId>cos_api</artifactId>
+            <version>5.6.155</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 亚马逊S3 -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.21.29</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 微软Azure Storage -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-storage-blob</artifactId>
+            <version>12.23.0</version>
+            <optional>true</optional>
+        </dependency>
 
         <!-- lombok -->
         <dependency>

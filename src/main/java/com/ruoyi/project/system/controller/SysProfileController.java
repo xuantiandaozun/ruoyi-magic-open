@@ -92,7 +92,8 @@ public class SysProfileController extends BaseController {
     public AjaxResult avatar(@RequestParam("avatarfile") MultipartFile file) {
         if (!file.isEmpty()) {
             try {
-                String avatar = FileUploadUtils.upload(RuoYiConfig.getAvatarPath(), file, MimeTypeUtils.IMAGE_EXTENSION);
+                // 使用云存储上传头像，指定avatar目录和图片类型限制
+                String avatar = FileUploadUtils.upload("avatar", file, MimeTypeUtils.IMAGE_EXTENSION);
                 boolean updateUserAvatar = userService.updateUserAvatar(StpUtil.getLoginIdAsString(), avatar);
                 if (updateUserAvatar) {
                     return success("操作成功", avatar);
