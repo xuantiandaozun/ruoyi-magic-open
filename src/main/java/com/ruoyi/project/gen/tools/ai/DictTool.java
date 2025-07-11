@@ -113,6 +113,16 @@ public class DictTool {
             logger.info("addDictType新增字典类型: {}", dictType);
             boolean save = sysDictTypeService.save(dictType);
             
+            // 如果字典数据列表不为空，则同时保存字典数据
+            if (save && dictType.getDictDataList() != null && !dictType.getDictDataList().isEmpty()) {
+                logger.info("同时新增字典数据，数量: {}", dictType.getDictDataList().size());
+                for (SysDictData dictData : dictType.getDictDataList()) {
+                    // 设置字典类型
+                    dictData.setDictType(dictType.getDictType());
+                    sysDictDataService.save(dictData);
+                }
+            }
+            
             Map<String, Object> result = new HashMap<>();
             result.put("success", save);
             result.put("dictType", dictType);
@@ -144,6 +154,22 @@ public class DictTool {
             }
 
             boolean update = sysDictTypeService.updateById(dictType);
+            
+            // 如果字典数据列表不为空，则同时处理字典数据
+            if (update && dictType.getDictDataList() != null && !dictType.getDictDataList().isEmpty()) {
+                logger.info("同时处理字典数据，数量: {}", dictType.getDictDataList().size());
+                for (SysDictData dictData : dictType.getDictDataList()) {
+                    // 设置字典类型
+                    dictData.setDictType(dictType.getDictType());
+                    
+                    // 如果字典数据有ID，则更新；否则新增
+                    if (dictData.getDictCode() != null && dictData.getDictCode() > 0) {
+                        sysDictDataService.updateById(dictData);
+                    } else {
+                        sysDictDataService.save(dictData);
+                    }
+                }
+            }
             
             Map<String, Object> result = new HashMap<>();
             result.put("success", update);

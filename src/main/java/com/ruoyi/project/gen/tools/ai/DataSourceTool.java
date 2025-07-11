@@ -53,7 +53,7 @@ public class DataSourceTool {
             logger.info("getTablesFromDataSource查询数据源[{}]的所有表", dataSourceName);
 
             // 如果不是主数据源，则切换数据源
-            if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+            if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master") && !StrUtil.equals(dataSourceName, "MASTER")) {
                 DynamicDataSourceContextHolder.setDataSourceType(dataSourceName);
             }
 
@@ -118,7 +118,7 @@ public class DataSourceTool {
                 return result;
             } finally {
                 // 如果不是主数据源，操作完成后清理数据源上下文
-                if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+                if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master") && !StrUtil.equals(dataSourceName, "MASTER")) {
                     DynamicDataSourceContextHolder.clearDataSourceType();
                 }
             }
@@ -137,7 +137,7 @@ public class DataSourceTool {
             logger.info("getTableStructureFromDataSource获取数据源[{}]表[{}]的结构", dataSourceName, tableName);
 
             // 如果不是主数据源，则切换数据源
-            if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+            if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master") && !StrUtil.equals(dataSourceName, "MASTER")) {
                 DynamicDataSourceContextHolder.setDataSourceType(dataSourceName);
             }
 
@@ -184,7 +184,7 @@ public class DataSourceTool {
                 return result;
             } finally {
                 // 如果不是主数据源，操作完成后清理数据源上下文
-                if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+                if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master") && !StrUtil.equals(dataSourceName, "MASTER")) {
                     DynamicDataSourceContextHolder.clearDataSourceType();
                 }
             }
@@ -254,7 +254,7 @@ public class DataSourceTool {
             logger.info("getAllTablesFromDataSource查询数据源[{}]的所有表", dataSourceName);
 
             // 如果不是主数据源，则切换数据源
-            if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+            if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master") && !StrUtil.equals(dataSourceName, "MASTER")) {
                 DynamicDataSourceContextHolder.setDataSourceType(dataSourceName);
             }
 
@@ -304,7 +304,7 @@ public class DataSourceTool {
                 return result;
             } finally {
                 // 如果不是主数据源，操作完成后清理数据源上下文
-                if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+                if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master") && !StrUtil.equals(dataSourceName, "MASTER")) {
                     DynamicDataSourceContextHolder.clearDataSourceType();
                 }
             }
@@ -366,7 +366,7 @@ public class DataSourceTool {
             }
 
             // 如果不是主数据源，则切换数据源
-            if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+            if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master") && !StrUtil.equals(dataSourceName, "MASTER")) {
                 DynamicDataSourceContextHolder.setDataSourceType(dataSourceName);
             }
 
@@ -423,7 +423,7 @@ public class DataSourceTool {
                 return result;
             } finally {
                 // 如果不是主数据源，操作完成后清理数据源上下文
-                if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master")) {
+                if (StrUtil.isNotEmpty(dataSourceName) && !StrUtil.equals(dataSourceName, "master") && !StrUtil.equals(dataSourceName, "MASTER")) {
                     DynamicDataSourceContextHolder.clearDataSourceType();
                 }
             }

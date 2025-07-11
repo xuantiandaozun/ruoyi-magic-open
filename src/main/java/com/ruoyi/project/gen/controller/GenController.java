@@ -189,7 +189,7 @@ public class GenController extends BaseController {
         List<GenTable> tableList = genTableService.selectDbTableListByNames(tableNames);
 
         // 设置主数据源标记
-        tableList.forEach(table -> table.setDataSource("master"));
+        tableList.forEach(table -> table.setDataSource("MASTER"));
         genTableService.importGenTable(tableList, SecurityUtils.getUsername());
         return success();
     }
@@ -204,6 +204,9 @@ public class GenController extends BaseController {
     public AjaxResult importTableSaveFromDataSource(String tables, @PathVariable String dataSourceName) {
         String[] tableNames = StrUtil.splitToArray(tables, ',');
         List<GenTable> tableList;
+        // 统一数据源名称格式，主数据源使用MASTER
+        String normalizedDataSourceName = "master".equalsIgnoreCase(dataSourceName) ? "MASTER" : dataSourceName;
+        
         if ("master".equalsIgnoreCase(dataSourceName)) {
             // 查询表信息
             tableList = genTableService.selectDbTableListByNames(tableNames);
@@ -211,8 +214,8 @@ public class GenController extends BaseController {
             // 查询表信息
             tableList = genTableService.selectDbTableListByNamesAndDataSource(tableNames, dataSourceName);
         }
-        // 设置数据源标记
-        tableList.forEach(table -> table.setDataSource(dataSourceName));
+        // 设置数据源标记，使用标准化的数据源名称
+        tableList.forEach(table -> table.setDataSource(normalizedDataSourceName));
         genTableService.importGenTable(tableList, SecurityUtils.getUsername());
         return success();
     }
@@ -591,9 +594,9 @@ public class GenController extends BaseController {
                 table.setTableId(IdUtil.getSnowflakeNextId());
             }
 
-            // 检查数据源是否设置，未设置则默认为master
+            // 检查数据源是否设置，未设置则默认为MASTER
             if (StrUtil.isBlank(table.getDataSource())) {
-                table.setDataSource("master");
+                table.setDataSource("MASTER");
             }
 
             // 为每个列设置表ID，检查列ID是否存在，不存在则生成新ID
@@ -679,7 +682,7 @@ public class GenController extends BaseController {
 
         // 添加默认主数据源
         Map<String, Object> mainDataSource = new HashMap<>();
-        mainDataSource.put("name", "master");
+        mainDataSource.put("name", "MASTER");
         mainDataSource.put("databaseName", "主数据源");
         mainDataSource.put("description", "默认主数据源");
         dataSourceList.add(mainDataSource);

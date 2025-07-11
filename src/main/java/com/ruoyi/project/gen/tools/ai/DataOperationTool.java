@@ -34,7 +34,7 @@ public class DataOperationTool {
             logger.info("addDataToTable向数据源[{}]的表[{}]添加数据", dataSourceName, tableName);
 
             // 判断不能是主数据源
-            if (StrUtil.isEmpty(dataSourceName) || StrUtil.equals(dataSourceName, "master")) {
+            if (StrUtil.isEmpty(dataSourceName) || StrUtil.equals(dataSourceName, "master") || StrUtil.equals(dataSourceName, "MASTER")) {
                 throw new ServiceException("不能对主数据源进行数据操作");
             }
 
@@ -90,7 +90,7 @@ public class DataOperationTool {
             logger.info("updateDataInTable修改数据源[{}]的表[{}]中的数据", dataSourceName, tableName);
 
             // 判断不能是主数据源
-            if (StrUtil.isEmpty(dataSourceName) || StrUtil.equals(dataSourceName, "master")) {
+            if (StrUtil.isEmpty(dataSourceName) || StrUtil.equals(dataSourceName, "master") || StrUtil.equals(dataSourceName, "MASTER")) {
                 throw new ServiceException("不能对主数据源进行数据操作");
             }
 
@@ -155,7 +155,7 @@ public class DataOperationTool {
             logger.info("queryDataFromTable查询数据源[{}]的表[{}]中的数据", dataSourceName, tableName);
 
             // 判断不能是主数据源
-            if (StrUtil.isEmpty(dataSourceName) || StrUtil.equals(dataSourceName, "master")) {
+            if (StrUtil.isEmpty(dataSourceName) || StrUtil.equals(dataSourceName, "master") || StrUtil.equals(dataSourceName, "MASTER")) {
                 throw new ServiceException("不能对主数据源进行数据操作");
             }
 

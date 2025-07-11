@@ -480,16 +480,29 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
     private List<GenTableColumn> getTableColumns(GenTable table) {
         String dataSource = table.getDataSource();
         if (StrUtil.isNotEmpty(dataSource) && !StrUtil.equals(dataSource, DynamicDataSourceContextHolder.MASTER)) {
-            return executeWithDataSource(dataSource, () -> {
-                SysDataSource sysDataSource = sysDataSourceService.selectSysDataSourceByName(dataSource);
-                if (sysDataSource != null && StrUtil.isNotEmpty(sysDataSource.getDatabaseName())) {
-                    return genTableColumnService.selectDbTableColumnsByNameAndDataSource(
-                            table.getTableName(), sysDataSource.getDatabaseName());
-                }
+            // 先获取数据源信息（使用主数据源）
+            SysDataSource sysDataSource = sysDataSourceService.selectSysDataSourceByName(dataSource);
+            if (sysDataSource == null || StrUtil.isEmpty(sysDataSource.getDatabaseName())) {
+                log.error("数据源不存在或数据库名称未配置: {}", dataSource);
                 return new ArrayList<>();
+            }
+            
+            // 切换到指定数据源查询表字段
+            return executeWithDataSource(dataSource, () -> {
+                try {
+                    List<GenTableColumn> columns = genTableColumnService.selectDbTableColumnsByNameAndDataSource(
+                            table.getTableName(), sysDataSource.getDatabaseName());
+                    log.info("从数据源 {} 查询到表 {} 的字段数量: {}", dataSource, table.getTableName(), columns.size());
+                    return columns;
+                } catch (Exception e) {
+                    log.error("查询数据源 {} 中表 {} 的字段失败: {}", dataSource, table.getTableName(), e.getMessage());
+                    return new ArrayList<>();
+                }
             });
         } else {
-            return genTableColumnService.selectDbTableColumnsByName(table.getTableName());
+            List<GenTableColumn> columns = genTableColumnService.selectDbTableColumnsByName(table.getTableName());
+            log.info("从主数据源查询到表 {} 的字段数量: {}", table.getTableName(), columns.size());
+            return columns;
         }
     }
 

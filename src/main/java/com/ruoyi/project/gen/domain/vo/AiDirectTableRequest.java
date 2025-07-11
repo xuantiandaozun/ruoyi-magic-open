@@ -31,5 +31,5 @@ public class AiDirectTableRequest {
     /**
      * 数据源名称
      */
-    private String dataSource = "master"; // 默认使用master数据源
-} 
+    private String dataSource = "MASTER"; // 默认使用MASTER数据源
+}
