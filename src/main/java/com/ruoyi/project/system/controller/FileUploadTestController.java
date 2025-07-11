@@ -126,6 +126,40 @@ public class FileUploadTestController extends BaseController {
     }
 
     /**
+     * 获取详细存储配置信息
+     */
+    @Operation(summary = "获取详细存储配置", description = "获取详细的存储配置信息，包含数据库配置")
+    @GetMapping("/config/detail")
+    public AjaxResult getDetailedStorageConfig() {
+        try {
+            Map<String, Object> config = FileUploadUtils.getCurrentStorageConfig();
+            return AjaxResult.success("获取成功", config);
+        } catch (Exception e) {
+            return AjaxResult.error("获取失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 检查文件是否存在
+     */
+    @Operation(summary = "检查文件存在", description = "检查指定文件是否存在")
+    @GetMapping("/exists")
+    public AjaxResult checkFileExists(@RequestParam("fileName") String fileName) {
+        try {
+            boolean exists = FileUploadUtils.fileExists(fileName);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("fileName", fileName);
+            result.put("exists", exists);
+            result.put("storageType", FileUploadUtils.getCurrentStorageType());
+            
+            return AjaxResult.success("检查完成", result);
+        } catch (Exception e) {
+            return AjaxResult.error("检查失败：" + e.getMessage());
+        }
+    }
+
+    /**
      * 批量上传文件
      */
     @Operation(summary = "批量上传", description = "批量上传多个文件")

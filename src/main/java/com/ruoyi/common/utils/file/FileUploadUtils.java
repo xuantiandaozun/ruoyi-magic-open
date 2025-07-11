@@ -16,6 +16,7 @@ import cn.hutool.core.util.StrUtil;
 import com.ruoyi.common.utils.uuid.Seq;
 import com.ruoyi.framework.config.RuoYiConfig;
 import com.ruoyi.common.utils.spring.SpringUtils;
+import com.ruoyi.common.enums.FileType;
 
 /**
  * 文件上传工具类
@@ -150,7 +151,8 @@ public class FileUploadUtils
 
     /**
      * 统一文件上传方法
-     * 根据yml配置自动选择本地存储或云存储
+     * 优先使用数据库配置，如果数据库没有配置则使用yml配置
+     * 自动记录文件上传信息到数据库
      *
      * @param baseDir 相对应用的基目录（仅本地存储时使用）
      * @param file 上传的文件
@@ -166,7 +168,7 @@ public class FileUploadUtils
             InvalidExtensionException
     {
         try {
-            // 获取存储配置
+            // 获取存储配置（优先使用数据库配置）
             FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
             String storageType = fileStorageService.getCurrentStorageType();
             
@@ -174,6 +176,7 @@ public class FileUploadUtils
             if ("local".equalsIgnoreCase(storageType)) {
                 return uploadToLocal(baseDir, file, allowedExtension);
             } else {
+                // 使用云存储（包含数据库配置优先和上传记录功能）
                 return uploadToCloud(file, allowedExtension);
             }
         } catch (Exception e) {
@@ -184,6 +187,7 @@ public class FileUploadUtils
 
     /**
      * 本地文件上传
+     * 使用增强的FileStorageService，支持数据库配置优先和文件上传记录
      *
      * @param baseDir 相对应用的基目录
      * @param file 上传的文件
@@ -206,15 +210,23 @@ public class FileUploadUtils
 
         assertAllowed(file, allowedExtension);
 
-        String fileName = extractFilename(file);
-
-        String absPath = getAbsoluteFile(baseDir, fileName).getAbsolutePath();
-        file.transferTo(Paths.get(absPath));
-        return getPathFileName(baseDir, fileName);
+        try {
+            // 使用增强的文件存储服务上传（自动记录上传信息和使用数据库配置）
+            String fileName = extractFilename(file);
+            FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+            return fileStorageService.uploadLocal(file, fileName, baseDir);
+        } catch (Exception e) {
+            // 如果通过FileStorageService失败，回退到原始方式
+            String fileName = extractFilename(file);
+            String absPath = getAbsoluteFile(baseDir, fileName).getAbsolutePath();
+            file.transferTo(Paths.get(absPath));
+            return getPathFileName(baseDir, fileName);
+        }
     }
 
     /**
      * 云存储文件上传
+     * 使用增强的FileStorageService，支持数据库配置优先和文件上传记录
      *
      * @param file 上传的文件
      * @param allowedExtension 上传文件类型
@@ -235,7 +247,7 @@ public class FileUploadUtils
         // 为云存储生成规范的文件名（包含分类目录）
         String fileName = extractCloudFilename(file);
 
-        // 使用文件存储服务上传
+        // 使用增强的文件存储服务上传（自动记录上传信息和使用数据库配置）
         FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
         return fileStorageService.upload(file, fileName);
     }
@@ -275,67 +287,8 @@ public class FileUploadUtils
      */
     private static final String getFileTypeCategory(String extension)
     {
-        if (StrUtil.isEmpty(extension))
-        {
-            return "others";
-        }
-        
-        String ext = extension.toLowerCase();
-        
-        // 图片类型
-        for (String imageExt : MimeTypeUtils.IMAGE_EXTENSION)
-        {
-            if (imageExt.equalsIgnoreCase(ext))
-            {
-                return "images";
-            }
-        }
-        
-        // 视频类型
-        for (String videoExt : MimeTypeUtils.VIDEO_EXTENSION)
-        {
-            if (videoExt.equalsIgnoreCase(ext))
-            {
-                return "videos";
-            }
-        }
-        
-        // 媒体类型（音频等）
-        for (String mediaExt : MimeTypeUtils.MEDIA_EXTENSION)
-        {
-            if (mediaExt.equalsIgnoreCase(ext))
-            {
-                return "media";
-            }
-        }
-        
-        // Flash类型
-        for (String flashExt : MimeTypeUtils.FLASH_EXTENSION)
-        {
-            if (flashExt.equalsIgnoreCase(ext))
-            {
-                return "flash";
-            }
-        }
-        
-        // 文档类型
-        if ("pdf".equalsIgnoreCase(ext) || "doc".equalsIgnoreCase(ext) || "docx".equalsIgnoreCase(ext) ||
-            "xls".equalsIgnoreCase(ext) || "xlsx".equalsIgnoreCase(ext) || "ppt".equalsIgnoreCase(ext) ||
-            "pptx".equalsIgnoreCase(ext) || "txt".equalsIgnoreCase(ext) || "html".equalsIgnoreCase(ext) ||
-            "htm".equalsIgnoreCase(ext))
-        {
-            return "documents";
-        }
-        
-        // 压缩文件
-        if ("zip".equalsIgnoreCase(ext) || "rar".equalsIgnoreCase(ext) || "gz".equalsIgnoreCase(ext) ||
-            "bz2".equalsIgnoreCase(ext) || "7z".equalsIgnoreCase(ext) || "tar".equalsIgnoreCase(ext))
-        {
-            return "archives";
-        }
-        
-        // 其他类型
-        return "others";
+        FileType fileType = FileType.getByExtension(extension);
+        return fileType.getCode();
     }
 
     public static final File getAbsoluteFile(String uploadDir, String fileName) throws IOException
@@ -445,6 +398,7 @@ public class FileUploadUtils
     /**
      * 强制使用云存储上传文件（向后兼容方法）
      * 注意：此方法会忽略yml配置，强制使用云存储
+     * 但仍会使用数据库配置优先和记录上传信息
      *
      * @param file 上传的文件
      * @param allowedExtension 允许的文件扩展名
@@ -465,7 +419,7 @@ public class FileUploadUtils
         // 为云存储生成规范的文件名（包含分类目录）
         String fileName = extractCloudFilename(file);
 
-        // 使用文件存储服务上传
+        // 使用增强的文件存储服务上传（自动记录上传信息和使用数据库配置）
         FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
         return fileStorageService.upload(file, fileName);
     }
@@ -473,6 +427,7 @@ public class FileUploadUtils
     /**
      * 强制使用云存储上传文件（指定文件名，向后兼容方法）
      * 注意：此方法会忽略yml配置，强制使用云存储
+     * 但仍会使用数据库配置优先和记录上传信息
      *
      * @param file 上传的文件
      * @param fileName 指定的文件名
@@ -491,7 +446,7 @@ public class FileUploadUtils
 
         assertAllowed(file, allowedExtension);
 
-        // 使用文件存储服务上传
+        // 使用增强的文件存储服务上传（自动记录上传信息和使用数据库配置）
         FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
         return fileStorageService.upload(file, fileName);
     }
@@ -531,6 +486,65 @@ public class FileUploadUtils
         catch (Exception e)
         {
             return "";
+        }
+    }
+
+    /**
+     * 获取当前存储配置信息
+     * 包含配置来源（数据库或YML）、存储类型等信息
+     *
+     * @return 存储配置信息
+     */
+    public static final java.util.Map<String, Object> getCurrentStorageConfig()
+    {
+        try
+        {
+            FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+            return fileStorageService.getCurrentStorageConfig();
+        }
+        catch (Exception e)
+        {
+            java.util.Map<String, Object> errorConfig = new java.util.HashMap<>();
+            errorConfig.put("source", "error");
+            errorConfig.put("error", e.getMessage());
+            return errorConfig;
+        }
+    }
+
+    /**
+     * 检查文件是否存在
+     *
+     * @param fileName 文件名
+     * @return 是否存在
+     */
+    public static final boolean fileExists(String fileName)
+    {
+        try
+        {
+            FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+            return fileStorageService.exists(fileName);
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+    }
+
+    /**
+     * 获取当前存储类型
+     *
+     * @return 存储类型（local、aliyun、tencent、amazon、azure等）
+     */
+    public static final String getCurrentStorageType()
+    {
+        try
+        {
+            FileStorageService fileStorageService = SpringUtils.getBean(FileStorageService.class);
+            return fileStorageService.getCurrentStorageType();
+        }
+        catch (Exception e)
+        {
+            return "local"; // 默认返回本地存储
         }
     }
 }

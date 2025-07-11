@@ -11,5 +11,19 @@ import com.ruoyi.project.system.domain.StorageConfig;
  */
 public interface IStorageConfigService extends IService<StorageConfig>
 {
-    // 可以添加自定义的业务方法
+    /**
+     * 新增存储配置（带默认配置唯一性校验）
+     * 
+     * @param storageConfig 存储配置
+     * @return 结果
+     */
+    boolean saveStorageConfig(StorageConfig storageConfig);
+    
+    /**
+     * 修改存储配置（带默认配置唯一性校验）
+     * 
+     * @param storageConfig 存储配置
+     * @return 结果
+     */
+    boolean updateStorageConfig(StorageConfig storageConfig);
 }

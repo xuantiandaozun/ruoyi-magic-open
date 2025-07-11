@@ -92,7 +92,7 @@ public class StorageConfigController extends BaseController
     @PostMapping
     public AjaxResult add(@RequestBody StorageConfig storageConfig)
     {
-        return toAjax(storageConfigService.save(storageConfig) ? 1 : 0);
+        return toAjax(storageConfigService.saveStorageConfig(storageConfig) ? 1 : 0);
     }
 
     /**
@@ -103,7 +103,7 @@ public class StorageConfigController extends BaseController
     @PutMapping
     public AjaxResult edit(@RequestBody StorageConfig storageConfig)
     {
-        return toAjax(storageConfigService.updateById(storageConfig) ? 1 : 0);
+        return toAjax(storageConfigService.updateStorageConfig(storageConfig) ? 1 : 0);
     }
 
     /**

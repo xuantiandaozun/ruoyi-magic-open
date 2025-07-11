@@ -34,8 +34,8 @@ public class StorageConfig extends BaseEntity
     @Excel(name = "配置名称")
     private String configName;
 
-    /** 是否默认配置（0否 1是） */
-    @Excel(name = "是否默认配置", readConverterExp = "0=否,1=是")
+    /** 是否默认配置（N否 Y是） */
+    @Excel(name = "是否默认配置", readConverterExp = "N=否,Y=是")
     private String isDefault;
 
     /** 状态（0正常 1停用） */

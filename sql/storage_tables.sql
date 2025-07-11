@@ -15,7 +15,7 @@ CREATE TABLE `sys_storage_config` (
   `config_id` bigint NOT NULL AUTO_INCREMENT COMMENT '配置ID',
   `storage_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '存储类型（local-本地存储, aliyun-阿里云OSS, tencent-腾讯云COS, amazon-亚马逊S3, azure-微软Azure）',
   `config_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '配置名称',
-  `is_default` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '是否默认配置（0否 1是）',
+  `is_default` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT 'N' COMMENT '是否默认配置（N否 Y是）',
   `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '状态（0正常 1停用）',
   `config_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL COMMENT '配置数据（JSON格式）',
   `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '创建者',
@@ -33,7 +33,7 @@ CREATE TABLE `sys_storage_config` (
 -- ----------------------------
 -- Records of sys_storage_config
 -- ----------------------------
-INSERT INTO `sys_storage_config` VALUES (1, 'local', '默认本地存储', '1', '0', '{"uploadPath":"/profile/upload"}', 'admin', NOW(), '', NULL, '系统默认本地存储配置', '0');
+INSERT INTO `sys_storage_config` VALUES (1, 'local', '默认本地存储', 'Y', '0', '{"uploadPath":"/profile/upload"}', 'admin', NOW(), '', NULL, '系统默认本地存储配置', '0');
 
 -- ----------------------------
 -- Table structure for sys_file_upload_record
