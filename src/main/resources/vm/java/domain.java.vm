@@ -6,6 +6,7 @@ import ${import};
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
+import com.mybatisflex.annotation.Column;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.ruoyi.framework.aspectj.lang.annotation.Excel;
@@ -67,6 +68,9 @@ public class ${ClassName} extends ${Entity}
 #end
 #if($column.isPk())
     @Id(keyType = KeyType.Auto)
+#end
+#if($column.javaField == 'delFlag')
+    @Column(isLogicDelete = true)
 #end
     private $column.javaType $column.javaField;
 

@@ -20,6 +20,17 @@
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
+#elseif($column.htmlType == "select" && $column.hasTableDict())
+      <el-form-item label="${comment}" prop="${column.javaField}">
+        <el-select v-model="queryParams.${column.javaField}" placeholder="请选择${comment}" clearable>
+          <el-option
+            v-for="option in ${column.javaField}Options"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+      </el-form-item>
 #elseif(($column.htmlType == "select" || $column.htmlType == "radio") && "" != $dictType)
       <el-form-item label="${comment}" prop="${column.javaField}">
         <el-select v-model="queryParams.${column.javaField}" placeholder="请选择${comment}" clearable>
@@ -112,11 +123,18 @@
       </el-col>
       <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
+      <div style="color: red; font-size: 12px;">DEBUG: parentId字段 - list:$column.list, hasTableDict:$column.hasTableDict(), htmlType:$column.htmlType, insert:$column.insert, pk:$column.pk</div>
 
     <el-table v-loading="loading" :data="${businessName}List" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
+      <div style="color: red; font-size: 12px;">DEBUG: parentId字段 - list:$column.list, hasTableDict:$column.hasTableDict(), htmlType:$column.htmlType, insert:$column.insert, pk:$column.pk</div>
 #foreach($column in $columns)
 #set($javaField=$column.javaField)
+<!-- DEBUG LIST ALL: 字段 $javaField - list:$column.list, hasTableDict:$column.hasTableDict(), htmlType:$column.htmlType, insert:$column.insert, pk:$column.pk -->
+#if($javaField == "parentId")
+      <div style="color: red; font-size: 12px;">DEBUG: parentId字段 - list:$column.list, hasTableDict:$column.hasTableDict(), htmlType:$column.htmlType, insert:$column.insert, pk:$column.pk</div>
+#end
+      <div style="color: red; font-size: 12px;">DEBUG: parentId字段 - list:$column.list, hasTableDict:$column.hasTableDict(), htmlType:$column.htmlType, insert:$column.insert, pk:$column.pk</div>
 #set($parentheseIndex=$column.columnComment.indexOf("（"))
 #if($parentheseIndex != -1)
 #set($comment=$column.columnComment.substring(0, $parentheseIndex))
@@ -135,6 +153,19 @@
       <el-table-column label="${comment}" align="center" prop="${javaField}" width="100">
         <template slot-scope="scope">
           <image-preview :src="scope.row.${javaField}" :width="50" :height="50"/>
+        </template>
+      </el-table-column>
+#elseif($column.list && $column.hasTableDict())
+<!-- DEBUG LIST: 字段 $javaField - list:$column.list, hasTableDict:$column.hasTableDict(), htmlType:$column.htmlType -->
+#if($javaField == "parentId")
+        <div style="color: red; font-size: 12px;">DEBUG LIST: parentId字段 - list:$column.list, hasTableDict:$column.hasTableDict(), htmlType:$column.htmlType</div>
+#end
+      <el-table-column label="${comment}" align="center" prop="${javaField}">
+        <template slot-scope="scope">
+          <span v-if="getTableDictLabel(scope.row.${javaField}, '${javaField}')">
+            {{ getTableDictLabel(scope.row.${javaField}, '${javaField}') }}
+          </span>
+          <span v-else>{{ scope.row.${javaField} }}</span>
         </template>
       </el-table-column>
 #elseif($column.list && "" != $column.dictType)
@@ -184,6 +215,10 @@
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
 #foreach($column in $columns)
 #set($field=$column.javaField)
+<!-- DEBUG: 字段 $field - insert:$column.insert, pk:$column.pk, usableColumn:$column.usableColumn, superColumn:$column.superColumn, hasTableDict:$column.hasTableDict(), htmlType:$column.htmlType, list:$column.list -->
+#if($field == "parentId")
+        <div style="color: red; font-size: 12px; margin: 10px 0;">DEBUG FORM: parentId字段 - insert:$column.insert, pk:$column.pk, usableColumn:$column.usableColumn, superColumn:$column.superColumn, hasTableDict:$column.hasTableDict(), htmlType:$column.htmlType</div>
+#end
 #if($column.insert && !$column.pk)
 #if(($column.usableColumn) || (!$column.superColumn))
 #set($parentheseIndex=$column.columnComment.indexOf("（"))
@@ -208,6 +243,21 @@
 #elseif($column.htmlType == "editor")
         <el-form-item label="${comment}">
           <editor v-model="form.${field}" :min-height="192"/>
+        </el-form-item>
+#elseif($column.htmlType == "select" && $column.hasTableDict())
+        <el-form-item label="${comment}" prop="${field}">
+          <el-select v-model="form.${field}" placeholder="请选择${comment}">
+            <el-option
+              v-for="option in ${field}Options"
+              :key="option.value"
+              :label="option.label"
+#if($column.javaType == "Integer" || $column.javaType == "Long")
+              :value="parseInt(option.value)"
+#else
+              :value="option.value"
+#end
+            ></el-option>
+          </el-select>
         </el-form-item>
 #elseif($column.htmlType == "select" && "" != $dictType)
         <el-form-item label="${comment}" prop="${field}">
@@ -354,6 +404,16 @@
 
 <script>
 import { list${BusinessName}, get${BusinessName}, del${BusinessName}, add${BusinessName}, update${BusinessName} } from "@/api/${moduleName}/${businessName}";
+#set($hasTableDict = false)
+#foreach($column in $columns)
+#if($column.hasTableDict())
+#set($hasTableDict = true)
+#break
+#end
+#end
+#if($hasTableDict)
+import { getTableDict } from '@/api/common/dict'
+#end
 
 export default {
   name: "${BusinessName}",
@@ -388,6 +448,12 @@ export default {
       title: "",
       // 是否显示弹出层
       open: false,
+#foreach($column in $columns)
+#if($column.hasTableDict())
+      // ${column.columnComment}选项数据
+      ${column.javaField}Options: [],
+#end
+#end
 #foreach ($column in $columns)
 #if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
 #set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
@@ -427,6 +493,11 @@ export default {
   },
   created() {
     this.getList();
+#foreach($column in $columns)
+#if($column.hasTableDict())
+    this.get${column.javaField.substring(0,1).toUpperCase()}${column.javaField.substring(1)}Options();
+#end
+#end
   },
   methods: {
     /** 查询${functionName}列表 */
@@ -599,7 +670,47 @@ export default {
       this.download('${moduleName}/${businessName}/export', {
         ...this.queryParams
       }, `${businessName}_#[[${new Date().getTime()}]]#.xlsx`)
+    },
+#foreach($column in $columns)
+#if($column.hasTableDict())
+    /** 获取${column.columnComment}字典数据 */
+    get${column.javaField.substring(0,1).toUpperCase()}${column.javaField.substring(1)}Options() {
+#if($column.tableDictLabelField && $column.tableDictValueField)
+      getTableDict('${column.tableDictName}', {
+        labelField: '${column.tableDictLabelField}',
+        valueField: '${column.tableDictValueField}'
+#if($column.tableDictCondition)
+        , conditions: ${column.tableDictCondition}
+#end
+      }).then(response => {
+        this.${column.javaField}Options = response.data.options || [];
+      }).catch(error => {
+        console.error('获取${column.columnComment}字典数据失败:', error);
+        this.${column.javaField}Options = [];
+      });
+#else
+      getTableDict('${column.tableDictName}').then(response => {
+        this.${column.javaField}Options = response.data.options || [];
+      }).catch(error => {
+        console.error('获取${column.columnComment}字典数据失败:', error);
+        this.${column.javaField}Options = [];
+      });
+#end
+    }#if($foreach.hasNext),#end
+#end
+#end
+#if($hasTableDict)
+    ,
+    /** 根据值获取表字典显示文本 */
+    getTableDictLabel(value, fieldName) {
+      const options = this[fieldName + 'Options'];
+      if (!options || options.length === 0) {
+        return '';
+      }
+      const option = options.find(item => item.value == value);
+      return option ? option.label : '';
     }
+#end
   }
 };
 </script>

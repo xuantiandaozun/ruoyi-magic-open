@@ -1,19 +1,13 @@
 package ${packageName}.mapper;
 
-#if($table.sub)
-import java.util.List;
-#end
 import com.mybatisflex.core.BaseMapper;
-import ${packageName}.domain.${ClassName};
-#if($table.sub)
 import ${packageName}.domain.${subClassName};
-#end
 #if($table.dataSource && $table.dataSource != 'MASTER')
 import com.mybatisflex.annotation.UseDataSource;
 #end
 
 /**
- * ${functionName}Mapper接口
+ * ${subTable.functionName}Mapper接口
  * 
  * @author ${author}
  * @date ${datetime}
@@ -21,7 +15,7 @@ import com.mybatisflex.annotation.UseDataSource;
 #if($table.dataSource && $table.dataSource != 'MASTER')
 @UseDataSource("${table.dataSource}")
 #end
-public interface ${ClassName}Mapper extends BaseMapper<${ClassName}>
+public interface ${subClassName}Mapper extends BaseMapper<${subClassName}>
 {
     // 遵循MyBatis-Flex规范，保持Mapper接口简洁，复杂查询在Service层实现
 }

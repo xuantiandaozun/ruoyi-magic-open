@@ -16,6 +16,14 @@ public interface I${ClassName}Service extends IService<${ClassName}>
 {
 #if($table.sub)
     /**
+     * 获取${functionName}详细信息（包含子表数据）
+     * 
+     * @param ${pkColumn.javaField} ${functionName}主键
+     * @return ${functionName}信息
+     */
+    public ${ClassName} get${ClassName}WithSubTable(${pkColumn.javaType} ${pkColumn.javaField});
+    
+    /**
      * 保存${functionName}
      * 
      * @param ${className} ${functionName}
@@ -37,15 +45,7 @@ public interface I${ClassName}Service extends IService<${ClassName}>
      * @param ${pkColumn.javaField}s 需要删除的${functionName}主键数组
      * @return 结果
      */
-    public boolean removeBatchBy${pkColumn.capJavaField}s(${pkColumn.javaType}[] ${pkColumn.javaField}s);
-    
-    /**
-     * 删除${functionName}
-     * 
-     * @param ${pkColumn.javaField} ${functionName}主键
-     * @return 结果
-     */
-    public boolean removeBy${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField});
+    public boolean removeBatchByIds(${pkColumn.javaType}[] ${pkColumn.javaField}s);
 #end
-    // 可以添加自定义的业务方法
+
 }

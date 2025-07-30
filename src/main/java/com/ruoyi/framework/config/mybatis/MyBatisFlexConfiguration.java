@@ -19,6 +19,8 @@ import com.ruoyi.framework.web.domain.BaseEntity;
 @Configuration
 public class MyBatisFlexConfiguration implements MyBatisFlexCustomizer, ConfigurationCustomizer {
 
+
+    
     @Override
     public void customize(FlexGlobalConfig globalConfig) {
         // 注册插入和更新监听器

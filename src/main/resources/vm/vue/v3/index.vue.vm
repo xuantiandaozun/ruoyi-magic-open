@@ -118,9 +118,7 @@
 #else
 #set($comment=$column.columnComment)
 #end
-#if($column.pk && $column.list)
-      <el-table-column label="${comment}" align="center" prop="${javaField}" />
-#elseif($column.list && $column.htmlType == "datetime")
+#if($column.list && $column.htmlType == "datetime")
       <el-table-column label="${comment}" align="center" prop="${javaField}" width="180">
         <template #default="scope">
           <span>{{ parseTime(scope.row.${javaField}, '{y}-{m}-{d}') }}</span>
@@ -130,6 +128,12 @@
       <el-table-column label="${comment}" align="center" prop="${javaField}" width="100">
         <template #default="scope">
           <image-preview :src="scope.row.${javaField}" :width="50" :height="50"/>
+        </template>
+      </el-table-column>
+#elseif($column.list && $column.hasTableDict())
+      <el-table-column label="${comment}" align="center" prop="${javaField}">
+        <template #default="scope">
+          <span>{{ ${javaField}Options.find(option => option.value == scope.row.${javaField})?.label || scope.row.${javaField} }}</span>
         </template>
       </el-table-column>
 #elseif($column.list && "" != $column.dictType)
@@ -192,6 +196,21 @@
 #elseif($column.htmlType == "editor")
         <el-form-item label="${comment}">
           <editor v-model="form.${field}" :min-height="192"/>
+        </el-form-item>
+#elseif($column.htmlType == "select" && $column.hasTableDict())
+        <el-form-item label="${comment}" prop="${field}">
+          <el-select v-model="form.${field}" placeholder="请选择${comment}">
+            <el-option
+              v-for="option in ${field}Options"
+              :key="option.value"
+              :label="option.label"
+#if($column.javaType == "Integer" || $column.javaType == "Long")
+              :value="option.value"
+#else
+              :value="option.value"
+#end
+            ></el-option>
+          </el-select>
         </el-form-item>
 #elseif($column.htmlType == "select" && "" != $dictType)
         <el-form-item label="${comment}" prop="${field}">
@@ -307,6 +326,19 @@
               </el-date-picker>
             </template>
           </el-table-column>
+#elseif($column.list && ($column.htmlType == "select" || $column.htmlType == "radio") && $column.hasTableDict())
+          <el-table-column label="$comment" prop="${javaField}" width="150">
+            <template #default="scope">
+              <el-select v-model="scope.row.$javaField" placeholder="请选择$comment">
+                <el-option
+                  v-for="option in ${javaField}Options"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                ></el-option>
+              </el-select>
+            </template>
+          </el-table-column>
 #elseif($column.list && ($column.htmlType == "select" || $column.htmlType == "radio") && "" != $column.dictType)
           <el-table-column label="$comment" prop="${javaField}" width="150">
             <template #default="scope">
@@ -346,6 +378,12 @@
 
 <script setup name="${BusinessName}">
 import { list${BusinessName}, get${BusinessName}, del${BusinessName}, add${BusinessName}, update${BusinessName} } from "@/api/${moduleName}/${businessName}";
+#foreach ($column in $columns)
+#if($column.htmlType == "select" && $column.hasTableDict())
+import { getTableDict } from "@/api/common/dict";
+#break
+#end
+#end
 import { onMounted, onUnmounted, getCurrentInstance, ref, reactive, toRefs } from 'vue';
 
 const { proxy } = getCurrentInstance();
@@ -363,6 +401,11 @@ const { ${dictsNoSymbol} } = proxy.useDict(${dicts});
 const ${businessName}List = ref([]);
 #if($table.sub)
 const ${subclassName}List = ref([]);
+#foreach ($column in $subTable.columns)
+#if($column.htmlType == "select" && $column.hasTableDict())
+const ${column.javaField}Options = ref([]);
+#end
+#end
 #end
 const open = ref(false);
 const loading = ref(true);
@@ -376,6 +419,11 @@ const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
 const title = ref("");
+#foreach ($column in $columns)
+#if($column.htmlType == "select" && $column.hasTableDict())
+const ${column.javaField}Options = ref([]);
+#end
+#end
 #foreach ($column in $columns)
 #if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
 #set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
@@ -635,9 +683,63 @@ function handleExport() {
   }, '${businessName}_' + new Date().getTime() + '.xlsx')
 }
 
+#foreach ($column in $columns)
+#if($column.htmlType == "select" && $column.hasTableDict())
+/** 获取${column.columnComment}字典 */
+async function get${column.javaField.substring(0,1).toUpperCase()}${column.javaField.substring(1)}Options() {
+  try {
+    const response = await getTableDict('${column.tableDictName}', {
+      labelField: '${column.tableDictText}',
+      valueField: '${column.tableDictValue}',
+      status: '0' // 只获取启用状态的数据
+    });
+    ${column.javaField}Options.value = response.options || [];
+  } catch (error) {
+    console.error('获取${column.columnComment}字典失败:', error);
+    ${column.javaField}Options.value = [];
+    proxy.$modal.msgError('获取${column.columnComment}字典失败：' + error);
+  }
+}
+
+#end
+#end
+#if($table.sub)
+#foreach ($column in $subTable.columns)
+#if($column.htmlType == "select" && $column.hasTableDict())
+/** 获取${column.columnComment}字典 */
+async function get${column.javaField.substring(0,1).toUpperCase()}${column.javaField.substring(1)}Options() {
+  try {
+    const response = await getTableDict('${column.tableDictName}', {
+      labelField: '${column.tableDictText}',
+      valueField: '${column.tableDictValue}',
+      status: '0' // 只获取启用状态的数据
+    });
+    ${column.javaField}Options.value = response.options || [];
+  } catch (error) {
+    console.error('获取${column.columnComment}字典失败:', error);
+    ${column.javaField}Options.value = [];
+    proxy.$modal.msgError('获取${column.columnComment}字典失败：' + error);
+  }
+}
+
+#end
+#end
+#end
 // 在组件挂载后执行查询操作
 onMounted(() => {
   getList();
+#foreach ($column in $columns)
+#if($column.htmlType == "select" && $column.hasTableDict())
+  get${column.javaField.substring(0,1).toUpperCase()}${column.javaField.substring(1)}Options();
+#end
+#end
+#if($table.sub)
+#foreach ($column in $subTable.columns)
+#if($column.htmlType == "select" && $column.hasTableDict())
+  get${column.javaField.substring(0,1).toUpperCase()}${column.javaField.substring(1)}Options();
+#end
+#end
+#end
 });
 
 // 在组件卸载前清理资源

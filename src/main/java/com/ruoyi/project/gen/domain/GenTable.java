@@ -83,6 +83,10 @@ public class GenTable extends BaseEntity {
 
     /** 生成路径（不填默认项目路径） */
     private String genPath;
+    
+    /** Vue代码生成路径 */
+    private String vuePath;
+    
     /** 数据源名称 */
     private String dataSource;
 
@@ -123,6 +127,7 @@ public class GenTable extends BaseEntity {
     private String parentMenuName;
 
     /** 删除标志（0代表存在 2代表删除） */
+    @Column(isLogicDelete=true)
     private String delFlag;
 
     public boolean isSub() {

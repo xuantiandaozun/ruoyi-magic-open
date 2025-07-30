@@ -47,6 +47,9 @@ public class ${subClassName} extends BaseEntity
 #if($column.isPk())
     @Id(keyType = KeyType.Auto)
 #end
+#if($column.javaField == 'delFlag')
+    @Column(isLogicDelete = true)
+#end
     private $column.javaType $column.javaField;
 
 #end

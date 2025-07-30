@@ -1,16 +1,18 @@
 package ${packageName}.service.impl;
 
 #if($table.sub)
+import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
-import com.ruoyi.common.utils.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import ${packageName}.domain.${subClassName};
 import ${packageName}.mapper.${subClassName}Mapper;
+import com.mybatisflex.core.row.DbChain;
 import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.core.row.Db;
+import cn.hutool.core.util.ObjectUtil;
 #else
 import java.util.Arrays;
 #end
@@ -19,7 +21,7 @@ import ${packageName}.mapper.${ClassName}Mapper;
 import ${packageName}.domain.${ClassName};
 import ${packageName}.service.I${ClassName}Service;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
-#if($table.dataSource && $table.dataSource != 'master')
+#if($table.dataSource && $table.dataSource != 'MASTER')
 import com.mybatisflex.annotation.UseDataSource;
 #end
 
@@ -30,7 +32,7 @@ import com.mybatisflex.annotation.UseDataSource;
  * @date ${datetime}
  */
 @Service
-#if($table.dataSource && $table.dataSource != 'master')
+#if($table.dataSource && $table.dataSource != 'MASTER')
 @UseDataSource("${table.dataSource}")
 #end
 public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${ClassName}> implements I${ClassName}Service
@@ -40,6 +42,25 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
     private ${subClassName}Mapper ${subclassName}Mapper;
 
     /**
+     * 获取${functionName}详细信息（包含子表数据）
+     * 
+     * @param ${pkColumn.javaField} ${functionName}主键
+     * @return ${functionName}信息
+     */
+    public ${ClassName} get${ClassName}WithSubTable(${pkColumn.javaType} ${pkColumn.javaField})
+    {
+        ${ClassName} ${className} = getById(${pkColumn.javaField});
+        if (${className} != null)
+        {
+            List<${subClassName}> ${subclassName}List = ${subclassName}Mapper.selectListByQuery(
+                QueryWrapper.create().where("${subTableFkName} = ?", ${pkColumn.javaField})
+            );
+            ${className}.set${subClassName}List(${subclassName}List);
+        }
+        return ${className};
+    }
+
+    /**
      * 新增${subTable.functionName}信息
      * 
      * @param ${className} ${functionName}对象
@@ -47,12 +68,12 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
     private void insert${subClassName}(${ClassName} ${className})
     {
         List<${subClassName}> ${subclassName}List = ${className}.get${subClassName}List();
-        ${pkColumn.javaType} ${pkColumn.javaField} = ${className}.get${pkColumn.capJavaField}();
-        if (StringUtils.isNotNull(${subclassName}List))
+        ${pkColumn.javaType} ${pkColumn.javaField} = ${className}.getId();
+        if (ObjectUtil.isNotNull(${subclassName}List))
         {
             for (${subClassName} ${subclassName} : ${subclassName}List)
             {
-                ${subclassName}.set${pkColumn.capJavaField}(${pkColumn.javaField});
+                ${subclassName}.set${subTableFkClassName.substring(0,1).toUpperCase()}${subTableFkClassName.substring(1)}(${pkColumn.javaField});
             }
             if (!${subclassName}List.isEmpty())
             {
@@ -87,9 +108,9 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
     public boolean update${ClassName}(${ClassName} ${className})
     {
         // 删除子表数据
-        QueryWrapper queryWrapper = QueryWrapper.create()
-            .where("${subTableFkName} = ?", ${className}.get${pkColumn.capJavaField}());
-        Db.deleteByQuery(queryWrapper, ${subClassName}.class);
+        DbChain.table("${subTableName}")
+            .where("${subTableFkName} = ?", ${className}.getId())
+            .remove();
         
         // 新增子表数据
         insert${subClassName}(${className});
@@ -97,42 +118,18 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
         // 更新主表数据
         return updateById(${className});
     }
-    
-    /**
-     * 批量删除${functionName}
-     * 
-     * @param ${pkColumn.javaField}s 需要删除的${functionName}主键数组
-     * @return 结果
-     */
-    @Transactional
-    public boolean removeBatchBy${pkColumn.capJavaField}s(${pkColumn.javaType}[] ${pkColumn.javaField}s)
-    {
+
+    public boolean removeBatchByIds(${pkColumn.javaType}[] ids) {
         // 删除子表数据
-        QueryWrapper queryWrapper = QueryWrapper.create()
-            .where("${subTableFkName} in (?)", Arrays.asList(${pkColumn.javaField}s));
-        Db.deleteByQuery(queryWrapper, ${subClassName}.class);
-        
+        for (${pkColumn.javaType} id : ids) {
+            DbChain.table("${subTableName}")
+                .where("${subTableFkName} = ?", id)
+                .remove();
+        }
         // 删除主表数据
-        return removeBatchByIds(Arrays.asList(${pkColumn.javaField}s));
+        return removeByIds(java.util.Arrays.asList(ids));
     }
     
-    /**
-     * 删除${functionName}
-     * 
-     * @param ${pkColumn.javaField} ${functionName}主键
-     * @return 结果
-     */
-    @Transactional
-    public boolean removeBy${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField})
-    {
-        // 删除子表数据
-        QueryWrapper queryWrapper = QueryWrapper.create()
-            .where("${subTableFkName} = ?", ${pkColumn.javaField});
-        Db.deleteByQuery(queryWrapper, ${subClassName}.class);
-        
-        // 删除主表数据
-        return removeById(${pkColumn.javaField});
-    }
 #end
-    // 可以添加自定义的业务方法
+   
 }

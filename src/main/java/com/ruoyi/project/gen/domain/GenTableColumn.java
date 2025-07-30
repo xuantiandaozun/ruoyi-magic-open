@@ -83,6 +83,18 @@ public class GenTableColumn extends BaseEntity
     /** 默认值 */
     private String columnDefault;
 
+    /** 表字典名称 */
+    private String tableDictName;
+
+    /** 表字典显示字段 */
+    private String tableDictLabelField;
+
+    /** 表字典值字段 */
+    private String tableDictValueField;
+
+    /** 表字典查询条件(JSON格式) */
+    private String tableDictCondition;
+
     public boolean isPk()
     {
         return isPk(this.isPk);
@@ -125,7 +137,7 @@ public class GenTableColumn extends BaseEntity
 
     public boolean isEdit()
     {
-        return isInsert(this.isEdit);
+        return isEdit(this.isEdit);
     }
 
     public boolean isEdit(String isEdit)
@@ -199,5 +211,29 @@ public class GenTableColumn extends BaseEntity
         {
             return this.columnComment;
         }
+    }
+
+    /**
+     * 是否配置了表字典
+     */
+    public boolean hasTableDict()
+    {
+        return StrUtil.isNotBlank(this.tableDictName);
+    }
+
+    /**
+     * 获取表字典显示字段（模板兼容方法）
+     */
+    public String getTableDictText()
+    {
+        return this.tableDictLabelField;
+    }
+
+    /**
+     * 获取表字典值字段（模板兼容方法）
+     */
+    public String getTableDictValue()
+    {
+        return this.tableDictValueField;
     }
 }

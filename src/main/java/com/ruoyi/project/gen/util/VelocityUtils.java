@@ -171,6 +171,7 @@ public class VelocityUtils
         {
             templates.add(useWebType + "/index.vue.vm");
             templates.add("vm/java/sub-domain.java.vm");
+            templates.add("vm/java/sub-mapper.java.vm");
         }
         return templates;
     }
@@ -179,6 +180,17 @@ public class VelocityUtils
      * 获取文件名
      */
     public static String getFileName(String template, GenTable genTable)
+    {
+        return getFileName(template, genTable, false);
+    }
+    
+    /**
+     * 获取文件名
+     * @param template 模板名称
+     * @param genTable 生成表信息
+     * @param isZipMode 是否为压缩包模式
+     */
+    public static String getFileName(String template, GenTable genTable, boolean isZipMode)
     {
         // 文件名称
         String fileName = "";
@@ -192,7 +204,8 @@ public class VelocityUtils
         String businessName = genTable.getBusinessName();
 
         String javaPath = PROJECT_PATH + "/" + StrUtil.replace(packageName, ".", "/");
-        String vuePath = "vue";
+        // 根据模式选择Vue路径：压缩包模式使用vue，文件系统模式使用src
+        String vuePath = isZipMode ? "vue" : "src";
 
         if (template.contains("domain.java.vm"))
         {
@@ -201,6 +214,10 @@ public class VelocityUtils
         if (template.contains("sub-domain.java.vm") && StrUtil.equals(GenConstants.TPL_SUB, genTable.getTplCategory()))
         {
             fileName = StrUtil.format("{}/domain/{}.java", javaPath, genTable.getSubTable().getClassName());
+        }
+        else if (template.contains("sub-mapper.java.vm") && StrUtil.equals(GenConstants.TPL_SUB, genTable.getTplCategory()))
+        {
+            fileName = StrUtil.format("{}/mapper/{}Mapper.java", javaPath, genTable.getSubTable().getClassName());
         }
         else if (template.contains("mapper.java.vm"))
         {

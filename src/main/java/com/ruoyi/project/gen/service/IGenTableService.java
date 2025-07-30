@@ -6,6 +6,7 @@ import java.util.Map;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.service.IService;
 import com.ruoyi.project.gen.domain.GenTable;
+import com.ruoyi.project.gen.tools.request.BatchUpdateGenTableRequest;
 
 /**
  * 业务 服务层
@@ -79,6 +80,13 @@ public interface IGenTableService extends IService<GenTable> {
     public void updateGenTable(GenTable genTable);
 
     /**
+     * 批量修改业务（排除生成业务名和生成功能名）
+     * 
+     * @param request 批量更新请求
+     */
+    public void batchUpdateGenTableExcludeBusinessAndFunction(BatchUpdateGenTableRequest request);
+
+    /**
      * 删除业务信息
      * 
      * @param tableIds 需要删除的表数据ID
@@ -150,6 +158,23 @@ public interface IGenTableService extends IService<GenTable> {
      * @return 数据
      */
     public byte[] downloadCode(String[] tableNames);
+
+    /**
+     * 批量生成代码（下载方式）- 支持tableId数组和生成类型
+     * 
+     * @param tableIds 表ID数组
+     * @param genType 生成类型：all-全部生成，java-只生成Java代码，vue-只生成Vue代码
+     * @return 数据
+     */
+    public byte[] downloadCodeByIds(List<Long> tableIds, String genType);
+
+    /**
+     * 批量生成代码（自定义路径）- 支持tableId数组和生成类型
+     * 
+     * @param tableIds 表ID数组
+     * @param genType 生成类型：all-全部生成，java-只生成Java代码，vue-只生成Vue代码
+     */
+    public void generatorCodeByIds(List<Long> tableIds, String genType);
 
     /**
      * 插入业务表信息

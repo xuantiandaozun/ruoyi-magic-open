@@ -55,6 +55,14 @@ public class UpdateGenTableRequest {
     /** 生成路径（不填默认项目路径） */
     private String genPath;
     
+    /** 上级菜单ID字段 */
+    private Long parentMenuId;
+
+    /**
+     * vue 路径
+     */
+    private String vuePath;
+    
     /** 其它生成选项 */
     private String options;
     

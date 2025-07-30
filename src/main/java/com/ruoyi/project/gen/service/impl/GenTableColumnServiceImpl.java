@@ -146,4 +146,83 @@ public class GenTableColumnServiceImpl extends ServiceImpl<GenTableColumnMapper,
     {
         return this.getById(columnId);
     }
+    
+    /**
+     * 更新字段的表字典配置
+     * 
+     * @param columnId 字段ID
+     * @param tableDictName 表字典名称
+     * @param tableDictLabelField 表字典显示字段
+     * @param tableDictValueField 表字典值字段
+     * @param tableDictCondition 表字典查询条件
+     * @return 结果
+     */
+    @Override
+    public boolean updateTableDictConfig(Long columnId, String tableDictName, String tableDictLabelField, 
+                                       String tableDictValueField, String tableDictCondition)
+    {
+        try {
+            GenTableColumn column = this.getById(columnId);
+            if (column == null) {
+                return false;
+            }
+            
+            // 更新表字典配置
+            column.setTableDictName(tableDictName);
+            column.setTableDictLabelField(tableDictLabelField);
+            column.setTableDictValueField(tableDictValueField);
+            column.setTableDictCondition(tableDictCondition);
+            
+            return this.updateById(column);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * 验证表字典配置的有效性
+     * 
+     * @param tableName 表名
+     * @param labelField 显示字段
+     * @param valueField 值字段
+     * @return 验证结果
+     */
+    @Override
+    public boolean validateTableDictConfig(String tableName, String labelField, String valueField)
+    {
+        try {
+            // 验证表名格式
+            if (tableName == null || !tableName.matches("^[a-zA-Z0-9_]+$")) {
+                return false;
+            }
+            
+            // 获取表的字段信息
+            List<GenTableColumn> columns = this.selectDbTableColumnsByName(tableName);
+            if (columns.isEmpty()) {
+                return false; // 表不存在
+            }
+            
+            // 验证显示字段是否存在
+            if (labelField != null && !labelField.isEmpty()) {
+                boolean labelFieldExists = columns.stream()
+                        .anyMatch(col -> col.getColumnName().equals(labelField));
+                if (!labelFieldExists) {
+                    return false;
+                }
+            }
+            
+            // 验证值字段是否存在
+            if (valueField != null && !valueField.isEmpty()) {
+                boolean valueFieldExists = columns.stream()
+                        .anyMatch(col -> col.getColumnName().equals(valueField));
+                if (!valueFieldExists) {
+                    return false;
+                }
+            }
+            
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }
