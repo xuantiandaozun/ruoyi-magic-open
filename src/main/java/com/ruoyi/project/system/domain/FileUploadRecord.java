@@ -1,14 +1,15 @@
 package com.ruoyi.project.system.domain;
 
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import com.ruoyi.common.enums.FileType;
 import com.ruoyi.framework.aspectj.lang.annotation.Excel;
 import com.ruoyi.framework.web.domain.BaseEntity;
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.ruoyi.common.enums.FileType;
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * 文件上传记录对象 sys_file_upload_record
@@ -74,6 +75,7 @@ public class FileUploadRecord extends BaseEntity
     private String userAgent;
 
     /** 删除标志（0代表存在 2代表删除） */
+    @Column(isLogicDelete = true)
     private String delFlag;
 
 }

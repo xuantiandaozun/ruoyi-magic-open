@@ -1,15 +1,16 @@
 package com.ruoyi.project.system.domain;
 
 import java.util.Date;
-import com.fasterxml.jackson.annotation.JsonFormat;
+
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import com.ruoyi.framework.aspectj.lang.annotation.Excel;
 import com.ruoyi.framework.web.domain.BaseEntity;
-import com.fasterxml.jackson.annotation.JsonFormat;
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * RDS实例管理对象 rds_instance_info
@@ -118,6 +119,7 @@ public class RdsInstanceInfo extends BaseEntity
     private String keyStatus;
 
     /** 删除标志（0存在 2删除） */
+    @Column(isLogicDelete = true)
     private String delFlag;
 
 }

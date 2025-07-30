@@ -47,15 +47,7 @@ public class AliyunCredentialProvider {
                 .eq("status", "0")
                 .eq("del_flag", "0");
         
-        // 如果指定了区域，添加区域过滤条件
-        if (StringUtils.hasText(regions)) {
-            String[] regionArray = regions.split(",");
-            if (regionArray.length == 1) {
-                queryWrapper.eq("region", regionArray[0].trim());
-            } else {
-                queryWrapper.in("region", (Object[]) regionArray);
-            }
-        }
+
         
         List<SysSecretKey> secretKeys = sysSecretKeyService.list(queryWrapper);
         
