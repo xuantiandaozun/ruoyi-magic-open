@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,15 +32,35 @@ public class AliyunCredentialProvider {
      * @return 凭证列表
      */
     public List<AliyunCredential> getAllCredentials() {
+        return getAllCredentials(null);
+    }
+    
+    /**
+     * 获取所有有效的阿里云凭证
+     * 
+     * @param regions 区域列表，逗号分隔，为空时获取所有区域的凭证
+     * @return 凭证列表
+     */
+    public List<AliyunCredential> getAllCredentials(String regions) {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .eq("provider_brand", "aliyun")
                 .eq("status", "0")
                 .eq("del_flag", "0");
         
+        // 如果指定了区域，添加区域过滤条件
+        if (StringUtils.hasText(regions)) {
+            String[] regionArray = regions.split(",");
+            if (regionArray.length == 1) {
+                queryWrapper.eq("region", regionArray[0].trim());
+            } else {
+                queryWrapper.in("region", (Object[]) regionArray);
+            }
+        }
+        
         List<SysSecretKey> secretKeys = sysSecretKeyService.list(queryWrapper);
         
         return secretKeys.stream()
-                .map(this::convertToCredential)
+                .flatMap(secretKey -> convertToCredentials(secretKey).stream())
                 .filter(AliyunCredential::isValid)
                 .collect(Collectors.toList());
     }
@@ -79,7 +100,7 @@ public class AliyunCredentialProvider {
         List<SysSecretKey> secretKeys = sysSecretKeyService.list(queryWrapper);
         
         return secretKeys.stream()
-                .map(this::convertToCredential)
+                .flatMap(secretKey -> convertToCredentials(secretKey).stream())
                 .filter(AliyunCredential::isValid)
                 .collect(Collectors.toList());
     }
@@ -103,7 +124,7 @@ public class AliyunCredentialProvider {
         List<SysSecretKey> secretKeys = sysSecretKeyService.list(queryWrapper);
         
         return secretKeys.stream()
-                .map(this::convertToCredential)
+                .flatMap(secretKey -> convertToCredentials(secretKey).stream())
                 .filter(AliyunCredential::isValid)
                 .collect(Collectors.toList());
     }
@@ -140,9 +161,9 @@ public class AliyunCredentialProvider {
             return false;
         }
         
+        // region可以为空，不作为有效性验证的必要条件
         return StringUtils.hasText(credential.getAccessKeyId()) 
-                && StringUtils.hasText(credential.getAccessKeySecret())
-                && StringUtils.hasText(credential.getRegion());
+                && StringUtils.hasText(credential.getAccessKeySecret());
     }
     
     /**
@@ -164,9 +185,10 @@ public class AliyunCredentialProvider {
             return AliyunCredential.builder().valid(false).build();
         }
         
+        // 验证必要字段：accessKey和secretKey不能为空
         boolean isValid = StringUtils.hasText(secretKey.getAccessKey()) 
                 && StringUtils.hasText(secretKey.getSecretKey())
-                && StringUtils.hasText(secretKey.getRegion());
+                && StringUtils.hasText(secretKey.getRegion()); // region也不能为空
         
         return AliyunCredential.builder()
                 .accessKeyId(secretKey.getAccessKey())
@@ -176,5 +198,51 @@ public class AliyunCredentialProvider {
                 .keyName(secretKey.getKeyName())
                 .valid(isValid)
                 .build();
+    }
+    
+    /**
+     * 转换SysSecretKey为多个AliyunCredential（支持逗号分隔的region）
+     * 
+     * @param secretKey 系统密钥
+     * @return 阿里云凭证列表
+     */
+    private List<AliyunCredential> convertToCredentials(SysSecretKey secretKey) {
+        if (secretKey == null) {
+            return List.of(AliyunCredential.builder().valid(false).build());
+        }
+        
+        // 验证必要字段：accessKey和secretKey不能为空
+        if (!StringUtils.hasText(secretKey.getAccessKey()) || !StringUtils.hasText(secretKey.getSecretKey())) {
+            return List.of(AliyunCredential.builder().valid(false).build());
+        }
+        
+        // 处理region字段
+        String regionStr = secretKey.getRegion();
+        if (!StringUtils.hasText(regionStr)) {
+            // region为空，创建一个无效的凭证
+            return List.of(AliyunCredential.builder()
+                    .accessKeyId(secretKey.getAccessKey())
+                    .accessKeySecret(secretKey.getSecretKey())
+                    .region(null)
+                    .secretKeyId(secretKey.getId())
+                    .keyName(secretKey.getKeyName())
+                    .valid(false)
+                    .build());
+        }
+        
+        // 分割region字符串
+        String[] regions = regionStr.split(",");
+        return Arrays.stream(regions)
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .map(region -> AliyunCredential.builder()
+                        .accessKeyId(secretKey.getAccessKey())
+                        .accessKeySecret(secretKey.getSecretKey())
+                        .region(region)
+                        .secretKeyId(secretKey.getId())
+                        .keyName(secretKey.getKeyName())
+                        .valid(true)
+                        .build())
+                .collect(Collectors.toList());
     }
 }
