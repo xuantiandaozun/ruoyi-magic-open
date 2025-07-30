@@ -1,21 +1,24 @@
 package com.ruoyi.common.storage.impl;
 
+import java.io.InputStream;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.PutObjectRequest;
+import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.common.storage.FileStorageStrategy;
 import com.ruoyi.framework.config.CloudStorageConfig;
 import com.ruoyi.project.system.domain.StorageConfig;
 import com.ruoyi.project.system.service.IStorageConfigService;
-import com.mybatisflex.core.query.QueryWrapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
+
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
-
-import java.io.InputStream;
-import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 阿里云OSS文件存储策略实现
@@ -23,6 +26,7 @@ import java.util.Map;
  * @author ruoyi
  */
 @Component("aliyunOssStorageStrategy")
+@Slf4j
 public class AliyunOssStorageStrategy implements FileStorageStrategy {
 
     @Autowired
@@ -79,8 +83,8 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
      * 获取OSS客户端
      */
     private OSS getOssClient() {
-        AliyunConfig aliyun = getAliyunConfig();
-        return new OSSClientBuilder().build(aliyun.getEndpoint(), aliyun.getAccessKeyId(), aliyun.getAccessKeySecret());
+        AliyunConfig config = getAliyunConfig();
+        return new OSSClientBuilder().build(config.getEndpoint(), config.getAccessKeyId(), config.getAccessKeySecret());
     }
     
     /**
@@ -142,6 +146,7 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
             ossClient.deleteObject(aliyun.getBucketName(), objectName);
             return true;
         } catch (Exception e) {
+            log.error("删除文件失败: {}", fileName, e);
             return false;
         } finally {
             if (ossClient != null) {
@@ -165,9 +170,10 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
         OSS ossClient = null;
         try {
             ossClient = getOssClient();
-            AliyunConfig aliyun = getAliyunConfig();
-            String objectName = aliyun.getPrefix() + fileName;
-            return ossClient.doesObjectExist(aliyun.getBucketName(), objectName);
+            AliyunConfig config = getAliyunConfig();
+            
+            String objectName = config.getPrefix() + fileName;
+            return ossClient.doesObjectExist(config.getBucketName(), objectName);
         } catch (Exception e) {
             return false;
         } finally {

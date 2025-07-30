@@ -12,22 +12,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 // 阿里云RDS SDK相关导入
-import com.aliyun.auth.credentials.Credential;
-import com.aliyun.auth.credentials.provider.StaticCredentialProvider;
 import com.aliyun.sdk.service.rds20140815.AsyncClient;
 import com.aliyun.sdk.service.rds20140815.models.DescribeDBInstancesRequest;
 import com.aliyun.sdk.service.rds20140815.models.DescribeDBInstancesResponse;
 import com.aliyun.sdk.service.rds20140815.models.DescribeDBInstancesResponseBody.DBInstance;
+// 阿里云封装相关导入
+import com.ruoyi.framework.aliyun.config.AliyunCredential;
+import com.ruoyi.framework.aliyun.service.AliyunService;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.project.system.domain.RdsInstanceInfo;
-import com.ruoyi.project.system.domain.SysSecretKey;
 import com.ruoyi.project.system.mapper.RdsInstanceInfoMapper;
 import com.ruoyi.project.system.service.IRdsInstanceInfoService;
 import com.ruoyi.project.system.service.ISysSecretKeyService;
-
-import darabonba.core.client.ClientOverrideConfiguration;
 
 /**
  * RDS实例管理Service业务层处理
@@ -43,20 +41,19 @@ public class RdsInstanceInfoServiceImpl extends ServiceImpl<RdsInstanceInfoMappe
     @Autowired
     private ISysSecretKeyService sysSecretKeyService;
     
+    @Autowired
+    private AliyunService aliyunService;
+    
     /**
      * 同步阿里云RDS实例数据
      */
     @Override
     public AjaxResult syncAliyunRdsInstances() {
         try {
-            // 查询所有阿里云密钥
-            QueryWrapper queryWrapper = QueryWrapper.create()
-                .eq("provider_brand", "aliyun")
-                .eq("status", "0")
-                .eq("del_flag", "0");
-            List<SysSecretKey> aliyunKeys = sysSecretKeyService.list(queryWrapper);
+            // 获取所有可用的阿里云凭证
+            List<AliyunCredential> credentials = aliyunService.getAllCredentials();
             
-            if (aliyunKeys.isEmpty()) {
+            if (credentials.isEmpty()) {
                 return AjaxResult.error("未找到可用的阿里云密钥");
             }
             
@@ -64,16 +61,16 @@ public class RdsInstanceInfoServiceImpl extends ServiceImpl<RdsInstanceInfoMappe
             int successCount = 0;
             int errorCount = 0;
             
-            // 遍历每个阿里云密钥，同步对应的RDS实例
-            for (SysSecretKey secretKey : aliyunKeys) {
+            // 遍历每个阿里云凭证，同步对应的RDS实例
+            for (AliyunCredential credential : credentials) {
                 try {
-                    int synced = syncRdsInstancesByKey(secretKey);
+                    int synced = syncRdsInstancesByCredential(credential);
                     totalSynced += synced;
                     successCount++;
-                    log.info("密钥ID: {} 同步成功，同步实例数: {}", secretKey.getId(), synced);
+                    log.info("密钥: {} 同步成功，同步实例数: {}", credential.getKeyName(), synced);
                 } catch (Exception e) {
                     errorCount++;
-                    log.error("密钥ID: {} 同步失败: {}", secretKey.getId(), e.getMessage(), e);
+                    log.error("密钥: {} 同步失败: {}", credential.getKeyName(), e.getMessage(), e);
                 }
             }
             
@@ -89,57 +86,45 @@ public class RdsInstanceInfoServiceImpl extends ServiceImpl<RdsInstanceInfoMappe
     }
     
     /**
-     * 使用指定密钥同步RDS实例
+     * 使用指定凭证同步RDS实例
      */
-    private int syncRdsInstancesByKey(SysSecretKey secretKey) throws Exception {
-        // 配置阿里云客户端
-        StaticCredentialProvider provider = StaticCredentialProvider.create(Credential.builder()
-            .accessKeyId(secretKey.getAccessKey())
-            .accessKeySecret(secretKey.getSecretKey())
-            .build());
-        
-        String region = secretKey.getRegion() != null ? secretKey.getRegion() : "cn-hangzhou";
-        
-        AsyncClient client = AsyncClient.builder()
-            .region(region)
-            .credentialsProvider(provider)
-            .overrideConfiguration(
-                ClientOverrideConfiguration.create()
-                    .setEndpointOverride("rds." + region + ".aliyuncs.com")
-            )
-            .build();
-        
-        try {
-            // 构建请求参数
-            DescribeDBInstancesRequest request = DescribeDBInstancesRequest.builder()
-                .regionId(region)
-                .build();
-            
-            // 同步获取RDS实例列表
-            CompletableFuture<DescribeDBInstancesResponse> future = client.describeDBInstances(request);
-            DescribeDBInstancesResponse response = future.get();
-            
-            int syncedCount = 0;
-            
-            if (response.getBody() != null && response.getBody().getItems() != null) {
-                // 修正：使用正确的方法名 getDBInstance()
-                List<DBInstance> dbInstance = response.getBody().getItems().getDBInstance();
+    private int syncRdsInstancesByCredential(AliyunCredential credential) throws Exception {
+        // 使用阿里云服务执行RDS操作
+        return aliyunService.executeWithCredential("RDS", credential, (AsyncClient client) -> {
+            try {
+                // 构建请求参数
+                DescribeDBInstancesRequest request = DescribeDBInstancesRequest.builder()
+                    .regionId(credential.getRegion())
+                    .build();
                 
-                for (DBInstance instance : dbInstance) {
-                    try {
-                        saveOrUpdateRdsInstance(instance, secretKey);
-                        syncedCount++;
-                    } catch (Exception e) {
-                        log.error("保存RDS实例失败: {}", instance.getDBInstanceId(), e);
+                // 同步获取RDS实例列表
+                CompletableFuture<DescribeDBInstancesResponse> future = client.describeDBInstances(request);
+                DescribeDBInstancesResponse response = future.get();
+                
+                int syncedCount = 0;
+            
+                if (response.getBody() != null && response.getBody().getItems() != null) {
+                    // 修正：使用正确的方法名 getDBInstance()
+                    List<DBInstance> dbInstance = response.getBody().getItems().getDBInstance();
+                    
+                    for (DBInstance instance : dbInstance) {
+                        try {
+                            saveOrUpdateRdsInstance(instance, credential);
+                            syncedCount++;
+                            log.debug("同步RDS实例: {}", instance.getDBInstanceId());
+                        } catch (Exception e) {
+                            log.error("保存RDS实例失败: {}, 错误: {}", instance.getDBInstanceId(), e.getMessage());
+                        }
                     }
                 }
+                
+                return syncedCount;
+                
+            } catch (Exception e) {
+                log.error("同步RDS实例失败", e);
+                throw new RuntimeException(e);
             }
-            
-            return syncedCount;
-            
-        } finally {
-            client.close();
-        }
+        });
     }
     
     /**
@@ -147,12 +132,12 @@ public class RdsInstanceInfoServiceImpl extends ServiceImpl<RdsInstanceInfoMappe
      */
     private void saveOrUpdateRdsInstance(
         DBInstance instance, 
-        SysSecretKey secretKey) {
+        AliyunCredential credential) {
         
         // 查询是否已存在该实例
         QueryWrapper queryWrapper = QueryWrapper.create()
             .eq("db_instance_id", instance.getDBInstanceId())
-            .eq("secret_key_id", secretKey.getId());
+            .eq("secret_key_id", credential.getSecretKeyId());
         
         RdsInstanceInfo existingInstance = this.getOne(queryWrapper);
         
@@ -190,11 +175,11 @@ public class RdsInstanceInfoServiceImpl extends ServiceImpl<RdsInstanceInfoMappe
         rdsInstance.setTempDbInstanceId(instance.getTempDBInstanceId());
         
         // 设置密钥相关信息
-        rdsInstance.setSecretKeyId(secretKey.getId());
-        rdsInstance.setAccessKey(secretKey.getAccessKey());
-        rdsInstance.setSecretKey(secretKey.getSecretKey());
-        rdsInstance.setKeyRegion(secretKey.getRegion());
-        rdsInstance.setKeyStatus(secretKey.getStatus());
+        rdsInstance.setSecretKeyId(credential.getSecretKeyId());
+        rdsInstance.setAccessKey(credential.getAccessKeyId());
+        rdsInstance.setSecretKey(credential.getAccessKeySecret());
+        rdsInstance.setKeyRegion(credential.getRegion());
+        rdsInstance.setKeyStatus("0"); // 正常状态
         
         rdsInstance.setUpdateTime(new Date());
         rdsInstance.setDelFlag("0");
