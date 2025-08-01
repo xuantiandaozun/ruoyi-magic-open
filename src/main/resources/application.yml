@@ -67,6 +67,15 @@ ruoyi:
       # 自定义域名（可选）
       custom-domain: 
 
+# 飞书应用配置
+feishu:
+  # 飞书应用ID
+  app-id: your-feishu-app-id
+  # 飞书应用密钥
+  app-secret: your-feishu-app-secret
+  # 授权回调地址
+  redirect-uri: http://localhost:3000/feishu
+
 # knife4j的增强配置，不需要增强可以不配
 knife4j:
   # 开启增强配置

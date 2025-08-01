@@ -12,16 +12,19 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.ruoyi.common.utils.file.FileUploadUtils;
 import com.ruoyi.common.utils.file.MimeTypeUtils;
-import com.ruoyi.framework.config.RuoYiConfig;
 import com.ruoyi.framework.security.service.PasswordEncoder;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.project.system.domain.SysUser;
+import com.ruoyi.project.system.domain.dto.FeishuOAuthRequest;
+import com.ruoyi.project.system.service.IFeishuOAuthService;
 import com.ruoyi.project.system.service.ISysUserService;
 
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.util.StrUtil;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 /**
  * 个人信息 业务处理
@@ -35,6 +38,9 @@ public class SysProfileController extends BaseController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    
+    @Autowired
+    private IFeishuOAuthService feishuOAuthService;
 
     /**
      * 个人信息
@@ -45,6 +51,7 @@ public class SysProfileController extends BaseController {
         AjaxResult ajax = success(user);
         ajax.put("roleGroup", userService.selectUserRoleGroup(user.getUserName()));
         ajax.put("postGroup", userService.selectUserPostGroup(user.getUserName()));
+        ajax.put("feishuAuthorized", feishuOAuthService.isCurrentUserAuthorized());
         return ajax;
     }
 
@@ -103,5 +110,75 @@ public class SysProfileController extends BaseController {
             }
         }
         return error("上传图片异常，请联系管理员");
+    }
+    
+    /**
+     * 生成飞书授权URL
+     */
+    @Operation(summary = "生成飞书授权URL")
+    @GetMapping("/feishu/authUrl")
+    public AjaxResult getFeishuAuthUrl(@RequestParam String redirectUri, @RequestParam(required = false) String state) {
+        try {
+            if (StrUtil.isEmpty(state)) {
+                state = "feishu_auth_" + System.currentTimeMillis();
+            }
+            String authUrl = feishuOAuthService.generateAuthUrl(redirectUri, state);
+            return success("操作成功", authUrl);
+        } catch (Exception e) {
+            return error(e.getMessage());
+        }
+    }
+    
+    /**
+     * 处理飞书OAuth回调
+     */
+    @Operation(summary = "处理飞书OAuth回调")
+    @PostMapping("/feishu/callback")
+    public AjaxResult handleFeishuCallback(@Valid @RequestBody FeishuOAuthRequest request) {
+        try {
+            boolean success = feishuOAuthService.handleOAuthCallback(request);
+            if (success) {
+                return success("飞书授权成功");
+            } else {
+                return error("飞书授权失败");
+            }
+        } catch (Exception e) {
+            return error(e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取当前用户飞书授权状态
+     */
+    @Operation(summary = "获取飞书授权状态")
+    @GetMapping("/feishu/status")
+    public AjaxResult getFeishuAuthStatus() {
+        boolean authorized = feishuOAuthService.isCurrentUserAuthorized();
+        AjaxResult result = success();
+        result.put("authorized", authorized);
+        if (authorized) {
+            result.put("message", "已授权飞书访问");
+        } else {
+            result.put("message", "未授权飞书访问");
+        }
+        return result;
+    }
+    
+    /**
+     * 注销飞书授权
+     */
+    @Operation(summary = "注销飞书授权")
+    @PostMapping("/feishu/revoke")
+    public AjaxResult revokeFeishuAuth() {
+        try {
+            boolean success = feishuOAuthService.revokeCurrentUserAuthorization();
+            if (success) {
+                return success("飞书授权注销成功");
+            } else {
+                return error("飞书授权注销失败");
+            }
+        } catch (Exception e) {
+            return error(e.getMessage());
+        }
     }
 }

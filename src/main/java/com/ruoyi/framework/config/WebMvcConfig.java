@@ -53,6 +53,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                                                 "/login",
                                                 "/register",
                                                 "/captchaImage",
+                                                "/system/user/profile/feishu/callback",
                                                 "/swagger-resources/**",
                                                 "/webjars/**",
                                                 "/v3/api-docs/**",

@@ -56,6 +56,7 @@ public class SaTokenConfiguration implements WebMvcConfigurer {
                             .notMatch("/login")
                             .notMatch("/captchaImage")
                             .notMatch("/register")
+                            .notMatch("/feishu/callback")
                             .notMatch("/mcp/messages")
                             .notMatch("/sse")
                             .notMatch("/v2/**")
