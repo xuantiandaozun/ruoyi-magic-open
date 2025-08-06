@@ -160,82 +160,104 @@ public class FeishuDocController extends BaseController
     @SaCheckPermission("feishu:feishudoc:sync")
     @Log(title = "同步飞书文档", businessType = BusinessType.OTHER)
     @PostMapping("/sync")
-    public AjaxResult syncFeishuDocs(@RequestParam(value = "keyName", required = false) String keyName)
+    public AjaxResult syncFeishuDocs(@RequestParam(value = "keyName", required = false) String keyName,
+                                   @RequestParam(value = "orderBy", required = false) String orderBy,
+                                   @RequestParam(value = "direction", required = false) String direction,
+                                   @RequestParam(value = "pageSize", required = false) Integer pageSize,
+                                   @RequestParam(value = "pageToken", required = false) String pageToken)
     {
         try {
-            // 获取飞书配置
-            FeishuConfig feishuConfig = getFeishuConfig(keyName);
-            if (feishuConfig == null || !feishuConfig.isValid()) {
-                return error("飞书配置无效，请检查密钥配置");
-            }
-            
-            // 构建飞书客户端
-            Client client = Client.newBuilder(feishuConfig.getAppId(), feishuConfig.getAppSecret()).build();
-            
-            // 创建请求对象
-            ListFileReq req = ListFileReq.newBuilder()
-                .orderBy("EditedTime")
-                .direction("DESC")
-                .build();
-            
-            // 获取当前用户的飞书访问令牌
-            String userAccessToken = feishuOAuthService.getCurrentUserFeishuToken();
-            if (StrUtil.isBlank(userAccessToken)) {
-                return error("当前用户未绑定飞书访问令牌，请先进行飞书授权");
-            }
-            
-            // 构建请求选项
-            RequestOptions.Builder optionsBuilder = RequestOptions.newBuilder();
-            optionsBuilder.userAccessToken(userAccessToken);
-            
-            // 发起请求
-            ListFileResp resp = client.drive().v1().file().list(req, optionsBuilder.build());
-            
-            // 处理服务端错误
-            if (!resp.success()) {
-                log.error("同步飞书文档失败，错误码: {}, 错误信息: {}, 请求ID: {}", 
-                    resp.getCode(), resp.getMsg(), resp.getRequestId());
-                
-                if (resp.getRawResponse() != null && resp.getRawResponse().getBody() != null) {
-                    String errorDetail = Jsons.createGSON(true, false).toJson(
-                        JsonParser.parseString(new String(resp.getRawResponse().getBody(), StandardCharsets.UTF_8)));
-                    log.error("飞书API详细错误信息: {}", errorDetail);
-                }
-                return error("同步失败: " + resp.getMsg());
-            }
-            
-            // 处理业务数据
-            List<FeishuDoc> docsToSave = new ArrayList<>();
-            if (resp.getData() != null && resp.getData().getFiles() != null) {
-                for (File file : resp.getData().getFiles()) {
-                    FeishuDoc feishuDoc = new FeishuDoc();
-                    feishuDoc.setToken(file.getToken());
-                    feishuDoc.setName(file.getName());
-                    feishuDoc.setType(file.getType());
-                    feishuDoc.setUrl(file.getUrl());
-                    feishuDoc.setOwnerId(file.getOwnerId());
-                    feishuDoc.setParentToken(file.getParentToken());
-                    feishuDoc.setIsFolder("folder".equals(file.getType()) ? 1 : 0);
-                    feishuDoc.setFeishuCreatedTime(file.getCreatedTime());
-                    feishuDoc.setFeishuModifiedTime(file.getModifiedTime());
-                    feishuDoc.setKeyName(StrUtil.isNotBlank(keyName) ? keyName : "feishu");
-                    
-                    docsToSave.add(feishuDoc);
-                }
-            }
-            
-            // 批量保存或更新文档信息
-            if (!docsToSave.isEmpty()) {
-                feishuDocService.saveOrUpdateBatch(docsToSave);
-                log.info("成功同步 {} 个飞书文档", docsToSave.size());
-                return success("同步成功，共同步 " + docsToSave.size() + " 个文档");
-            } else {
-                return success("同步完成，未发现新文档");
-            }
-            
+            String result = feishuDocService.syncFeishuDocuments(keyName, orderBy, direction, pageSize, pageToken);
+            return success(result);
         } catch (Exception e) {
             log.error("同步飞书文档异常", e);
             return error("同步异常: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 上传文件到飞书
+     */
+    @Operation(summary = "上传文件到飞书")
+    @SaCheckPermission("feishu:feishudoc:upload")
+    @Log(title = "上传文件到飞书", businessType = BusinessType.OTHER)
+    @PostMapping("/upload")
+    public AjaxResult uploadFile(@RequestParam("file") java.io.File file,
+                               @RequestParam(value = "fileName", required = false) String fileName,
+                               @RequestParam(value = "parentType", required = false) String parentType,
+                               @RequestParam(value = "parentNode", required = false) String parentNode,
+                               @RequestParam(value = "keyName", required = false) String keyName)
+    {
+        try {
+            FeishuDoc result = feishuDocService.uploadFileToFeishu(file, fileName, parentType, parentNode, keyName);
+            return success(result);
+        } catch (Exception e) {
+            log.error("上传文件到飞书异常", e);
+            return error("上传异常: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 删除飞书文档
+     */
+    @Operation(summary = "删除飞书文档")
+    @SaCheckPermission("feishu:feishudoc:delete")
+    @Log(title = "删除飞书文档", businessType = BusinessType.DELETE)
+    @DeleteMapping("/feishu/{fileToken}")
+    public AjaxResult deleteFeishuFile(@PathVariable("fileToken") String fileToken,
+                                     @RequestParam(value = "type", required = false) String type,
+                                     @RequestParam(value = "keyName", required = false) String keyName)
+    {
+        try {
+            boolean result = feishuDocService.deleteFeishuFile(fileToken, type, keyName);
+            return toAjax(result ? 1 : 0);
+        } catch (Exception e) {
+            log.error("删除飞书文档异常", e);
+            return error("删除异常: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 创建飞书文件夹
+     */
+    @Operation(summary = "创建飞书文件夹")
+    @SaCheckPermission("feishu:feishudoc:createFolder")
+    @Log(title = "创建飞书文件夹", businessType = BusinessType.INSERT)
+    @PostMapping("/createFolder")
+    public AjaxResult createFolder(@RequestParam("name") String name,
+                                 @RequestParam(value = "folderToken", required = false) String folderToken,
+                                 @RequestParam(value = "keyName", required = false) String keyName)
+    {
+        try {
+            FeishuDoc result = feishuDocService.createFeishuFolder(name, folderToken, keyName);
+            return success(result);
+        } catch (Exception e) {
+            log.error("创建飞书文件夹异常", e);
+            return error("创建文件夹异常: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 创建导入任务
+     */
+    @Operation(summary = "创建导入任务")
+    @SaCheckPermission("feishu:feishudoc:import")
+    @Log(title = "创建导入任务", businessType = BusinessType.OTHER)
+    @PostMapping("/createImportTask")
+    public AjaxResult createImportTask(@RequestParam("fileExtension") String fileExtension,
+                                     @RequestParam("fileToken") String fileToken,
+                                     @RequestParam("type") String type,
+                                     @RequestParam("fileName") String fileName,
+                                     @RequestParam(value = "mountType", required = false) Integer mountType,
+                                     @RequestParam("mountKey") String mountKey,
+                                     @RequestParam(value = "keyName", required = false) String keyName)
+    {
+        try {
+            String result = feishuDocService.createImportTask(fileExtension, fileToken, type, fileName, mountType, mountKey, keyName);
+            return success(result);
+        } catch (Exception e) {
+            log.error("创建导入任务异常", e);
+            return error("创建导入任务异常: " + e.getMessage());
         }
     }
     
