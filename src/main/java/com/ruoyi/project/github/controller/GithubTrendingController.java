@@ -56,7 +56,7 @@ public class GithubTrendingController extends BaseController
         // 创建 MyBatisFlex 的 QueryWrapper
         QueryWrapper queryWrapper = buildFlexQueryWrapper(githubTrending);
         
-        queryWrapper.orderBy("create_time desc,id desc");
+        queryWrapper.orderBy("first_trending_date desc,id desc");
         // 使用 MyBatisFlex 的分页方法
         Page<GithubTrending> page = githubTrendingService.page(new Page<>(pageNum, pageSize), queryWrapper);
         return getDataTable(page);
