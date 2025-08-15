@@ -131,7 +131,7 @@ public interface IFeishuDocService extends IService<FeishuDoc>
      * @param keyName 密钥名称
      * @return 创建结果
      */
-    String createDocumentBlockChildren(String documentId, String blockId, Integer documentRevisionId, String children, String keyName);
+    String createDocumentBlockChildren(String documentId, String blockId, Integer documentRevisionId, String children ,String keyName);
     
     /**
      * 创建文档块后代元素
@@ -144,6 +144,17 @@ public interface IFeishuDocService extends IService<FeishuDoc>
      * @return 创建结果
      */
     String createDocumentBlockDescendant(String documentId, String blockId, Integer documentRevisionId, String children, String keyName);
+    
+
+    /**
+     * 批量查询文档元数据
+     * 
+     * @param requestDocs 请求文档列表（JSON字符串）
+     * @param withUrl 是否包含URL
+     * @param keyName 密钥名称
+     * @return 查询结果
+     */
+    String batchQueryDocumentMeta(String requestDocs, Boolean withUrl, String keyName);
     
     /**
      * 批量更新文档块

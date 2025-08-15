@@ -14,97 +14,96 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 多种日期格式转换为Timestamp的处理器
+ * 多种日期格式转换为LocalDateTime的处理器
  * 
  * 解决多种日期类型转换问题：
  * 1. "Could not set property 'xxx' with value 'yyyy-MM-ddTHH:mm:ss'"
- * 2. "java.time.LocalDateTime cannot be cast to class java.sql.Timestamp"
+ * 2. "argument type mismatch" 当数据库返回Timestamp但实体类字段为LocalDateTime时
  */
-@MappedTypes(Timestamp.class)
-public class MultiFormatDateTypeHandler extends BaseTypeHandler<Timestamp> {
+@MappedTypes(LocalDateTime.class)
+public class MultiFormatDateTypeHandler extends BaseTypeHandler<LocalDateTime> {
     
     private static final Logger log = LoggerFactory.getLogger(MultiFormatDateTypeHandler.class);
 
     @Override
-    public void setNonNullParameter(PreparedStatement ps, int i, Timestamp parameter, JdbcType jdbcType) throws SQLException {
+    public void setNonNullParameter(PreparedStatement ps, int i, LocalDateTime parameter, JdbcType jdbcType) throws SQLException {
         if (parameter != null) {
-            ps.setTimestamp(i, parameter);
+            ps.setTimestamp(i, Timestamp.valueOf(parameter));
         } else {
             ps.setNull(i, jdbcType.TYPE_CODE);
         }
     }
 
     @Override
-    public Timestamp getNullableResult(ResultSet rs, String columnName) throws SQLException {
+    public LocalDateTime getNullableResult(ResultSet rs, String columnName) throws SQLException {
         try {
             Object obj = rs.getObject(columnName);
-            return convertToTimestamp(obj);
+            return convertToLocalDateTime(obj);
         } catch (Exception e) {
-            log.warn("Error converting column {} to Timestamp: {}", columnName, e.getMessage());
+            log.warn("Error converting column {} to LocalDateTime: {}", columnName, e.getMessage());
             return null;
         }
     }
 
     @Override
-    public Timestamp getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
+    public LocalDateTime getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
         try {
             // 先尝试直接获取Timestamp
             Timestamp timestamp = rs.getTimestamp(columnIndex);
             if (timestamp != null) {
-                return timestamp;
+                return timestamp.toLocalDateTime();
             }
             
             // 如果为null，尝试获取其他类型
             Object obj = rs.getObject(columnIndex);
-            return convertToTimestamp(obj);
+            return convertToLocalDateTime(obj);
         } catch (Exception e) {
-            log.warn("Error converting column index {} to Timestamp: {}", columnIndex, e.getMessage());
+            log.warn("Error converting column index {} to LocalDateTime: {}", columnIndex, e.getMessage());
             return null;
         }
     }
 
     @Override
-    public Timestamp getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
+    public LocalDateTime getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
         try {
             // 先尝试直接获取Timestamp
             Timestamp timestamp = cs.getTimestamp(columnIndex);
             if (timestamp != null) {
-                return timestamp;
+                return timestamp.toLocalDateTime();
             }
             
             // 如果为null，尝试获取其他类型
             Object obj = cs.getObject(columnIndex);
-            return convertToTimestamp(obj);
+            return convertToLocalDateTime(obj);
         } catch (Exception e) {
-            log.warn("Error converting callable statement column index {} to Timestamp: {}", columnIndex, e.getMessage());
+            log.warn("Error converting callable statement column index {} to LocalDateTime: {}", columnIndex, e.getMessage());
             return null;
         }
     }
     
     /**
-     * 将多种类型转换为Timestamp
+     * 将多种类型转换为LocalDateTime
      * 
      * @param obj 原始对象
-     * @return Timestamp对象
+     * @return LocalDateTime对象
      */
-    private Timestamp convertToTimestamp(Object obj) {
+    private LocalDateTime convertToLocalDateTime(Object obj) {
         if (obj == null) {
             return null;
         }
         
-        if (obj instanceof Timestamp) {
-            return (Timestamp) obj;
+        if (obj instanceof LocalDateTime) {
+            return (LocalDateTime) obj;
+        } else if (obj instanceof Timestamp) {
+            return ((Timestamp) obj).toLocalDateTime();
         } else if (obj instanceof java.util.Date) {
-            return new Timestamp(((java.util.Date) obj).getTime());
-        } else if (obj instanceof LocalDateTime) {
-            // LocalDateTime转Timestamp
-            return Timestamp.valueOf((LocalDateTime) obj);
+            return new Timestamp(((java.util.Date) obj).getTime()).toLocalDateTime();
         } else if (obj instanceof String) {
-            // 字符串转Timestamp的逻辑
+            // 字符串转LocalDateTime的逻辑
             try {
                 LocalDateTime localDateTime = parseDateTime((String) obj);
                 if (localDateTime != null) {
-                    return Timestamp.valueOf(localDateTime);
+                    return localDateTime;
                 }
             } catch (Exception e) {
                 log.warn("Error parsing date string: {}", obj);
@@ -129,6 +128,7 @@ public class MultiFormatDateTypeHandler extends BaseTypeHandler<Timestamp> {
         // 支持多种日期时间格式
         java.time.format.DateTimeFormatter[] formatters = {
             java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME,               // 2024-12-27T10:06:44
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S"), // 2025-08-06 12:07:30.0
             java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),  // 2024-12-27 10:06:44
             java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"),  // 2024/12/27 10:06:44
             java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"),           // 2024-12-27 (使用当天的00:00:00时间)

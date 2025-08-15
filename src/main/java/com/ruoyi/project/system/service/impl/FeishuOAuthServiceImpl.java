@@ -54,7 +54,7 @@ public class FeishuOAuthServiceImpl implements IFeishuOAuthService {
                     FEISHU_AUTH_URL,
                     feishuConfig.getAppId(),
                     encodedRedirectUri,
-                    "contact:contact drive:drive drive:drive:readonly docs:doc:readonly space:document:delete space:document:move space:document:retrieve space:document:shortcut", 
+                    "contact:contact drive:drive drive:drive:readonly docs:doc:readonly space:document:delete space:document:move space:document:retrieve space:document:shortcut docx:document docx:document:create", 
                     encodedState);
         } catch (Exception e) {
             log.error("生成飞书授权URL失败", e);
@@ -132,6 +132,11 @@ public class FeishuOAuthServiceImpl implements IFeishuOAuthService {
     
     @Override
     public String getCurrentUserFeishuToken() {
+        boolean login = StpUtil.isLogin();
+        if(!login){
+            return null;
+        }
+
         Long userId = StpUtil.getLoginIdAsLong();
         SysUser user = userService.getById(userId);
         

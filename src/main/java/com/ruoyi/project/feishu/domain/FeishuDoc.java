@@ -1,14 +1,14 @@
 package com.ruoyi.project.feishu.domain;
 
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-import com.mybatisflex.annotation.Column;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import com.ruoyi.framework.aspectj.lang.annotation.Excel;
 import com.ruoyi.framework.web.domain.BaseEntity;
-import com.fasterxml.jackson.annotation.JsonFormat;
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * 飞书文档信息对象 feishu_doc
@@ -19,8 +19,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Table("feishu_doc")
-public class FeishuDoc extends BaseEntity
-{
+public class FeishuDoc extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /** 主键ID */
@@ -70,5 +69,9 @@ public class FeishuDoc extends BaseEntity
     /** 关联的密钥名称 */
     @Excel(name = "关联的密钥名称")
     private String keyName;
+
+    /** 删除标志（0代表存在 2代表删除） */
+    @Column(isLogicDelete = true)
+    private String delFlag;
 
 }
