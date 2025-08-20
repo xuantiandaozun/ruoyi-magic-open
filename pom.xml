@@ -385,11 +385,12 @@
             <version>2.4.21</version>
         </dependency>
 
+        <!-- 豆包SDK -->
         <dependency>
-            <groupId>ai.z.openapi</groupId>
-            <artifactId>zai-sdk</artifactId>
-            <version>0.0.2</version>
-        </dependency>   
+            <groupId>com.volcengine</groupId>
+            <artifactId>volcengine-java-sdk-ark-runtime</artifactId>
+            <version>0.2.27</version>
+        </dependency>
 
 
         

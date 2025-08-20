@@ -47,6 +47,19 @@ public interface IHutoolAiService {
     String chatVision(String message, List<String> imageUrls);
     
     /**
+     * 文生图（图像生成）
+     * 支持豆包等具有图像生成能力的模型
+     * 
+     * @param prompt 图像生成提示词
+     * @param size 图像尺寸（如：512x512）
+     * @param guidanceScale 引导比例
+     * @param seed 随机种子
+     * @param watermark 是否添加水印
+     * @return 生成的图像URL
+     */
+    String generateImage(String prompt, String size, Double guidanceScale, Integer seed, Boolean watermark);
+    
+    /**
      * 文本向量化
      * 
      * @param texts 文本数组

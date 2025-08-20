@@ -1,14 +1,21 @@
 package com.ruoyi.project.ai.service.impl;
 
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
+import com.ruoyi.common.utils.file.FileUploadUtils;
+import com.ruoyi.common.utils.file.ByteArrayMultipartFile;
 import com.ruoyi.project.ai.service.IHutoolAiService;
+import com.volcengine.ark.runtime.model.images.generation.GenerateImagesRequest;
+import com.volcengine.ark.runtime.model.images.generation.ImagesResponse;
+import com.volcengine.ark.runtime.service.ArkService;
 
 import cn.hutool.ai.AIUtil;
 import cn.hutool.ai.ModelName;
@@ -18,7 +25,10 @@ import cn.hutool.ai.core.Message;
 import cn.hutool.ai.model.doubao.DoubaoService;
 import cn.hutool.ai.model.openai.OpenaiService;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.core.io.IoUtil;
 import jakarta.annotation.PostConstruct;
+import okhttp3.ConnectionPool;
+import okhttp3.Dispatcher;
 
 /**
  * Hutool AI服务实现类
@@ -41,6 +51,9 @@ public class HutoolAiServiceImpl implements IHutoolAiService {
     
     @Value("${ai.doubao.model:ep-20241212105607-kcmvs}")
     private String doubaoModel;
+    
+    @Value("${ai.doubao.image-model:ep-20250818101908-mhzcm}")
+    private String doubaoImageModel;
     
     // OpenAI配置
     @Value("${ai.openai.api-key:}")
@@ -434,6 +447,91 @@ public class HutoolAiServiceImpl implements IHutoolAiService {
         } catch (Exception e) {
             log.error("切换AI模型失败: {}", e.getMessage(), e);
             return false;
+        }
+    }
+    
+    @Override
+    public String generateImage(String prompt, String size, Double guidanceScale, Integer seed, Boolean watermark) {
+        try {
+            // 目前主要支持豆包的文生图能力
+            if (StrUtil.isNotBlank(doubaoApiKey)) {
+                // 创建连接池和调度器
+                ConnectionPool connectionPool = new ConnectionPool(5, 1, TimeUnit.SECONDS);
+                Dispatcher dispatcher = new Dispatcher();
+                
+                // 创建ArkService
+                ArkService service = ArkService.builder()
+                    .dispatcher(dispatcher)
+                    .connectionPool(connectionPool)
+                    .apiKey(doubaoApiKey)
+                    .build();
+                
+                // 构建图像生成请求
+                GenerateImagesRequest.Builder requestBuilder = GenerateImagesRequest.builder()
+                    .model(doubaoImageModel)
+                    .prompt(prompt);
+                
+                // 设置可选参数
+                if (StrUtil.isNotBlank(size)) {
+                    requestBuilder.size(size);
+                }
+                if (guidanceScale != null) {
+                    requestBuilder.guidanceScale(guidanceScale);
+                }
+                if (seed != null) {
+                    requestBuilder.seed(seed);
+                }
+                if (watermark != null) {
+                    requestBuilder.watermark(watermark);
+                }
+                
+                GenerateImagesRequest generateRequest = requestBuilder.build();
+                
+                // 调用图像生成API
+                ImagesResponse imagesResponse = service.generateImages(generateRequest);
+                
+                // 关闭服务
+                service.shutdownExecutor();
+                
+                // 返回生成的图像URL并转存到OSS
+                if (imagesResponse.getData() != null && !imagesResponse.getData().isEmpty()) {
+                    String originalImageUrl = imagesResponse.getData().get(0).getUrl();
+                    
+                    try {
+                        // 下载图片
+                        URL url = new URL(originalImageUrl);
+                        InputStream inputStream = url.openStream();
+                        
+                        // 将InputStream转换为字节数组
+                        byte[] imageBytes = IoUtil.readBytes(inputStream);
+                        inputStream.close();
+                        
+                        // 创建ByteArrayMultipartFile用于上传
+                        String fileName = "generated_image_" + System.currentTimeMillis() + ".png";
+                        ByteArrayMultipartFile multipartFile = new ByteArrayMultipartFile(
+                            "file", 
+                            fileName, 
+                            "image/png", 
+                            imageBytes
+                        );
+                        
+                        // 上传到OSS
+                        String ossUrl = FileUploadUtils.upload(multipartFile);
+                        
+                        return ossUrl;
+                    } catch (Exception e) {
+                        log.warn("图片转存到OSS失败，返回原始URL: {}", e.getMessage());
+                        return originalImageUrl;
+                    }
+                } else {
+                    throw new RuntimeException("图像生成失败：未返回图像数据");
+                }
+            }
+            
+            throw new RuntimeException("当前没有可用的文生图AI服务，请配置豆包API");
+        } catch (Exception e) {
+            log.error("文生图请求失败: {}", e.getMessage(), e);
+            throw new RuntimeException("文生图请求失败: " + e.getMessage());
         }
     }
 }

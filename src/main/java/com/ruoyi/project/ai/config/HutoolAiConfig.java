@@ -122,6 +122,11 @@ public class HutoolAiConfig {
          */
         private String embeddingModel = "ep-20241212105607-kcmvs";
         
+        /**
+         * 文生图模型名称
+         */
+        private String imageModel = "ep-20250818101908-mhzcm";
+        
         public String getApiKey() {
             return apiKey;
         }
@@ -184,6 +189,14 @@ public class HutoolAiConfig {
         
         public void setEmbeddingModel(String embeddingModel) {
             this.embeddingModel = embeddingModel;
+        }
+        
+        public String getImageModel() {
+            return imageModel;
+        }
+        
+        public void setImageModel(String imageModel) {
+            this.imageModel = imageModel;
         }
     }
     
