@@ -71,12 +71,17 @@ public class CustomResultProvider implements ResultProvider {
      */
     @Override
     public Object buildPageResult(RequestEntity requestEntity, Page page, long total, List<Map<String, Object>> data) {
-        Map<String, Object> pageResult = new HashMap<>();
-        pageResult.put("total", total);
-        pageResult.put("rows", data);
-        pageResult.put("page", page.getOffset());
-        pageResult.put("size", page.getLimit());
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", HttpStatus.SUCCESS);
+        result.put("msg", "查询成功");
+        result.put("total", total);
+        result.put("rows", data);
         
-        return pageResult;
+        // 计算当前页码：页码 = (偏移量 / 每页大小) + 1
+        int currentPage = (page.getLimit() > 0) ? (int)(page.getOffset() / page.getLimit())  : 1;
+        result.put("page", currentPage);
+        result.put("size", (int)page.getLimit());
+        
+        return result;
     }
 }
