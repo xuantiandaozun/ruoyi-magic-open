@@ -44,7 +44,11 @@ public class MyNamedTableInterceptor implements NamedTableInterceptor {
 				namedTable.column("update_time", DateUtil.date());
 			}
 		} catch (Exception e) {
-			log.error("自动注入创建人、创建时间、更新人、更新时间失败", e);
+			if (sqlMode == SqlMode.INSERT) {
+				namedTable.column("create_time", DateUtil.date());
+			} else if (sqlMode == SqlMode.UPDATE) {
+				namedTable.column("update_time", DateUtil.date());
+			}
 		}
 
 	}
