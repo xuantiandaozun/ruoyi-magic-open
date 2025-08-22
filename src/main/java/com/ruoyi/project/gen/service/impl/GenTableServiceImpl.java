@@ -577,6 +577,13 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                 if (CollUtil.isNotEmpty(columns)) {
                     // 初始化列属性字段
                     columns.forEach(column -> GenUtils.initColumnField(column, table));
+                    
+                    // 优化列表显示字段数量，确保最多显示7个字段
+                    GenUtils.optimizeListColumns(columns);
+                    
+                    // 优化查询字段数量，确保最多设置4个查询条件
+                    GenUtils.optimizeQueryColumns(columns);
+                    
                     genTableColumnService.saveBatch(columns);
                 }
             }

@@ -67,6 +67,43 @@ public class GenConstants
     public static final String[] COLUMNNAME_NOT_QUERY = { "id", "create_by", "create_time", "del_flag", "update_by",
             "update_time", "remark" };
 
+    /** 外键字段后缀模式 */
+    public static final String[] FOREIGN_KEY_SUFFIXES = { "_id", "Id" };
+
+    /** 系统维护字段 */
+    public static final String[] SYSTEM_FIELDS = { "create_by", "create_time", "update_by", "update_time", 
+            "createBy", "createTime", "updateBy", "updateTime" };
+
+    /** 删除标志字段 */
+    public static final String[] DELETE_FLAG_FIELDS = { "del_flag", "delFlag", "deleted", "is_deleted", "isDeleted" };
+
+    /** 状态类字段后缀 */
+    public static final String[] STATUS_SUFFIXES = { "status", "state", "flag" };
+
+    /** 类型类字段后缀 */
+    public static final String[] TYPE_SUFFIXES = { "type", "sex", "gender", "level", "grade", "category" };
+
+    /** 图片类字段后缀 */
+    public static final String[] IMAGE_SUFFIXES = { "image", "img", "avatar", "photo", "pic" };
+
+    /** 文件类字段后缀 */
+    public static final String[] FILE_SUFFIXES = { "file", "attachment", "document" };
+
+    /** 富文本类字段后缀 */
+    public static final String[] RICH_TEXT_SUFFIXES = { "content", "detail", "html", "rich" };
+
+    /** 排序类字段后缀 */
+    public static final String[] SORT_SUFFIXES = { "sort", "order", "seq" };
+
+    /** 模糊查询字段后缀 */
+    public static final String[] LIKE_QUERY_SUFFIXES = { "name", "title", "desc", "description" };
+
+    /** 数值范围查询字段后缀 */
+    public static final String[] RANGE_QUERY_SUFFIXES = { "amount", "price", "cost", "fee", "count", "num", "quantity" };
+
+    /** 时间范围查询字段后缀 */
+    public static final String[] TIME_RANGE_SUFFIXES = { "time", "date", "datetime" };
+
     /** Entity基类字段 */
     public static final String[] BASE_ENTITY = { "createBy", "createTime", "updateBy", "updateTime", "remark" };
 
