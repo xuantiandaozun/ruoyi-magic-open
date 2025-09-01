@@ -20,6 +20,15 @@ public interface IHutoolAiService {
     String chat(String message);
     
     /**
+     * 基础聊天对话
+     * 
+     * @param message 用户消息
+     * @param returnJson 是否返回JSON格式
+     * @return AI回复
+     */
+    String chat(String message, boolean returnJson);
+    
+    /**
      * 带系统提示的聊天对话
      * 
      * @param systemPrompt 系统提示
@@ -27,6 +36,16 @@ public interface IHutoolAiService {
      * @return AI回复
      */
     String chatWithSystem(String systemPrompt, String message);
+    
+    /**
+     * 带系统提示的聊天对话
+     * 
+     * @param systemPrompt 系统提示
+     * @param message 用户消息
+     * @param returnJson 是否返回JSON格式
+     * @return AI回复
+     */
+    String chatWithSystem(String systemPrompt, String message, boolean returnJson);
     
     /**
      * 多轮对话

@@ -10,9 +10,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import com.ruoyi.common.utils.file.FileUploadUtils;
+
 import com.ruoyi.common.utils.file.ByteArrayMultipartFile;
+import com.ruoyi.common.utils.file.FileUploadUtils;
 import com.ruoyi.project.ai.service.IHutoolAiService;
+import com.volcengine.ark.runtime.model.completion.chat.ChatCompletionRequest;
+import com.volcengine.ark.runtime.model.completion.chat.ChatCompletionRequest.ChatCompletionRequestResponseFormat;
+import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
+import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import com.volcengine.ark.runtime.model.images.generation.GenerateImagesRequest;
 import com.volcengine.ark.runtime.model.images.generation.ImagesResponse;
 import com.volcengine.ark.runtime.service.ArkService;
@@ -24,8 +29,8 @@ import cn.hutool.ai.core.AIConfigBuilder;
 import cn.hutool.ai.core.Message;
 import cn.hutool.ai.model.doubao.DoubaoService;
 import cn.hutool.ai.model.openai.OpenaiService;
-import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.io.IoUtil;
+import cn.hutool.core.util.StrUtil;
 import jakarta.annotation.PostConstruct;
 import okhttp3.ConnectionPool;
 import okhttp3.Dispatcher;
@@ -157,7 +162,56 @@ public class HutoolAiServiceImpl implements IHutoolAiService {
     
     @Override
     public String chat(String message) {
+        return chat(message, false);
+    }
+    
+    /**
+     * 基础聊天对话
+     * 
+     * @param message 用户消息
+     * @param returnJson 是否返回JSON格式
+     * @return AI回复
+     */
+    public String chat(String message, boolean returnJson) {
         try {
+            // 使用豆包的ArkService进行聊天
+            if (StrUtil.isNotBlank(doubaoApiKey)) {
+                ConnectionPool connectionPool = new ConnectionPool(5, 1, TimeUnit.SECONDS);
+                Dispatcher dispatcher = new Dispatcher();
+                ArkService service = ArkService.builder()
+                        .dispatcher(dispatcher)
+                        .connectionPool(connectionPool)
+                        .apiKey(doubaoApiKey)
+                        .build();
+                
+                List<ChatMessage> messagesForReqList = new ArrayList<>();
+                ChatMessage userMessage = ChatMessage.builder()
+                        .role(ChatMessageRole.USER)
+                        .content(message)
+                        .build();
+                messagesForReqList.add(userMessage);
+                
+                ChatCompletionRequest.Builder reqBuilder = ChatCompletionRequest.builder()
+                        .model(doubaoModel)
+                        .messages(messagesForReqList);
+                
+                // 根据参数决定是否设置JSON格式
+                if (returnJson) {
+                    reqBuilder.responseFormat(new ChatCompletionRequestResponseFormat("json_object"));
+                }
+                
+                ChatCompletionRequest req = reqBuilder.build();
+                
+                StringBuilder response = new StringBuilder();
+                service.createChatCompletion(req)
+                        .getChoices()
+                        .forEach(choice -> response.append(choice.getMessage().getContent()));
+                
+                service.shutdownExecutor();
+                return response.toString();
+            }
+            
+            // 如果豆包不可用，回退到原有逻辑
             AIConfig config = getCurrentAiConfig();
             return AIUtil.chat(config, message);
         } catch (Exception e) {
@@ -168,9 +222,66 @@ public class HutoolAiServiceImpl implements IHutoolAiService {
     
     @Override
     public String chatWithSystem(String systemPrompt, String message) {
+        return chatWithSystem(systemPrompt, message, false);
+    }
+    
+    /**
+     * 带系统提示的聊天对话
+     * 
+     * @param systemPrompt 系统提示
+     * @param message 用户消息
+     * @param returnJson 是否返回JSON格式
+     * @return AI回复
+     */
+    public String chatWithSystem(String systemPrompt, String message, boolean returnJson) {
         try {
+            // 使用豆包的ArkService进行带系统提示的聊天
+            if (StrUtil.isNotBlank(doubaoApiKey)) {
+                ConnectionPool connectionPool = new ConnectionPool(5, 1, TimeUnit.SECONDS);
+                Dispatcher dispatcher = new Dispatcher();
+                ArkService service = ArkService.builder()
+                        .dispatcher(dispatcher)
+                        .connectionPool(connectionPool)
+                        .apiKey(doubaoApiKey)
+                        .build();
+                
+                List<ChatMessage> messagesForReqList = new ArrayList<>();
+                
+                ChatMessage systemMessage = ChatMessage.builder()
+                        .role(ChatMessageRole.SYSTEM)
+                        .content(systemPrompt)
+                        .build();
+                
+                ChatMessage userMessage = ChatMessage.builder()
+                        .role(ChatMessageRole.USER)
+                        .content(message)
+                        .build();
+                
+                messagesForReqList.add(systemMessage);
+                messagesForReqList.add(userMessage);
+                
+                ChatCompletionRequest.Builder reqBuilder = ChatCompletionRequest.builder()
+                        .model(doubaoModel)
+                        .messages(messagesForReqList);
+                
+                // 根据参数决定是否设置JSON格式
+                if (returnJson) {
+                    reqBuilder.responseFormat(new ChatCompletionRequestResponseFormat("json_object"));
+                }
+                
+                ChatCompletionRequest req = reqBuilder.build();
+                
+                StringBuilder response = new StringBuilder();
+                service.createChatCompletion(req)
+                        .getChoices()
+                        .forEach(choice -> response.append(choice.getMessage().getContent()));
+                
+                service.shutdownExecutor();
+                return response.toString();
+            }
+            
+            // 如果豆包不可用，回退到原有逻辑
             AIConfig config = getCurrentAiConfig();
-            // 使用消息列表的方式实现系统提示
             List<Message> messages = new ArrayList<>();
             messages.add(new Message("system", systemPrompt));
             messages.add(new Message("user", message));
