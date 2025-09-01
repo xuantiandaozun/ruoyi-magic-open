@@ -193,6 +193,7 @@ public class HutoolAiServiceImpl implements IHutoolAiService {
                 
                 ChatCompletionRequest.Builder reqBuilder = ChatCompletionRequest.builder()
                         .model(doubaoModel)
+                        .maxTokens(returnJson ? 8192 : 4096)
                         .messages(messagesForReqList);
                 
                 // 根据参数决定是否设置JSON格式
@@ -262,6 +263,7 @@ public class HutoolAiServiceImpl implements IHutoolAiService {
                 
                 ChatCompletionRequest.Builder reqBuilder = ChatCompletionRequest.builder()
                         .model(doubaoModel)
+                        .maxTokens(returnJson ? 8192 : 4096)
                         .messages(messagesForReqList);
                 
                 // 根据参数决定是否设置JSON格式
