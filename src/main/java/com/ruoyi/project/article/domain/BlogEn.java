@@ -1,16 +1,16 @@
 package com.ruoyi.project.article.domain;
 
 import java.util.Date;
-import com.fasterxml.jackson.annotation.JsonFormat;
+
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-import com.mybatisflex.annotation.Column;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import com.ruoyi.framework.aspectj.lang.annotation.Excel;
 import com.ruoyi.framework.web.domain.BaseEntity;
-import com.fasterxml.jackson.annotation.JsonFormat;
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * 英文博客对象 blog_en
@@ -88,20 +88,6 @@ public class BlogEn extends BaseEntity
     /** 飞书最后同步时间 */
     private Date feishuLastSyncTime;
 
-    /** CSDN文章ID */
-    @Excel(name = "CSDN文章ID")
-    private String csdnPostId;
-
-    /** CSDN编辑链接 */
-    @Excel(name = "CSDN编辑链接")
-    private String csdnEditUrl;
-
-    /** CSDN同步状态（0未同步 1已同步 2同步失败 3同步中） */
-    @Excel(name = "CSDN同步状态", readConverterExp = "0=未同步,1=已同步,2=同步失败,3=同步中")
-    private String csdnSyncStatus;
-
-    /** CSDN最后同步时间 */
-    private Date csdnLastSyncTime;
 
     /** 排序字段 */
     @Excel(name = "排序字段")
