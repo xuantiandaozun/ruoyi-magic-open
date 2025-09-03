@@ -71,8 +71,8 @@ public class BlogEnController extends BaseController
     @PostMapping("/export")
     public void export(HttpServletResponse response, BlogEn blogEn)
     {
-        QueryWrapper queryWrapper = QueryWrapper.create();
-        // 这里需要根据实际业务编写查询条件
+        // 创建 MyBatisFlex 的 QueryWrapper
+        QueryWrapper queryWrapper = buildFlexQueryWrapper(blogEn);
         
         List<BlogEn> list = blogEnService.list(queryWrapper);
         MagicExcelUtil<BlogEn> util = new MagicExcelUtil<>(BlogEn.class);
