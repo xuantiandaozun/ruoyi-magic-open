@@ -124,7 +124,6 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
      * @return 选中角色ID列表
      */
     @Override
-    @Cacheable(value = "role", key = "'select:' + #userId")
     public List<Long> selectRoleListByUserId(Long userId)
     {
         return mapper.selectRoleListByUserId(userId);
@@ -240,7 +239,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     public boolean updateRoleStatus(SysRole role)
     {
         return DbChain.table("sys_role")
-            .where("role_id", role.getRoleId())
+            .where("role_id = ?", role.getRoleId())
             .set("status", role.getStatus())
             .update();
     }
@@ -258,13 +257,13 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     {
         // 修改角色信息
         DbChain.table("sys_role")
-            .where("role_id", role.getRoleId())
+            .where("role_id = ?", role.getRoleId())
             .set("data_scope", role.getDataScope())
             .update();
             
         // 删除角色与部门关联
         DbChain.table("sys_role_dept")
-            .where("role_id", role.getRoleId())
+            .where("role_id = ?", role.getRoleId())
             .remove();
             
         // 新增角色和部门信息（数据权限）
@@ -297,6 +296,21 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
             .collect(Collectors.toList());
             
         return roleMenuMapper.insertBatch(list) > 0;
+    }
+
+    /**
+     * 删除角色菜单关联信息
+     * 
+     * @param roleId 角色ID
+     * @return 结果
+     */
+    @Override
+    @CacheEvict(value = "role", allEntries = true)
+    public boolean deleteRoleMenuByRoleId(Long roleId)
+    {
+        return DbChain.table("sys_role_menu")
+            .where("role_id = ?", roleId)
+            .remove();
     }
 
     /**
@@ -338,8 +352,8 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     public boolean deleteAuthUser(SysUserRole userRole)
     {
         return DbChain.table("sys_user_role")
-            .where("user_id", userRole.getUserId())
-            .and("role_id", userRole.getRoleId())
+            .where("user_id = ?", userRole.getUserId())
+            .and("role_id = ?", userRole.getRoleId())
             .remove();
     }
 
@@ -355,7 +369,7 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
     public boolean deleteAuthUsers(Long roleId, Long[] userIds)
     {
         return DbChain.table("sys_user_role")
-            .where("role_id", roleId)
+            .where("role_id = ?", roleId)
             .where("user_id IN (" + String.join(",", Arrays.stream(userIds).map(String::valueOf).collect(Collectors.toList())) + ")")
             .remove();
     }

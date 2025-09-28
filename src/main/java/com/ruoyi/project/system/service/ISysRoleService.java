@@ -116,6 +116,14 @@ public interface ISysRoleService extends IService<SysRole>
     boolean insertRoleMenu(SysRole role);
 
     /**
+     * 删除角色菜单关联信息
+     * 
+     * @param roleId 角色ID
+     * @return 结果
+     */
+    boolean deleteRoleMenuByRoleId(Long roleId);
+
+    /**
      * 新增角色部门信息(数据权限)
      *
      * @param role 角色对象

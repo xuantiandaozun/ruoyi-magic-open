@@ -372,7 +372,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     public boolean updateUserProfile(SysUser user)
     {
         return DbChain.table("sys_user")
-            .where("user_id", user.getUserId())
+            .where("user_id = ?", user.getUserId())
             .set("nick_name", user.getNickName())
             .set("email", user.getEmail())
             .set("phonenumber", user.getPhonenumber())
@@ -391,7 +391,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     public boolean updateUserAvatar(String userName, String avatar)
     {
         return DbChain.table("sys_user")
-            .where("user_id = ?", userName)
+            .where("user_name = ?", userName)
             .set("avatar", avatar)
             .update();
     }
@@ -406,7 +406,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     public boolean resetPwd(SysUser user)
     {
         return DbChain.table("sys_user")
-            .where("user_id", user.getUserId())
+            .where("user_id = ?", user.getUserId())
             .set("password", user.getPassword())
             .update();
     }
@@ -422,7 +422,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     public boolean resetUserPwd(String userName, String password)
     {
         return DbChain.table("sys_user")
-            .where("user_name", userName)
+            .where("user_name = ?", userName)
             .set("password", password)
             .update();
     }

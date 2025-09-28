@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mybatisflex.core.paginate.Page;
+import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.poi.MagicExcelUtil;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
@@ -63,6 +65,12 @@ public class SysRoleController extends BaseController {
         // 创建 MyBatisFlex 的 QueryWrapper
         QueryWrapper queryWrapper = buildFlexQueryWrapper(role);
         
+        // 非admin用户排除admin角色（roleId = 1）
+        Long currentUserId = SecurityUtils.getUserId();
+        if (!SysRole.isAdmin(currentUserId)) {
+            queryWrapper.and(new QueryColumn("role_id").ne(1L));
+        }
+        
         // 使用 MyBatisFlex 的分页方法
         Page<SysRole> page = roleService.page(new Page<>(pageNum, pageSize), queryWrapper);
         return getDataTable(page);
@@ -101,7 +109,14 @@ public class SysRoleController extends BaseController {
         else if (!roleService.checkRoleKeyUnique(role)) {
             return error("新增角色'" + role.getRoleName() + "'失败，角色权限已存在");
         }
-        return toAjax(roleService.save(role));
+        
+        // 保存角色基本信息
+        boolean result = roleService.save(role);
+        if (result) {
+            // 保存角色菜单权限关联关系
+            roleService.insertRoleMenu(role);
+        }
+        return toAjax(result);
     }
 
     /**
@@ -118,7 +133,16 @@ public class SysRoleController extends BaseController {
         else if (!roleService.checkRoleKeyUnique(role)) {
             return error("修改角色'" + role.getRoleName() + "'失败，角色权限已存在");
         }
-        return toAjax(roleService.updateById(role));
+        
+        // 更新角色基本信息
+        boolean result = roleService.updateById(role);
+        if (result) {
+            // 先删除原有的角色菜单权限关联关系
+            roleService.deleteRoleMenuByRoleId(role.getRoleId());
+            // 重新保存角色菜单权限关联关系
+            roleService.insertRoleMenu(role);
+        }
+        return toAjax(result);
     }
 
     /**

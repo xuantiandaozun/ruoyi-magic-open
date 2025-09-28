@@ -13,10 +13,12 @@ import org.springframework.web.multipart.MultipartFile;
 import com.ruoyi.common.utils.file.FileUploadUtils;
 import com.ruoyi.common.utils.file.MimeTypeUtils;
 import com.ruoyi.framework.security.service.PasswordEncoder;
+import com.ruoyi.framework.security.service.SaTokenLoginService;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.project.system.domain.SysUser;
 import com.ruoyi.project.system.domain.dto.FeishuOAuthRequest;
+import com.ruoyi.project.system.domain.dto.UpdatePasswordRequest;
 import com.ruoyi.project.system.service.IFeishuOAuthService;
 import com.ruoyi.project.system.service.ISysUserService;
 
@@ -38,6 +40,9 @@ public class SysProfileController extends BaseController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    
+    @Autowired
+    private SaTokenLoginService saTokenLoginService;
     
     @Autowired
     private IFeishuOAuthService feishuOAuthService;
@@ -77,16 +82,16 @@ public class SysProfileController extends BaseController {
      * 重置密码
      */
     @PutMapping("/updatePwd")
-    public AjaxResult updatePwd(String oldPassword, String newPassword) {
+    public AjaxResult updatePwd(@Valid @RequestBody UpdatePasswordRequest request) {
         SysUser user = userService.getById(StpUtil.getLoginIdAsLong());
         String password = user.getPassword();
-        if (!passwordEncoder.matches(oldPassword, password)) {
+        if (!saTokenLoginService.matches(user, request.getOldPassword())) {
             return error("修改密码失败，旧密码错误");
         }
-        if (passwordEncoder.matches(newPassword, password)) {
+        if (passwordEncoder.matches(request.getNewPassword(), password)) {
             return error("新密码不能与旧密码相同");
         }
-        if (userService.resetUserPwd(user.getUserName(), passwordEncoder.encode(newPassword))) {
+        if (userService.resetUserPwd(user.getUserName(), passwordEncoder.encode(request.getNewPassword()))) {
             return success();
         }
         return error("修改密码异常，请联系管理员");

@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.query.QueryColumn;
 import com.ruoyi.common.utils.poi.MagicExcelUtil;
 import com.ruoyi.framework.security.service.PasswordEncoder;
 import com.ruoyi.framework.web.controller.BaseController;
@@ -78,6 +79,12 @@ public class SysUserController extends BaseController
         
         // 创建 MyBatisFlex 的 QueryWrapper
         QueryWrapper queryWrapper = buildFlexQueryWrapper(user);
+        
+        // 如果当前用户不是admin，则排除admin用户（userId = 1）
+        Long currentUserId = getUserId();
+        if (!SysUser.isAdmin(currentUserId)) {
+            queryWrapper.and(new QueryColumn("user_id").ne(1L));
+        }
         
         // 使用 MyBatisFlex 的分页方法
         Page<SysUser> page = userService.getMapper().paginateWithRelations(new Page<>(pageNum, pageSize), queryWrapper);
@@ -152,7 +159,13 @@ public class SysUserController extends BaseController
             return error("新增用户'" + user.getUserName() + "'失败，邮箱账号已存在");
         }
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return toAjax(userService.save(user));
+        boolean result = userService.save(user);
+        if (result)
+        {
+            // 处理用户角色绑定
+            userService.insertUserAuth(user.getUserId(), user.getRoleIds());
+        }
+        return toAjax(result);
     }
 
     /**
@@ -176,7 +189,13 @@ public class SysUserController extends BaseController
         {
             return error("修改用户'" + user.getUserName() + "'失败，邮箱账号已存在");
         }
-        return toAjax(userService.updateById(user));
+        boolean result = userService.updateById(user);
+        if (result)
+        {
+            // 处理用户角色绑定
+            userService.insertUserAuth(user.getUserId(), user.getRoleIds());
+        }
+        return toAjax(result);
     }
 
     /**

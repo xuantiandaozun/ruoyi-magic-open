@@ -80,10 +80,10 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
         } else {
             QueryWrapper queryWrapper = QueryWrapper.create()
                     .select("DISTINCT m.menu_id, m.parent_id, m.menu_name, m.path, m.component, m.query, m.route_name, m.visible, m.status, IFNULL(m.perms,'') as perms, m.is_frame, m.is_cache, m.menu_type, m.icon, m.order_num, m.create_time")
-                    .from("sys_menu m")
-                    .leftJoin("sys_role_menu rm").on("m.menu_id = rm.menu_id")
-                    .leftJoin("sys_user_role ur").on("rm.role_id = ur.role_id")
-                    .leftJoin("sys_role ro").on("ur.role_id = ro.role_id")
+                    .from("sys_menu").as("m")
+                    .leftJoin("sys_role_menu").as("rm").on("m.menu_id = rm.menu_id")
+                    .leftJoin("sys_user_role").as("ur").on("rm.role_id = ur.role_id")
+                    .leftJoin("sys_role").as("ro").on("ur.role_id = ro.role_id")
                     .where("ur.user_id = " + userId);
 
             // 附加条件
@@ -128,10 +128,10 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
         } else {
             QueryWrapper queryWrapper = QueryWrapper.create()
                     .select("DISTINCT m.perms")
-                    .from("sys_menu m")
-                    .leftJoin("sys_role_menu rm").on("m.menu_id = rm.menu_id")
-                    .leftJoin("sys_user_role ur").on("rm.role_id = ur.role_id")
-                    .leftJoin("sys_role r").on("r.role_id = ur.role_id")
+                    .from("sys_menu").as("m")
+                    .leftJoin("sys_role_menu").as("rm").on("m.menu_id = rm.menu_id")
+                    .leftJoin("sys_user_role").as("ur").on("rm.role_id = ur.role_id")
+                    .leftJoin("sys_role").as("r").on("r.role_id = ur.role_id")
                     .where("m.status = '0' and r.status = '0' and ur.user_id = #{userId}".replace("#{userId}",
                             userId.toString()));
 
@@ -158,8 +158,8 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
     public Set<String> selectMenuPermsByRoleId(Long roleId) {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .select("DISTINCT m.perms")
-                .from("sys_menu m")
-                .leftJoin("sys_role_menu rm").on("m.menu_id = rm.menu_id")
+                .from("sys_menu").as("m")
+                .leftJoin("sys_role_menu").as("rm").on("m.menu_id = rm.menu_id")
                 .where("m.status = '0'")
                 .and("rm.role_id = " + roleId);
 
@@ -196,9 +196,9 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
         } else {
             QueryWrapper queryWrapper = QueryWrapper.create()
                     .select("DISTINCT m.*")
-                    .from("sys_menu m")
-                    .leftJoin("sys_role_menu rm").on("m.menu_id = rm.menu_id")
-                    .leftJoin("sys_user_role ur").on("rm.role_id = ur.role_id")
+                    .from("sys_menu").as("m")
+                    .leftJoin("sys_role_menu").as("rm").on("m.menu_id = rm.menu_id")
+                    .leftJoin("sys_user_role").as("ur").on("rm.role_id = ur.role_id")
                     .where("m.status = '0'")
                     .and("ur.user_id = " + userId)
                     .orderBy("m.parent_id asc, m.order_num asc");
