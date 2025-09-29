@@ -36,7 +36,9 @@ public class MimeTypeUtils
             // 视频格式
             "mp4", "avi", "rmvb",
             // pdf
-            "pdf" };
+            "pdf",
+            // 应用程序文件
+            "apk" };
 
     public static String getExtension(String prefix)
     {

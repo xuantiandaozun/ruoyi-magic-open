@@ -94,6 +94,31 @@ public class HutoolAiServiceImpl implements IHutoolAiService {
     }
     
     /**
+     * 获取当前AI类型
+     */
+    public String getCurrentAiType() {
+        return StrUtil.isNotBlank(currentAiType) ? currentAiType : defaultAiType;
+    }
+    
+    /**
+     * 设置当前AI类型
+     * @param aiType AI类型
+     */
+    public void setCurrentAiType(String aiType) {
+        if (StrUtil.isBlank(aiType)) {
+            throw new IllegalArgumentException("AI类型不能为空");
+        }
+        
+        String upperAiType = aiType.toUpperCase();
+        if (!"DOUBAO".equals(upperAiType) && !"OPENAI".equals(upperAiType) && !"DEEPSEEK".equals(upperAiType)) {
+            throw new IllegalArgumentException("不支持的AI类型: " + aiType);
+        }
+        
+        this.currentAiType = upperAiType;
+        log.info("AI服务类型已切换为: {}", this.currentAiType);
+    }
+    
+    /**
      * 获取当前AI配置
      */
     private AIConfig getCurrentAiConfig() {
@@ -390,6 +415,10 @@ public class HutoolAiServiceImpl implements IHutoolAiService {
             throw new RuntimeException("图文向量化请求失败: " + e.getMessage());
         }
     }
+
+    
+
+
     
     @Override
     public String batchChat(String prompt) {

@@ -1,4 +1,4 @@
-package com.ruoyi.project.common;
+package com.ruoyi.project.common.controller;
 
 import java.util.ArrayList;
 import java.util.List;
