@@ -15,7 +15,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
-import com.ruoyi.project.ai.service.impl.HutoolAiServiceImpl;
+import com.ruoyi.project.ai.dto.ChatRequest;
+import com.ruoyi.project.ai.dto.ModelSwitchRequest;
+import com.ruoyi.project.ai.service.impl.AiServiceImpl;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.hutool.core.util.StrUtil;
@@ -34,46 +36,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class AiChatController extends BaseController {
     
     @Autowired
-    private HutoolAiServiceImpl aiService;
-    
-    /**
-     * 聊天请求对象
-     */
-    public static class ChatRequest {
-        private String message;
-        private String systemPrompt;
-        
-        public String getMessage() {
-            return message;
-        }
-        
-        public void setMessage(String message) {
-            this.message = message;
-        }
-        
-        public String getSystemPrompt() {
-            return systemPrompt;
-        }
-        
-        public void setSystemPrompt(String systemPrompt) {
-            this.systemPrompt = systemPrompt;
-        }
-    }
-    
-    /**
-     * 模型切换请求对象
-     */
-    public static class ModelSwitchRequest {
-        private String modelType;
-        
-        public String getModelType() {
-            return modelType;
-        }
-        
-        public void setModelType(String modelType) {
-            this.modelType = modelType;
-        }
-    }
+    private AiServiceImpl aiService;
     
     /**
      * 基础聊天接口
@@ -88,7 +51,10 @@ public class AiChatController extends BaseController {
             }
             
             String response;
-            if (StrUtil.isNotBlank(request.getSystemPrompt())) {
+            // 如果指定了模型配置ID，使用指定的模型配置
+            if (request.getModelConfigId() != null) {
+                response = aiService.chatWithModelConfig(request.getMessage(), request.getSystemPrompt(), request.getModelConfigId());
+            } else if (StrUtil.isNotBlank(request.getSystemPrompt())) {
                 response = aiService.chatWithSystem(request.getSystemPrompt(), request.getMessage());
             } else {
                 response = aiService.chat(request.getMessage());
@@ -109,47 +75,151 @@ public class AiChatController extends BaseController {
      * 流式聊天接口
      */
     @Operation(summary = "流式聊天")
-    @SaCheckPermission("ai:chat:use")
     @PostMapping("/stream")
     public SseEmitter chatStream(@RequestBody ChatRequest request) {
-        SseEmitter emitter = new SseEmitter(30000L); // 30秒超时
+        SseEmitter emitter = new SseEmitter(60000L); // 60秒超时
         
         try {
             if (StrUtil.isBlank(request.getMessage())) {
-                emitter.send(SseEmitter.event().name("error").data("消息内容不能为空"));
+                Map<String, Object> errorData = new HashMap<>();
+                errorData.put("type", "error");
+                errorData.put("content", "消息内容不能为空");
+                emitter.send(SseEmitter.event().data(errorData));
                 emitter.complete();
                 return emitter;
             }
             
-            // 在新线程中处理AI请求，避免阻塞
-            new Thread(() -> {
-                try {
-                    String response;
-                    if (StrUtil.isNotBlank(request.getSystemPrompt())) {
-                        response = aiService.chatWithSystem(request.getSystemPrompt(), request.getMessage());
-                    } else {
-                        response = aiService.chat(request.getMessage());
+            // 设置SSE响应头
+            emitter.onCompletion(() -> logger.info("SSE连接完成"));
+            emitter.onTimeout(() -> {
+                logger.warn("SSE连接超时");
+                emitter.complete();
+            });
+            emitter.onError((ex) -> {
+                logger.error("SSE连接错误: {}", ex.getMessage(), ex);
+                emitter.completeWithError(ex);
+            });
+            
+            // 使用真正的流式接口，实时发送token
+            // 如果指定了模型配置ID，使用指定的模型配置
+            if (request.getModelConfigId() != null) {
+                aiService.streamChatWithModelConfig(
+                    request.getMessage(), 
+                    request.getSystemPrompt(), 
+                    request.getModelConfigId(),
+                    // onToken: 接收到每个token时立即发送
+                    token -> {
+                        try {
+                            Map<String, Object> messageData = new HashMap<>();
+                            messageData.put("type", "message");
+                            messageData.put("content", token);
+                            emitter.send(SseEmitter.event().data(messageData));
+                        } catch (Exception e) {
+                            logger.error("发送SSE token失败: {}", e.getMessage(), e);
+                        }
+                    },
+                    // onComplete: 完成时发送结束信号
+                    () -> {
+                        try {
+                            emitter.send(SseEmitter.event().data("[DONE]"));
+                            emitter.complete();
+                        } catch (Exception e) {
+                            logger.error("发送SSE完成信号失败: {}", e.getMessage(), e);
+                            emitter.completeWithError(e);
+                        }
+                    },
+                    // onError: 出错时发送错误信息
+                    error -> {
+                        logger.error("流式聊天请求失败: {}", error.getMessage(), error);
+                        try {
+                            Map<String, Object> errorData = new HashMap<>();
+                            errorData.put("type", "error");
+                            errorData.put("content", "AI聊天请求失败: " + error.getMessage());
+                            emitter.send(SseEmitter.event().data(errorData));
+                            emitter.complete();
+                        } catch (Exception ex) {
+                            emitter.completeWithError(ex);
+                        }
                     }
-                    
-                    // 模拟流式输出，将完整响应分块发送
-                    String[] words = response.split("");
-                    for (int i = 0; i < words.length; i++) {
-                        emitter.send(SseEmitter.event().name("message").data(words[i]));
-                        Thread.sleep(50); // 模拟打字效果
+                );
+            } else if (StrUtil.isNotBlank(request.getSystemPrompt())) {
+                aiService.streamChatWithSystem(
+                    request.getSystemPrompt(), 
+                    request.getMessage(),
+                    // onToken: 接收到每个token时立即发送
+                    token -> {
+                        try {
+                            Map<String, Object> messageData = new HashMap<>();
+                            messageData.put("type", "message");
+                            messageData.put("content", token);
+                            emitter.send(SseEmitter.event().data(messageData));
+                        } catch (Exception e) {
+                            logger.error("发送SSE token失败: {}", e.getMessage(), e);
+                        }
+                    },
+                    // onComplete: 完成时发送结束信号
+                    () -> {
+                        try {
+                            emitter.send(SseEmitter.event().data("[DONE]"));
+                            emitter.complete();
+                        } catch (Exception e) {
+                            logger.error("发送SSE完成信号失败: {}", e.getMessage(), e);
+                            emitter.completeWithError(e);
+                        }
+                    },
+                    // onError: 出错时发送错误信息
+                    error -> {
+                        logger.error("流式聊天请求失败: {}", error.getMessage(), error);
+                        try {
+                            Map<String, Object> errorData = new HashMap<>();
+                            errorData.put("type", "error");
+                            errorData.put("content", "AI聊天请求失败: " + error.getMessage());
+                            emitter.send(SseEmitter.event().data(errorData));
+                            emitter.complete();
+                        } catch (Exception ex) {
+                            emitter.completeWithError(ex);
+                        }
                     }
-                    
-                    emitter.send(SseEmitter.event().name("done").data("[DONE]"));
-                    emitter.complete();
-                } catch (Exception e) {
-                    logger.error("流式聊天请求失败: {}", e.getMessage(), e);
-                    try {
-                        emitter.send(SseEmitter.event().name("error").data("AI聊天请求失败: " + e.getMessage()));
-                        emitter.complete();
-                    } catch (Exception ex) {
-                        emitter.completeWithError(ex);
+                );
+            } else {
+                aiService.streamChat(
+                    request.getMessage(),
+                    // onToken: 接收到每个token时立即发送
+                    token -> {
+                        try {
+                            Map<String, Object> messageData = new HashMap<>();
+                            messageData.put("type", "message");
+                            messageData.put("content", token);
+                            emitter.send(SseEmitter.event().data(messageData));
+                        } catch (Exception e) {
+                            logger.error("发送SSE token失败: {}", e.getMessage(), e);
+                        }
+                    },
+                    // onComplete: 完成时发送结束信号
+                    () -> {
+                        try {
+                            emitter.send(SseEmitter.event().data("[DONE]"));
+                            emitter.complete();
+                        } catch (Exception e) {
+                            logger.error("发送SSE完成信号失败: {}", e.getMessage(), e);
+                            emitter.completeWithError(e);
+                        }
+                    },
+                    // onError: 出错时发送错误信息
+                    error -> {
+                        logger.error("流式聊天请求失败: {}", error.getMessage(), error);
+                        try {
+                            Map<String, Object> errorData = new HashMap<>();
+                            errorData.put("type", "error");
+                            errorData.put("content", "AI聊天请求失败: " + error.getMessage());
+                            emitter.send(SseEmitter.event().data(errorData));
+                            emitter.complete();
+                        } catch (Exception ex) {
+                            emitter.completeWithError(ex);
+                        }
                     }
-                }
-            }).start();
+                );
+            }
             
         } catch (Exception e) {
             logger.error("创建流式聊天失败: {}", e.getMessage(), e);
@@ -159,6 +229,9 @@ public class AiChatController extends BaseController {
         return emitter;
     }
     
+    /**
+     * 将响应文本分割成合适的块
+     */
     /**
      * 获取当前AI模型信息
      */

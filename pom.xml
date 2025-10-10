@@ -38,6 +38,7 @@
         <hutool.version>5.8.38</hutool.version>
         <spring-ai.version>1.0.0</spring-ai.version>
         <spring-ai-alibaba.version>1.0.0.2</spring-ai-alibaba.version>
+        <langchain4j.version>1.7.1-beta14</langchain4j.version>
     </properties>
 
     <dependencyManagement>
@@ -392,7 +393,28 @@
             <version>0.2.27</version>
         </dependency>
 
+        <!-- 核心 starter -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-spring-boot-starter</artifactId>
+            <version>1.7.1-beta14</version>
+        </dependency>
 
+        <!-- OpenAI 集成 starter（如果使用 OpenAI）-->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai-spring-boot-starter</artifactId>
+            <version>1.7.1-beta14</version>
+        </dependency>
+        
+        <!-- 流式输出支持 (可选) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-reactor</artifactId>
+            <version>1.7.1-beta14</version>
+        </dependency>
+
+ 
         
     </dependencies>
 

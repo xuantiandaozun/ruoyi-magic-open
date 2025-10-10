@@ -1,15 +1,16 @@
 package com.ruoyi.project.ai.service;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
- * Hutool AI服务接口
- * 基于hutool aiutil封装的AI服务，支持多种AI模型
+ * AI服务接口
+ * 支持多种AI模型
  * 
  * @author ruoyi-magic
  * @date 2024-12-15
  */
-public interface IHutoolAiService {
+public interface IAiService {
     
     /**
      * 基础聊天对话
@@ -46,6 +47,16 @@ public interface IHutoolAiService {
      * @return AI回复
      */
     String chatWithSystem(String systemPrompt, String message, boolean returnJson);
+    
+    /**
+     * 使用指定模型配置的聊天对话
+     * 
+     * @param message 用户消息
+     * @param systemPrompt 系统提示
+     * @param modelConfigId 模型配置ID
+     * @return AI回复
+     */
+    String chatWithModelConfig(String message, String systemPrompt, Long modelConfigId);
     
     /**
      * 多轮对话
@@ -160,4 +171,37 @@ public interface IHutoolAiService {
      * @return 是否切换成功
      */
     boolean switchModel(String modelType);
+    
+    /**
+     * 流式聊天对话
+     * 
+     * @param message 用户消息
+     * @param onToken 接收到token时的回调
+     * @param onComplete 完成时的回调
+     * @param onError 出错时的回调
+     */
+    void streamChat(String message, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
+    
+    /**
+     * 流式带系统提示的聊天对话
+     * 
+     * @param systemPrompt 系统提示
+     * @param message 用户消息
+     * @param onToken 接收到token时的回调
+     * @param onComplete 完成时的回调
+     * @param onError 出错时的回调
+     */
+    void streamChatWithSystem(String systemPrompt, String message, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
+    
+    /**
+     * 使用指定模型配置的流式聊天对话
+     * 
+     * @param message 用户消息
+     * @param systemPrompt 系统提示
+     * @param modelConfigId 模型配置ID
+     * @param onToken 接收到token时的回调
+     * @param onComplete 完成时的回调
+     * @param onError 出错时的回调
+     */
+    void streamChatWithModelConfig(String message, String systemPrompt, Long modelConfigId, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
 }
