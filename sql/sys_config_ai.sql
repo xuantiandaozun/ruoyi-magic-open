@@ -35,3 +35,8 @@ INSERT INTO `sys_config` (`config_name`, `config_key`, `config_value`, `config_t
 -- AI缓存配置
 INSERT INTO `sys_config` (`config_name`, `config_key`, `config_value`, `config_type`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`, `del_flag`) VALUES ('AI响应缓存开关', 'ai.cache.enabled', 'true', 'Y', 'admin', NOW(), 'admin', NOW(), '是否启用AI响应缓存（true开启，false关闭）', '0');
 INSERT INTO `sys_config` (`config_name`, `config_key`, `config_value`, `config_type`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`, `del_flag`) VALUES ('AI缓存过期时间', 'ai.cache.expireTime', '3600', 'Y', 'admin', NOW(), 'admin', NOW(), 'AI响应缓存过期时间（秒）', '0');
+
+-- AI数据库访问配置
+INSERT INTO `sys_config` (`config_name`, `config_key`, `config_value`, `config_type`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`, `del_flag`) VALUES ('AI数据库访问开关', 'ai.database.enabled', 'true', 'Y', 'admin', NOW(), 'admin', NOW(), '是否启用AI数据库访问功能（true开启，false关闭）', '0');
+INSERT INTO `sys_config` (`config_name`, `config_key`, `config_value`, `config_type`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`, `del_flag`) VALUES ('AI可访问的数据库表', 'ai.database.allowed_tables', 'sys_user,sys_role,sys_menu,sys_dept,sys_config,github_trending', 'Y', 'admin', NOW(), 'admin', NOW(), 'AI可以查询的数据库表列表，用逗号分隔', '0');
+INSERT INTO `sys_config` (`config_name`, `config_key`, `config_value`, `config_type`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`, `del_flag`) VALUES ('AI数据库查询限制', 'ai.database.query_limit', '100', 'Y', 'admin', NOW(), 'admin', NOW(), 'AI数据库查询结果数量限制（默认100，最大1000）', '0');

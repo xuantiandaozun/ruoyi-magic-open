@@ -19,7 +19,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Table(value = "github_trending",dataSource="爬虫" ,mapperGenerateEnable=false)
+@Table(value = "github_trending")
 public class GithubTrending extends BaseEntity
 {
     private static final long serialVersionUID = 1L;

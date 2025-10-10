@@ -1,6 +1,5 @@
 package com.ruoyi.project.ai.strategy.impl;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -282,16 +281,9 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             streamingChatModel.chat(message, new StreamingChatResponseHandler() {
                 @Override
                 public void onPartialResponse(String partialResponse) {
-                    // 确保字符编码正确处理
+                    // 直接处理响应内容
                     if (partialResponse != null) {
-                        try {
-                            // 检查是否存在编码问题，如果是乱码则尝试修复
-                            String fixedResponse = fixEncodingIfNeeded(partialResponse);
-                            onToken.accept(fixedResponse);
-                        } catch (Exception e) {
-                            log.warn("[LC4J-{}] 处理流式响应时出现编码问题: {}", provider, e.getMessage());
-                            onToken.accept(partialResponse); // 降级处理，直接返回原始响应
-                        }
+                        onToken.accept(partialResponse);
                     }
                 }
                 
@@ -328,16 +320,9 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             streamingChatModel.chat(prompt, new StreamingChatResponseHandler() {
                 @Override
                 public void onPartialResponse(String partialResponse) {
-                    // 确保字符编码正确处理
+                    // 直接处理响应内容
                     if (partialResponse != null) {
-                        try {
-                            // 检查是否存在编码问题，如果是乱码则尝试修复
-                            String fixedResponse = fixEncodingIfNeeded(partialResponse);
-                            onToken.accept(fixedResponse);
-                        } catch (Exception e) {
-                            log.warn("[LC4J-{}] 处理流式响应时出现编码问题: {}", provider, e.getMessage());
-                            onToken.accept(partialResponse); // 降级处理，直接返回原始响应
-                        }
+                        onToken.accept(partialResponse);
                     }
                 }
                 
@@ -358,57 +343,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
         }
     }
 
-    /**
-     * 修复可能的编码问题
-     * @param text 原始文本
-     * @return 修复后的文本
-     */
-    private String fixEncodingIfNeeded(String text) {
-        if (text == null || text.isEmpty()) {
-            return text;
-        }
-        
-        try {
-            // 检查是否包含常见的UTF-8编码错误字符
-            if (text.contains("浣犲ソ") || text.contains("锛�") || text.contains("馃槉")) {
-                // 尝试修复编码问题：先转为字节数组，再用UTF-8重新解码
-                byte[] bytes = text.getBytes(StandardCharsets.ISO_8859_1);
-                String fixed = new String(bytes, StandardCharsets.UTF_8);
-                log.debug("[LC4J-{}] 检测到编码问题，已修复: {} -> {}", provider, text, fixed);
-                return fixed;
-            }
-            
-            // 检查是否包含其他可能的编码问题字符
-            boolean hasEncodingIssue = false;
-            for (char c : text.toCharArray()) {
-                // 检查是否包含异常的Unicode字符范围
-                if ((c >= 0x80 && c <= 0xFF) || (c >= 0x100 && c <= 0x17F)) {
-                    hasEncodingIssue = true;
-                    break;
-                }
-            }
-            
-            if (hasEncodingIssue) {
-                // 尝试重新编码
-                byte[] bytes = text.getBytes(StandardCharsets.ISO_8859_1);
-                String fixed = new String(bytes, StandardCharsets.UTF_8);
-                
-                // 验证修复后的文本是否更合理（包含更多中文字符）
-                long chineseCount = fixed.chars().filter(c -> c >= 0x4E00 && c <= 0x9FFF).count();
-                long originalChineseCount = text.chars().filter(c -> c >= 0x4E00 && c <= 0x9FFF).count();
-                
-                if (chineseCount > originalChineseCount) {
-                    log.debug("[LC4J-{}] 编码修复成功: {} -> {}", provider, text, fixed);
-                    return fixed;
-                }
-            }
-            
-        } catch (Exception e) {
-            log.warn("[LC4J-{}] 编码修复失败: {}", provider, e.getMessage());
-        }
-        
-        return text; // 如果修复失败，返回原始文本
-    }
 
     @Override
     public void streamChatWithModelConfig(String message, String systemPrompt, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError) {
