@@ -1,5 +1,7 @@
 package com.ruoyi.project.ai.dto;
 
+import java.util.List;
+
 /**
  * 聊天请求对象
  */
@@ -7,6 +9,11 @@ public class ChatRequest {
     private String message;
     private String systemPrompt;
     private Long modelConfigId;
+    
+    /**
+     * 聊天历史记录，用于多轮对话
+     */
+    private List<AiChatMessage> chatHistory;
 
     public String getMessage() {
         return message;
@@ -30,5 +37,13 @@ public class ChatRequest {
 
     public void setModelConfigId(Long modelConfigId) {
         this.modelConfigId = modelConfigId;
+    }
+
+    public List<AiChatMessage> getChatHistory() {
+        return chatHistory;
+    }
+
+    public void setChatHistory(List<AiChatMessage> chatHistory) {
+        this.chatHistory = chatHistory;
     }
 }

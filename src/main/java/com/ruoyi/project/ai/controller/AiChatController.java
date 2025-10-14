@@ -77,7 +77,12 @@ public class AiChatController extends BaseController {
     @Operation(summary = "流式聊天")
     @PostMapping("/stream")
     public SseEmitter chatStream(@RequestBody ChatRequest request) {
-        SseEmitter emitter = new SseEmitter(60000L); // 60秒超时
+        // 增加超时时间到10分钟，避免长时间对话被中断
+        SseEmitter emitter = new SseEmitter(600000L); // 10分钟超时
+        
+        // 连接状态管理
+        final boolean[] isCompleted = {false};
+        final Object completionLock = new Object();
         
         try {
             if (StrUtil.isBlank(request.getMessage())) {
@@ -85,24 +90,119 @@ public class AiChatController extends BaseController {
                 errorData.put("type", "error");
                 errorData.put("content", "消息内容不能为空");
                 emitter.send(SseEmitter.event().data(errorData));
-                emitter.complete();
+                safeComplete(emitter, isCompleted, completionLock);
                 return emitter;
             }
             
-            // 设置SSE响应头
-            emitter.onCompletion(() -> logger.info("SSE连接完成"));
-            emitter.onTimeout(() -> {
-                logger.warn("SSE连接超时");
-                emitter.complete();
+            // 设置SSE响应头和事件处理器
+            emitter.onCompletion(() -> {
+                synchronized (completionLock) {
+                    if (!isCompleted[0]) {
+                        isCompleted[0] = true;
+                        logger.info("SSE连接正常完成");
+                    }
+                }
             });
+            
+            emitter.onTimeout(() -> {
+                synchronized (completionLock) {
+                    if (!isCompleted[0]) {
+                        isCompleted[0] = true;
+                        logger.warn("SSE连接超时，尝试发送超时信号");
+                        try {
+                            Map<String, Object> timeoutData = new HashMap<>();
+                            timeoutData.put("type", "error");
+                            timeoutData.put("content", "连接超时，请重新发起对话");
+                            emitter.send(SseEmitter.event().data(timeoutData));
+                        } catch (Exception e) {
+                            logger.error("发送超时信号失败: {}", e.getMessage());
+                        }
+                        safeComplete(emitter, isCompleted, completionLock);
+                    }
+                }
+            });
+            
             emitter.onError((ex) -> {
-                logger.error("SSE连接错误: {}", ex.getMessage(), ex);
-                emitter.completeWithError(ex);
+                synchronized (completionLock) {
+                    if (!isCompleted[0]) {
+                        isCompleted[0] = true;
+                        logger.error("SSE连接错误: {}", ex.getMessage(), ex);
+                        // 不要在这里调用completeWithError，因为连接可能已经断开
+                        // 只记录错误日志
+                    }
+                }
             });
             
             // 使用真正的流式接口，实时发送token
             // 如果指定了模型配置ID，使用指定的模型配置
-            if (request.getModelConfigId() != null) {
+            if (request.getChatHistory() != null && !request.getChatHistory().isEmpty() && request.getModelConfigId() != null) {
+                // 使用聊天历史和指定模型配置
+                aiService.streamChatWithHistory(
+                    request.getMessage(),
+                    request.getSystemPrompt(),
+                    request.getChatHistory(),
+                    request.getModelConfigId(),
+                    // onToken: 接收到每个token时立即发送
+                    token -> {
+                        try {
+                            Map<String, Object> messageData = new HashMap<>();
+                            messageData.put("type", "message");
+                            messageData.put("content", token);
+                            emitter.send(SseEmitter.event().data(messageData));
+                        } catch (Exception e) {
+                            logger.error("发送SSE token失败: {}", e.getMessage(), e);
+                        }
+                    },
+                    // onToolCall: 工具调用时发送工具调用信息
+                    (toolName, toolArgs) -> {
+                        try {
+                            Map<String, Object> toolCallData = new HashMap<>();
+                            toolCallData.put("type", "tool_call");
+                            toolCallData.put("toolName", toolName);
+                            toolCallData.put("toolArgs", toolArgs);
+                            emitter.send(SseEmitter.event().data(toolCallData));
+                        } catch (Exception e) {
+                            logger.error("发送SSE工具调用失败: {}", e.getMessage(), e);
+                        }
+                    },
+                    // onToolResult: 工具执行结果时发送结果信息
+                    (toolName, result) -> {
+                        try {
+                            Map<String, Object> toolResultData = new HashMap<>();
+                            toolResultData.put("type", "tool_result");
+                            toolResultData.put("toolName", toolName);
+                            toolResultData.put("result", result);
+                            emitter.send(SseEmitter.event().data(toolResultData));
+                        } catch (Exception e) {
+                            logger.error("发送SSE工具结果失败: {}", e.getMessage(), e);
+                        }
+                    },
+                    // onComplete: 完成时发送结束信号
+                    () -> {
+                        try {
+                            emitter.send(SseEmitter.event().data("[DONE]"));
+                            safeComplete(emitter, isCompleted, completionLock);
+                        } catch (Exception e) {
+                            logger.error("发送SSE完成信号失败: {}", e.getMessage(), e);
+                            safeComplete(emitter, isCompleted, completionLock);
+                        }
+                    },
+                    // onError: 出错时发送错误信息
+                    error -> {
+                        logger.error("流式聊天请求失败: {}", error.getMessage(), error);
+                        try {
+                            Map<String, Object> errorData = new HashMap<>();
+                            errorData.put("type", "error");
+                            errorData.put("content", "AI聊天请求失败: " + error.getMessage());
+                            emitter.send(SseEmitter.event().data(errorData));
+                            safeComplete(emitter, isCompleted, completionLock);
+                        } catch (Exception ex) {
+                            logger.error("发送SSE错误信息失败: {}", ex.getMessage(), ex);
+                            safeComplete(emitter, isCompleted, completionLock);
+                        }
+                    }
+                );
+            } else if (request.getModelConfigId() != null) {
                 aiService.streamChatWithModelConfig(
                     request.getMessage(), 
                     request.getSystemPrompt(), 
@@ -118,14 +218,38 @@ public class AiChatController extends BaseController {
                             logger.error("发送SSE token失败: {}", e.getMessage(), e);
                         }
                     },
+                    // onToolCall: 工具调用时发送工具调用信息
+                    (toolName, toolArgs) -> {
+                        try {
+                            Map<String, Object> toolCallData = new HashMap<>();
+                            toolCallData.put("type", "tool_call");
+                            toolCallData.put("toolName", toolName);
+                            toolCallData.put("toolArgs", toolArgs);
+                            emitter.send(SseEmitter.event().data(toolCallData));
+                        } catch (Exception e) {
+                            logger.error("发送SSE工具调用失败: {}", e.getMessage(), e);
+                        }
+                    },
+                    // onToolResult: 工具执行结果时发送结果信息
+                    (toolName, result) -> {
+                        try {
+                            Map<String, Object> toolResultData = new HashMap<>();
+                            toolResultData.put("type", "tool_result");
+                            toolResultData.put("toolName", toolName);
+                            toolResultData.put("result", result);
+                            emitter.send(SseEmitter.event().data(toolResultData));
+                        } catch (Exception e) {
+                            logger.error("发送SSE工具结果失败: {}", e.getMessage(), e);
+                        }
+                    },
                     // onComplete: 完成时发送结束信号
                     () -> {
                         try {
                             emitter.send(SseEmitter.event().data("[DONE]"));
-                            emitter.complete();
+                            safeComplete(emitter, isCompleted, completionLock);
                         } catch (Exception e) {
                             logger.error("发送SSE完成信号失败: {}", e.getMessage(), e);
-                            emitter.completeWithError(e);
+                            safeComplete(emitter, isCompleted, completionLock);
                         }
                     },
                     // onError: 出错时发送错误信息
@@ -136,9 +260,10 @@ public class AiChatController extends BaseController {
                             errorData.put("type", "error");
                             errorData.put("content", "AI聊天请求失败: " + error.getMessage());
                             emitter.send(SseEmitter.event().data(errorData));
-                            emitter.complete();
+                            safeComplete(emitter, isCompleted, completionLock);
                         } catch (Exception ex) {
-                            emitter.completeWithError(ex);
+                            logger.error("发送SSE错误信息失败: {}", ex.getMessage(), ex);
+                            safeComplete(emitter, isCompleted, completionLock);
                         }
                     }
                 );
@@ -161,10 +286,10 @@ public class AiChatController extends BaseController {
                     () -> {
                         try {
                             emitter.send(SseEmitter.event().data("[DONE]"));
-                            emitter.complete();
+                            safeComplete(emitter, isCompleted, completionLock);
                         } catch (Exception e) {
                             logger.error("发送SSE完成信号失败: {}", e.getMessage(), e);
-                            emitter.completeWithError(e);
+                            safeComplete(emitter, isCompleted, completionLock);
                         }
                     },
                     // onError: 出错时发送错误信息
@@ -175,9 +300,10 @@ public class AiChatController extends BaseController {
                             errorData.put("type", "error");
                             errorData.put("content", "AI聊天请求失败: " + error.getMessage());
                             emitter.send(SseEmitter.event().data(errorData));
-                            emitter.complete();
+                            safeComplete(emitter, isCompleted, completionLock);
                         } catch (Exception ex) {
-                            emitter.completeWithError(ex);
+                            logger.error("发送SSE错误信息失败: {}", ex.getMessage(), ex);
+                            safeComplete(emitter, isCompleted, completionLock);
                         }
                     }
                 );
@@ -199,10 +325,10 @@ public class AiChatController extends BaseController {
                     () -> {
                         try {
                             emitter.send(SseEmitter.event().data("[DONE]"));
-                            emitter.complete();
+                            safeComplete(emitter, isCompleted, completionLock);
                         } catch (Exception e) {
                             logger.error("发送SSE完成信号失败: {}", e.getMessage(), e);
-                            emitter.completeWithError(e);
+                            safeComplete(emitter, isCompleted, completionLock);
                         }
                     },
                     // onError: 出错时发送错误信息
@@ -213,9 +339,10 @@ public class AiChatController extends BaseController {
                             errorData.put("type", "error");
                             errorData.put("content", "AI聊天请求失败: " + error.getMessage());
                             emitter.send(SseEmitter.event().data(errorData));
-                            emitter.complete();
+                            safeComplete(emitter, isCompleted, completionLock);
                         } catch (Exception ex) {
-                            emitter.completeWithError(ex);
+                            logger.error("发送SSE错误信息失败: {}", ex.getMessage(), ex);
+                            safeComplete(emitter, isCompleted, completionLock);
                         }
                     }
                 );
@@ -223,7 +350,7 @@ public class AiChatController extends BaseController {
             
         } catch (Exception e) {
             logger.error("创建流式聊天失败: {}", e.getMessage(), e);
-            emitter.completeWithError(e);
+            safeComplete(emitter, isCompleted, completionLock);
         }
         
         return emitter;
@@ -338,6 +465,23 @@ public class AiChatController extends BaseController {
         } catch (Exception e) {
             logger.error("清空聊天历史失败: {}", e.getMessage(), e);
             return error("清空聊天历史失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 安全地完成SSE连接，避免重复完成导致的异常
+     */
+    private void safeComplete(SseEmitter emitter, boolean[] isCompleted, Object completionLock) {
+        synchronized (completionLock) {
+            if (!isCompleted[0]) {
+                isCompleted[0] = true;
+                try {
+                    emitter.complete();
+                } catch (Exception e) {
+                    logger.warn("SSE连接完成时发生异常（可能已经断开）: {}", e.getMessage());
+                    // 忽略异常，因为连接可能已经被客户端断开
+                }
+            }
         }
     }
 }

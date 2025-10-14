@@ -1,7 +1,10 @@
 package com.ruoyi.project.ai.strategy;
 
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import com.ruoyi.project.ai.dto.AiChatMessage;
 
 /**
  * AI客户端策略接口
@@ -27,4 +30,9 @@ public interface AiClientStrategy {
     void streamChat(String message, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
     void streamChatWithSystem(String systemPrompt, String message, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
     void streamChatWithModelConfig(String message, String systemPrompt, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
+    void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
+    
+    // 带工具调用回调的流式聊天方法
+    void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Consumer<String> onToken, BiConsumer<String, String> onToolCall, BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError);
+    void streamChatWithModelConfig(String message, String systemPrompt, Consumer<String> onToken, BiConsumer<String, String> onToolCall, BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError);
 }

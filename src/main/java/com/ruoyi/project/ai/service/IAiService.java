@@ -1,7 +1,10 @@
 package com.ruoyi.project.ai.service;
 
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import com.ruoyi.project.ai.dto.AiChatMessage;
 
 /**
  * AI服务接口
@@ -204,4 +207,46 @@ public interface IAiService {
      * @param onError 出错时的回调
      */
     void streamChatWithModelConfig(String message, String systemPrompt, Long modelConfigId, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
+    
+    /**
+     * 使用指定模型配置的流式聊天对话（支持聊天历史）
+     * 
+     * @param message 用户消息
+     * @param systemPrompt 系统提示
+     * @param chatHistory 聊天历史
+     * @param modelConfigId 模型配置ID
+     * @param onToken 接收到token时的回调
+     * @param onComplete 完成时的回调
+     * @param onError 出错时的回调
+     */
+    void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Long modelConfigId, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
+    
+    /**
+     * 使用指定模型配置的流式聊天对话（支持聊天历史和工具调用回调）
+     * 
+     * @param message 用户消息
+     * @param systemPrompt 系统提示
+     * @param chatHistory 聊天历史
+     * @param modelConfigId 模型配置ID
+     * @param onToken 接收到token时的回调
+     * @param onToolCall 工具调用时的回调
+     * @param onToolResult 工具结果时的回调
+     * @param onComplete 完成时的回调
+     * @param onError 出错时的回调
+     */
+    void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Long modelConfigId, Consumer<String> onToken, BiConsumer<String, String> onToolCall, BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError);
+    
+    /**
+     * 使用指定模型配置的流式聊天对话（支持工具调用回调）
+     * 
+     * @param message 用户消息
+     * @param systemPrompt 系统提示
+     * @param modelConfigId 模型配置ID
+     * @param onToken 接收到token时的回调
+     * @param onToolCall 工具调用时的回调
+     * @param onToolResult 工具结果时的回调
+     * @param onComplete 完成时的回调
+     * @param onError 出错时的回调
+     */
+    void streamChatWithModelConfig(String message, String systemPrompt, Long modelConfigId, Consumer<String> onToken, BiConsumer<String, String> onToolCall, BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError);
 }
