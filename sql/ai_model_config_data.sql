@@ -33,7 +33,13 @@ INSERT INTO `ai_model_config` VALUES
 (15, 'glm', 'chat', 'glm-4', '', 'https://open.bigmodel.cn/api/paas/v4', '{"temperature": 0.7, "maxTokens": 4096}', 'N', 'N', '0', '0', 'admin', NOW(), 'admin', NOW(), '智谱GLM-4聊天模型'),
 (16, 'glm', 'vision', 'glm-4v', '', 'https://open.bigmodel.cn/api/paas/v4', '{"temperature": 0.7, "maxTokens": 4096}', 'N', 'N', '0', '0', 'admin', NOW(), 'admin', NOW(), '智谱GLM-4V视觉模型');
 
+-- Kimi配置
+INSERT INTO `ai_model_config` VALUES 
+(19, 'kimi', 'chat', 'moonshot-v1-8k', '', 'https://api.moonshot.cn/v1', '{"temperature": 0.7, "maxTokens": 8192}', 'N', 'N', '0', '0', 'admin', NOW(), 'admin', NOW(), 'Kimi 8K聊天模型'),
+(20, 'kimi', 'chat', 'moonshot-v1-32k', '', 'https://api.moonshot.cn/v1', '{"temperature": 0.7, "maxTokens": 32768}', 'N', 'N', '0', '0', 'admin', NOW(), 'admin', NOW(), 'Kimi 32K聊天模型'),
+(21, 'kimi', 'chat', 'moonshot-v1-128k', '', 'https://api.moonshot.cn/v1', '{"temperature": 0.7, "maxTokens": 131072}', 'N', 'N', '0', '0', 'admin', NOW(), 'admin', NOW(), 'Kimi 128K聊天模型');
+
 -- OneAPI路由配置
 INSERT INTO `ai_model_config` VALUES 
-(17, 'operouter', 'chat', 'gpt-3.5-turbo', '', 'https://api.oneapi.com/v1', '{"temperature": 0.7, "maxTokens": 4096}', 'N', 'N', '0', '0', 'admin', NOW(), 'admin', NOW(), 'OneAPI路由GPT-3.5模型'),
-(18, 'operouter', 'chat', 'gpt-4', '', 'https://api.oneapi.com/v1', '{"temperature": 0.7, "maxTokens": 4096}', 'N', 'N', '0', '0', 'admin', NOW(), 'admin', NOW(), 'OneAPI路由GPT-4模型');
+(22, 'operouter', 'chat', 'gpt-3.5-turbo', '', 'https://api.oneapi.com/v1', '{"temperature": 0.7, "maxTokens": 4096}', 'N', 'N', '0', '0', 'admin', NOW(), 'admin', NOW(), 'OneAPI路由GPT-3.5模型'),
+(23, 'operouter', 'chat', 'gpt-4', '', 'https://api.oneapi.com/v1', '{"temperature": 0.7, "maxTokens": 4096}', 'N', 'N', '0', '0', 'admin', NOW(), 'admin', NOW(), 'OneAPI路由GPT-4模型');

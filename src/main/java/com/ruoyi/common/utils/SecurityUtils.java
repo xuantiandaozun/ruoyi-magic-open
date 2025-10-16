@@ -144,6 +144,10 @@ public class SecurityUtils
      */
     public static boolean hasPermi(String permission)
     {
+        // 如果是 admin 账号（用户ID为1），则自动拥有所有权限
+        if (isAdmin(getUserId())) {
+            return true;
+        }
         return hasPermi(getLoginUser().getPermissions(), permission);
     }
 
@@ -156,6 +160,10 @@ public class SecurityUtils
      */
     public static boolean hasPermi(Collection<String> authorities, String permission)
     {
+        // 如果是 admin 账号（用户ID为1），则自动拥有所有权限
+        if (isAdmin(getUserId())) {
+            return true;
+        }
         return authorities.stream().filter(StrUtil::isNotBlank)
                 .anyMatch(x -> Constants.ALL_PERMISSION.equals(x) || PatternMatchUtils.simpleMatch(x, permission));
     }
