@@ -224,4 +224,26 @@ public class AiWorkflowStepController extends BaseController {
             return error("验证用户提示词变量失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 获取可用工具类型列表
+     */
+    @Operation(summary = "获取可用工具类型列表")
+    @SaCheckPermission("ai:workflow:query")
+    @GetMapping("/toolTypes")
+    public AjaxResult getToolTypes() {
+        try {
+            List<String> toolTypes = Arrays.asList(
+                "github_trending",
+                "database_query", 
+                "blog_save",
+                "blog_en_save",
+                "social_media_article_save"
+            );
+            return success(toolTypes);
+        } catch (Exception e) {
+            logger.error("获取工具类型列表失败: {}", e.getMessage(), e);
+            return error("获取工具类型列表失败: " + e.getMessage());
+        }
+    }
 }

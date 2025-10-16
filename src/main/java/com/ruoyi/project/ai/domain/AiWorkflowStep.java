@@ -87,10 +87,10 @@ public class AiWorkflowStep extends BaseEntity {
     @Column("config_json")
     private String configJson;
 
-    /** 工具类型（如github_trending、database_query等） */
+    /** 工具类型列表（如github_trending,database_query等，多个用逗号分隔） */
     @Excel(name = "工具类型")
     @Column("tool_type")
-    private String toolType;
+    private String toolTypes;
 
 
 

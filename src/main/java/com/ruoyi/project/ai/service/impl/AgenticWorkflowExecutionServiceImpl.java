@@ -282,9 +282,15 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
         List<String> toolNames = new ArrayList<>();
         
         if ("Y".equals(step.getToolEnabled())) {
-            if (StrUtil.isNotEmpty(step.getToolType())) {
-                // 指定工具类型
-                toolNames.add(step.getToolType());
+            if (StrUtil.isNotEmpty(step.getToolTypes())) {
+                // 指定多个工具类型，用逗号分隔
+                String[] types = step.getToolTypes().split(",");
+                for (String type : types) {
+                    String trimmedType = type.trim();
+                    if (StrUtil.isNotEmpty(trimmedType)) {
+                        toolNames.add(trimmedType);
+                    }
+                }
             } else {
                 // 获取所有可用工具
                 toolNames.addAll(toolRegistry.getAllToolNames());
