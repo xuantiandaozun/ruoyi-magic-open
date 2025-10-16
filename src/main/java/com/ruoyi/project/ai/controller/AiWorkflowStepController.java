@@ -26,6 +26,7 @@ import com.ruoyi.framework.web.page.TableDataInfo;
 import com.ruoyi.framework.web.page.TableSupport;
 import com.ruoyi.project.ai.domain.AiWorkflowStep;
 import com.ruoyi.project.ai.service.IAiWorkflowStepService;
+import com.ruoyi.project.ai.util.PromptVariableProcessor;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import io.swagger.v3.oas.annotations.Operation;
@@ -190,6 +191,37 @@ public class AiWorkflowStepController extends BaseController {
         } catch (Exception e) {
             logger.error("批量调整步骤顺序失败: {}", e.getMessage(), e);
             return error("批量调整步骤顺序失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 验证用户提示词中的变量
+     */
+    @Operation(summary = "验证用户提示词中的变量")
+    @SaCheckPermission("ai:workflow:query")
+    @PostMapping("/validatePromptVariables")
+    public AjaxResult validatePromptVariables(@RequestBody String userPrompt) {
+        try {
+            // 检查是否包含变量
+            boolean hasVariables = PromptVariableProcessor.hasVariables(userPrompt);
+            
+            // 提取变量列表
+            String[] variableNames = PromptVariableProcessor.extractVariableNames(userPrompt);
+            
+            // 验证变量格式（这里我们只检查是否有缺失的变量，传入空的变量映射）
+            String[] missingVariables = PromptVariableProcessor.validateVariables(userPrompt, null);
+            
+            // 构建返回结果
+            AjaxResult result = success();
+            result.put("hasVariables", hasVariables);
+            result.put("variables", Arrays.asList(variableNames));
+            result.put("missingVariables", Arrays.asList(missingVariables));
+            result.put("isValid", missingVariables.length == 0);
+            
+            return result;
+        } catch (Exception e) {
+            logger.error("验证用户提示词变量失败: {}", e.getMessage(), e);
+            return error("验证用户提示词变量失败: " + e.getMessage());
         }
     }
 }

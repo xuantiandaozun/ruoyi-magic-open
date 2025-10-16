@@ -18,39 +18,29 @@ import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.domain.AiWorkflow;
 import com.ruoyi.project.ai.domain.AiWorkflowExecution;
 import com.ruoyi.project.ai.domain.AiWorkflowStep;
-import com.ruoyi.project.ai.dto.AgenticScope;
 import com.ruoyi.project.ai.dto.WorkflowExecuteRequest;
 import com.ruoyi.project.ai.service.IAiModelConfigService;
 import com.ruoyi.project.ai.service.IAiWorkflowExecutionService;
 import com.ruoyi.project.ai.service.IAiWorkflowService;
 import com.ruoyi.project.ai.service.IAiWorkflowStepService;
 import com.ruoyi.project.ai.service.IWorkflowExecutionService;
-import com.ruoyi.project.ai.service.impl.LangChain4jAgentService;
 import com.ruoyi.project.ai.tool.LangChain4jToolRegistry;
+import com.ruoyi.project.ai.util.PromptVariableProcessor;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
-import dev.langchain4j.agent.tool.ToolSpecification;
-import dev.langchain4j.agentic.UntypedAgent;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.ToolExecutionResultMessage;
-import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 
 
 /**
  * 基于LangChain4j Agent模式的工作流执行服务实现类
- * AI可以主动决定何时调用哪个工具
+ * 统一使用LangChain4j Agent服务执行工作流，支持工具调用和顺序执行
  * 
  * @author ruoyi-magic
  * @date 2024-12-15
  */
-@Service("agenticWorkflowExecutionService")
+@Service
 public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionService {
     
     private static final Logger log = LoggerFactory.getLogger(AgenticWorkflowExecutionServiceImpl.class);
@@ -109,17 +99,8 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
         executionService.save(execution);
         
         try {
-            Map<String, Object> result;
-            
-            // 4. 根据工作流类型选择执行方式
-            String workflowType = workflow.getType();
-            if ("langchain4j_agent".equals(workflowType)) {
-                // 使用LangChain4j Agent服务执行
-                result = executeWithLangChain4jAgent(workflow, steps, inputData);
-            } else {
-                // 使用传统方式执行
-                result = executeWithTraditionalAgent(steps, inputData);
-            }
+            // 4. 使用LangChain4j Agent服务执行工作流
+            Map<String, Object> result = executeWithLangChain4jAgent(workflow, steps, inputData);
             
             // 5. 更新执行状态为完成
             execution.setStatus("completed");
@@ -144,6 +125,8 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
                                                            List<AiWorkflowStep> steps, 
                                                            Map<String, Object> inputData) {
         try {
+            log.info("使用LangChain4j Agent执行工作流: {}", workflow.getName());
+            
             // 检查是否只有一个步骤（简单Agent）
             if (steps.size() == 1) {
                 AiWorkflowStep step = steps.get(0);
@@ -154,7 +137,7 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
             return executeSequentialWorkflow(steps, inputData);
             
         } catch (Exception e) {
-            log.error("LangChain4j Agent执行失败: {}", e.getMessage(), e);
+            log.error("Agent执行过程中发生异常: {}", e.getMessage(), e);
             throw new ServiceException("LangChain4j Agent执行失败: " + e.getMessage());
         }
     }
@@ -169,113 +152,128 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
         // 准备工具列表
         List<String> toolNames = getToolNamesForStep(step);
         
+        // 处理用户提示词和变量整合
+        String processedUserPrompt = processUserPromptWithVariables(step, inputData);
+        
         // 准备输入
-        String userInput = prepareUserInputFromMap(inputData);
+        String userInput;
+        if (inputData == null || inputData.isEmpty()) {
+            userInput = processedUserPrompt;
+        } else if (inputData.containsKey("userInput")) {
+            userInput = inputData.get("userInput").toString();
+        } else if (inputData.containsKey("input")) {
+            userInput = inputData.get("input").toString();
+        } else if (inputData.containsKey("message")) {
+            userInput = inputData.get("message").toString();
+        } else {
+            // 使用处理后的用户提示词，并附加输入数据
+            StringBuilder inputBuilder = new StringBuilder(processedUserPrompt);
+            inputBuilder.append("\n\n输入数据：\n");
+            inputData.forEach((key, value) -> {
+                inputBuilder.append(key).append(": ").append(value).append("\n");
+            });
+            userInput = inputBuilder.toString();
+        }
         String systemPrompt = StrUtil.isNotEmpty(step.getSystemPrompt()) ? step.getSystemPrompt() : "你是一个智能助手，请根据用户输入提供帮助。";
         
-        // 使用LangChain4j Agent服务创建简单Agent
-        UntypedAgent agent = agentService.createSimpleAgent(step.getModelConfigId(), systemPrompt, toolNames);
-        
-        // 准备Agent输入
-        Map<String, Object> agentInput = new HashMap<>();
-        agentInput.put("userInput", userInput);
-        agentInput.put("systemPrompt", systemPrompt);
-        
-        // 调用Agent执行
-        Object agentResult = agent.invoke(agentInput);
-        Map<String, Object> result = new HashMap<>();
-        result.put("result", agentResult);
-        
-        // 处理输出变量
-        if (StrUtil.isNotEmpty(step.getOutputVariable())) {
-            Map<String, Object> output = new HashMap<>();
-            output.put(step.getOutputVariable(), result.get("result"));
-            return output;
+        try {
+            log.info("开始执行Agent步骤: stepId={}, modelConfigId={}, toolCount={}", 
+                    step.getId(), step.getModelConfigId(), toolNames.size());
+            log.debug("系统提示: {}", systemPrompt);
+            log.debug("用户输入: {}", userInput);
+            log.debug("可用工具: {}", toolNames);
+            
+            // 使用LangChain4j Agent服务直接进行聊天
+            log.debug("开始调用chatWithTools...");
+            String agentResult;
+            if (toolNames != null && !toolNames.isEmpty()) {
+                // 有工具时使用chatWithTools
+                agentResult = agentService.chatWithTools(step.getModelConfigId(), systemPrompt, userInput, toolNames);
+            } else {
+                // 无工具时使用chatWithSystem
+                agentResult = agentService.chatWithSystem(step.getModelConfigId(), systemPrompt, userInput);
+            }
+            
+            log.info("Agent执行成功: stepId={}, resultType={}", 
+                    step.getId(), agentResult != null ? agentResult.getClass().getSimpleName() : "null");
+            log.debug("Agent执行结果: {}", agentResult);
+            
+            if (agentResult == null) {
+                log.warn("Agent执行结果为null: stepId={}", step.getId());
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("result", agentResult);
+            
+            // 处理输出变量
+            if (StrUtil.isNotEmpty(step.getOutputVariable())) {
+                Map<String, Object> output = new HashMap<>();
+                output.put(step.getOutputVariable(), result.get("result"));
+                return output;
+            }
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("Agent执行失败: stepId={}, error={}", step.getId(), e.getMessage(), e);
+            throw new ServiceException("LangChain4j Agent执行失败: " + e.getMessage());
         }
-        
-        return result;
     }
     
     /**
      * 执行顺序工作流
      */
     private Map<String, Object> executeSequentialWorkflow(List<AiWorkflowStep> steps, Map<String, Object> inputData) {
-        // 创建AgenticScope
-        AgenticScope scope = new AgenticScope();
-        
-        // 将输入数据放入scope
+        Map<String, Object> currentData = new HashMap<>();
         if (inputData != null) {
-            for (Map.Entry<String, Object> entry : inputData.entrySet()) {
-                scope.setVariable(entry.getKey(), entry.getValue());
-            }
+            currentData.putAll(inputData);
         }
         
-        // 构建Agent列表
-        List<UntypedAgent> agents = new ArrayList<>();
+        String lastResult = null;
         
+        // 按顺序执行每个步骤
         for (AiWorkflowStep step : steps) {
             if (!"1".equals(step.getEnabled())) {
                 continue; // 跳过禁用的步骤
             }
             
-            // 获取ChatModel
-            ChatModel chatModel = getChatModel(step.getModelConfigId());
+            log.info("执行顺序工作流步骤: stepId={}, stepName={}", step.getId(), step.getStepName());
             
-            // 准备工具列表
-            List<String> toolNames = getToolNamesForStep(step);
-            
-            // 创建Agent
-            UntypedAgent agent = agentService.createSimpleAgent(
-                step.getModelConfigId(), 
-                step.getSystemPrompt(),
-                toolNames
-            );
-            
-            agents.add(agent);
+            try {
+                // 执行单个步骤
+                Map<String, Object> stepResult = executeSingleAgentStep(step, currentData);
+                
+                // 更新当前数据
+                if (stepResult != null) {
+                    currentData.putAll(stepResult);
+                    
+                    // 保存最后一个步骤的结果
+                    if (stepResult.containsKey("result")) {
+                        lastResult = stepResult.get("result").toString();
+                    }
+                    
+                    // 如果步骤有输出变量，将结果保存到该变量
+                    if (StrUtil.isNotEmpty(step.getOutputVariable()) && stepResult.containsKey("result")) {
+                        currentData.put(step.getOutputVariable(), stepResult.get("result"));
+                    }
+                }
+                
+                log.info("步骤执行成功: stepId={}, stepName={}", step.getId(), step.getStepName());
+                
+            } catch (Exception e) {
+                log.error("步骤执行失败: stepId={}, stepName={}, error={}", 
+                         step.getId(), step.getStepName(), e.getMessage(), e);
+                throw new ServiceException("顺序工作流执行失败，步骤: " + step.getStepName() + ", 错误: " + e.getMessage());
+            }
         }
         
-        // 执行顺序工作流 - 使用AgenticServices创建顺序工作流
-        UntypedAgent sequentialAgent = agentService.createSequentialWorkflow(
-            steps.get(0).getModelConfigId(), 
-            steps.stream().map(step -> new LangChain4jAgentService.AgentConfig(
-                step.getStepName(),
-                step.getSystemPrompt(),
-                "请根据输入数据和系统提示完成任务", // 默认用户提示词
-                step.getOutputVariable(),
-                getToolNamesForStep(step)
-            )).collect(Collectors.toList())
-        );
-        
         Map<String, Object> result = new HashMap<>();
-        Object workflowResult = sequentialAgent.invoke(inputData);
-        result.put("result", workflowResult);
+        result.put("result", lastResult);
+        result.putAll(currentData);
         
         return result;
     }
     
-    /**
-     * 使用传统方式执行工作流
-     */
-    private Map<String, Object> executeWithTraditionalAgent(List<AiWorkflowStep> steps, Map<String, Object> inputData) {
-        // 4. 初始化Agent上下文
-        AgentContext context = new AgentContext();
-        
-        // 将输入数据放入上下文
-        if (inputData != null) {
-            context.putAll(inputData);
-        }
-        
-        // 5. 顺序执行每个Agent步骤
-        for (AiWorkflowStep step : steps) {
-            if (!"1".equals(step.getEnabled())) {
-                continue; // 跳过禁用的步骤
-            }
-            
-            executeAgentStep(step, context);
-        }
-        
-        return context.getVariables();
-    }
     
     /**
      * 获取步骤的工具名称列表
@@ -296,186 +294,17 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
         return toolNames;
     }
     
-    /**
-     * 从Map准备用户输入
-     */
-    private String prepareUserInputFromMap(Map<String, Object> inputData) {
-        if (inputData == null || inputData.isEmpty()) {
-            return "请处理当前任务。";
-        }
-        
-        StringBuilder inputBuilder = new StringBuilder();
-        
-        // 检查是否有标准的用户输入字段
-        if (inputData.containsKey("userInput")) {
-            inputBuilder.append(inputData.get("userInput").toString());
-        } else if (inputData.containsKey("input")) {
-            inputBuilder.append(inputData.get("input").toString());
-        } else if (inputData.containsKey("message")) {
-            inputBuilder.append(inputData.get("message").toString());
-        } else {
-            // 将所有输入数据组合成文本
-            inputBuilder.append("请处理以下信息：\n");
-            inputData.forEach((key, value) -> {
-                inputBuilder.append(key).append(": ").append(value).append("\n");
-            });
-        }
-        
-        return inputBuilder.toString();
-    }
+
     
-    /**
-     * 执行Agent步骤
-     */
-    private void executeAgentStep(AiWorkflowStep step, AgentContext context) {
-        log.info("执行Agent步骤: {}", step.getStepName());
-        
-        try {
-            // 1. 获取ChatModel
-            ChatModel chatModel = getChatModel(step.getModelConfigId());
-            
-            // 2. 准备消息列表
-            List<ChatMessage> messages = new ArrayList<>();
-            
-            // 3. 添加系统消息
-            if (StrUtil.isNotEmpty(step.getSystemPrompt())) {
-                messages.add(SystemMessage.from(step.getSystemPrompt()));
-            }
-            
-            // 4. 准备用户输入
-            String userInput = prepareUserInput(step, context);
-            messages.add(UserMessage.from(userInput));
-            
-            // 5. 获取可用工具
-            List<ToolSpecification> tools = getAvailableTools(step);
-            
-            // 6. 构建聊天请求
-            ChatRequest.Builder requestBuilder = ChatRequest.builder()
-                    .messages(messages);
-            
-            if (!tools.isEmpty()) {
-                requestBuilder.toolSpecifications(tools);
-            }
-            
-            // 7. 执行聊天请求
-            ChatResponse response = chatModel.chat(requestBuilder.build());
-            AiMessage aiMessage = response.aiMessage();
-            
-            // 8. 处理工具调用（如果有）
-            if (aiMessage.hasToolExecutionRequests()) {
-                handleToolExecutions(aiMessage, messages, chatModel, tools);
-                
-                // 重新发送请求获取最终回复
-                ChatRequest finalRequest = ChatRequest.builder()
-                        .messages(messages)
-                        .toolSpecifications(tools)
-                        .build();
-                
-                ChatResponse finalResponse = chatModel.chat(finalRequest);
-                aiMessage = finalResponse.aiMessage();
-            }
-            
-            // 9. 处理输出
-            processStepOutput(step, aiMessage.text(), context);
-            
-        } catch (Exception e) {
-            log.error("执行Agent步骤失败: {}", e.getMessage(), e);
-            throw new ServiceException("Agent步骤执行失败: " + e.getMessage());
-        }
-    }
+
     
-    /**
-     * 处理工具执行
-     */
-    private void handleToolExecutions(AiMessage aiMessage, List<ChatMessage> messages, 
-                                    ChatModel chatModel, List<ToolSpecification> tools) {
-        
-        aiMessage.toolExecutionRequests().forEach(toolRequest -> {
-            String toolName = toolRequest.name();
-            String arguments = toolRequest.arguments();
-            
-            log.info("AI请求执行工具: {} with arguments: {}", toolName, arguments);
-            
-            try {
-                // 执行工具
-                String result = toolRegistry.executeTool(toolName, arguments);
-                
-                // 添加工具执行结果到消息列表
-                messages.add(ToolExecutionResultMessage.from(toolRequest, result));
-                
-                log.info("工具执行成功: {} -> {}", toolName, result);
-                
-            } catch (Exception e) {
-                log.error("工具执行失败: {}", e.getMessage(), e);
-                String errorResult = "工具执行失败: " + e.getMessage();
-                messages.add(ToolExecutionResultMessage.from(toolRequest, errorResult));
-            }
-        });
-    }
+
     
-    /**
-     * 获取可用工具
-     */
-    private List<ToolSpecification> getAvailableTools(AiWorkflowStep step) {
-        List<ToolSpecification> tools = new ArrayList<>();
-        
-        // 如果步骤启用了工具
-        if ("Y".equals(step.getToolEnabled())) {
-            if (StrUtil.isNotEmpty(step.getToolType())) {
-                // 获取指定工具
-                ToolSpecification tool = toolRegistry.getToolSpecification(step.getToolType());
-                if (tool != null) {
-                    tools.add(tool);
-                }
-            } else {
-                // 获取所有可用工具
-                tools.addAll(toolRegistry.getAllToolSpecifications());
-            }
-        }
-        
-        return tools;
-    }
+
     
-    /**
-     * 准备用户输入
-     */
-    private String prepareUserInput(AiWorkflowStep step, AgentContext context) {
-        StringBuilder inputBuilder = new StringBuilder();
-        
-        // 如果有输入变量配置，从上下文中获取
-        if (StrUtil.isNotEmpty(step.getInputVariable())) {
-            Object inputValue = context.get(step.getInputVariable());
-            if (inputValue != null) {
-                inputBuilder.append(inputValue.toString());
-            }
-        }
-        
-        // 如果没有具体输入，使用通用提示
-        if (inputBuilder.length() == 0) {
-            inputBuilder.append("请根据当前上下文信息进行处理。");
-            
-            // 添加上下文信息
-            if (!context.getVariables().isEmpty()) {
-                inputBuilder.append("\n\n当前上下文信息：\n");
-                context.getVariables().forEach((key, value) -> {
-                    inputBuilder.append(key).append(": ").append(value).append("\n");
-                });
-            }
-        }
-        
-        return inputBuilder.toString();
-    }
+
     
-    /**
-     * 处理步骤输出
-     */
-    private void processStepOutput(AiWorkflowStep step, String output, AgentContext context) {
-        if (StrUtil.isNotEmpty(step.getOutputVariable())) {
-            context.put(step.getOutputVariable(), output);
-        }
-        
-        log.info("Agent步骤 {} 输出: {}", step.getStepName(), output);
-    }
+
     
     /**
      * 获取ChatModel
@@ -538,6 +367,43 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
     }
     
     /**
+     * 处理用户提示词和变量整合
+     */
+    private String processUserPromptWithVariables(AiWorkflowStep step, Map<String, Object> inputData) {
+        String userPrompt = StrUtil.isNotEmpty(step.getUserPrompt()) ? step.getUserPrompt() : "请根据输入数据和系统提示完成任务";
+        
+        // 使用 PromptVariableProcessor 进行变量处理
+        if (inputData != null && !inputData.isEmpty()) {
+            try {
+                userPrompt = PromptVariableProcessor.processVariables(userPrompt, inputData);
+                log.debug("处理后的用户提示词: {}", userPrompt);
+            } catch (Exception e) {
+                log.warn("处理用户提示词变量时出错: {}, 使用原始提示词", e.getMessage());
+            }
+        }
+        
+        // 如果用户提示词中没有变量，但有输入变量配置，则自动添加输入数据
+        if (StrUtil.isNotEmpty(step.getInputVariable()) && inputData != null && 
+            !PromptVariableProcessor.hasVariables(userPrompt)) {
+            
+            StringBuilder enhancedPrompt = new StringBuilder(userPrompt);
+            enhancedPrompt.append("\n\n可用的输入数据：\n");
+            
+            String[] inputVars = step.getInputVariable().split(",");
+            for (String var : inputVars) {
+                var = var.trim();
+                if (inputData.containsKey(var)) {
+                    enhancedPrompt.append("- ").append(var).append(": ").append(inputData.get(var)).append("\n");
+                }
+            }
+            
+            userPrompt = enhancedPrompt.toString();
+        }
+        
+        return userPrompt;
+    }
+    
+    /**
      * 转换Map为JSON字符串
      */
     private String convertMapToJson(Map<String, Object> map) {
@@ -547,26 +413,5 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
         return JSONUtil.toJsonStr(map);
     }
     
-    /**
-     * Agent上下文类
-     */
-    public static class AgentContext {
-        private final Map<String, Object> variables = new HashMap<>();
-        
-        public void put(String key, Object value) {
-            variables.put(key, value);
-        }
-        
-        public Object get(String key) {
-            return variables.get(key);
-        }
-        
-        public void putAll(Map<String, Object> map) {
-            variables.putAll(map);
-        }
-        
-        public Map<String, Object> getVariables() {
-            return new HashMap<>(variables);
-        }
-    }
+
 }

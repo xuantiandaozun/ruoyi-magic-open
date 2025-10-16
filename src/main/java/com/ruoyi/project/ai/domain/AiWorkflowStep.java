@@ -56,6 +56,11 @@ public class AiWorkflowStep extends BaseEntity {
     @Column("system_prompt")
     private String systemPrompt;
 
+    /** 用户提示词（支持变量占位符，如：请帮我整理下面的文案{{input_variable}}） */
+    @Excel(name = "用户提示词")
+    @Column("user_prompt")
+    private String userPrompt;
+
     /** 输入变量名（从AgenticScope中读取的变量名） */
     @Excel(name = "输入变量名")
     @Column("input_variable")
@@ -87,9 +92,7 @@ public class AiWorkflowStep extends BaseEntity {
     @Column("tool_type")
     private String toolType;
 
-    /** 工具参数JSON（存储工具执行所需的参数） */
-    @Column("tool_parameters")
-    private String toolParameters;
+
 
     /** 是否启用工具（Y=启用工具 N=不启用工具，默认为N） */
     @Excel(name = "是否启用工具", readConverterExp = "Y=是,N=否")

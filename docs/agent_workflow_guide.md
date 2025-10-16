@@ -103,7 +103,6 @@ CREATE TABLE `ai_workflow_step` (
   `input_variable` varchar(100) DEFAULT NULL COMMENT '输入变量名',
   `output_variable` varchar(100) DEFAULT NULL COMMENT '输出变量名',
   `tool_type` varchar(50) DEFAULT NULL COMMENT '工具类型',
-  `tool_parameters` text COMMENT '工具参数JSON',
   `tool_enabled` char(1) DEFAULT 'N' COMMENT '是否启用工具',
   -- 其他字段...
 );
@@ -203,14 +202,25 @@ INSERT INTO `ai_model_config` (
 );
 ```
 
-### 2. 工具参数配置
+### 2. 智能工具配置
 
-在工作流步骤中配置工具参数：
+**重要说明**: 从v2.0版本开始，工具参数由AI自动决定，无需手动配置。
 
+AI会根据以下信息自动确定工具参数：
+- 用户的提示词内容
+- 上下文信息和变量
+- 工作流的执行环境
+
+支持的智能工具类型：
+- `github_trending`: GitHub趋势查询（AI自动确定语言、时间范围等）
+- `database_query`: 数据库查询（AI自动生成SQL语句）
+- `file_operation`: 文件操作（AI自动处理路径和操作类型）
+
+**旧版本兼容性**: 如果您使用的是v1.x版本，仍需要手动配置工具参数：
 ```json
 {
   "language": "java",
-  "period": "daily",
+  "period": "daily", 
   "limit": 10
 }
 ```
@@ -257,7 +267,7 @@ public void init() {
 
 ### 常见问题
 
-1. **工具调用失败**: 检查工具注册和参数配置
+1. **工具调用失败**: 检查工具注册和AI模型配置（v2.0+无需检查参数配置）
 2. **AI模型连接失败**: 验证API密钥和端点配置
 3. **工作流执行超时**: 调整超时设置和优化提示词
 4. **数据流传递错误**: 检查变量名配置和数据格式

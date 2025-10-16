@@ -1,6 +1,9 @@
 package com.ruoyi.project.ai.controller;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,9 +26,12 @@ import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.framework.web.page.PageDomain;
 import com.ruoyi.framework.web.page.TableDataInfo;
 import com.ruoyi.framework.web.page.TableSupport;
+import cn.hutool.core.util.StrUtil;
 import com.ruoyi.project.ai.domain.AiWorkflowExecution;
+import com.ruoyi.project.ai.domain.AiWorkflowStep;
 import com.ruoyi.project.ai.dto.WorkflowExecuteRequest;
 import com.ruoyi.project.ai.service.IAiWorkflowExecutionService;
+import com.ruoyi.project.ai.service.IAiWorkflowStepService;
 import com.ruoyi.project.ai.service.IWorkflowExecutionService;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
@@ -49,6 +55,9 @@ public class AiWorkflowExecutionController extends BaseController {
     
     @Autowired
     private IWorkflowExecutionService workflowExecutor;
+    
+    @Autowired
+    private IAiWorkflowStepService workflowStepService;
 
     /**
      * 执行工作流
@@ -210,6 +219,55 @@ public class AiWorkflowExecutionController extends BaseController {
         } catch (Exception e) {
             logger.error("重新执行工作流失败: {}", e.getMessage(), e);
             return error("重新执行工作流失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取工作流变量信息
+     */
+    @Operation(summary = "获取工作流变量信息")
+    @SaCheckPermission("ai:workflow:query")
+    @GetMapping("/variables/{workflowId}")
+    public AjaxResult getWorkflowVariables(@PathVariable Long workflowId) {
+        try {
+            List<AiWorkflowStep> steps = workflowStepService.selectByWorkflowIdAndEnabled(workflowId, "1");
+            
+            Map<String, Object> variableInfo = new HashMap<>();
+            
+            if (!steps.isEmpty()) {
+                // 获取第一个步骤的输入变量
+                AiWorkflowStep firstStep = steps.get(0);
+                if (StrUtil.isNotBlank(firstStep.getInputVariable())) {
+                    variableInfo.put("inputVariables", firstStep.getInputVariable());
+                }
+                
+                // 获取所有步骤的输出变量
+                Map<String, String> outputVariables = new HashMap<>();
+                for (AiWorkflowStep step : steps) {
+                    if (StrUtil.isNotBlank(step.getOutputVariable())) {
+                        outputVariables.put(step.getStepName(), step.getOutputVariable());
+                    }
+                }
+                variableInfo.put("outputVariables", outputVariables);
+                
+                // 获取步骤信息
+                List<Map<String, Object>> stepInfo = new ArrayList<>();
+                for (AiWorkflowStep step : steps) {
+                    Map<String, Object> stepData = new HashMap<>();
+                    stepData.put("stepName", step.getStepName());
+                    stepData.put("stepOrder", step.getStepOrder());
+                    stepData.put("inputVariable", step.getInputVariable());
+                    stepData.put("outputVariable", step.getOutputVariable());
+                    stepData.put("userPrompt", step.getUserPrompt());
+                    stepInfo.add(stepData);
+                }
+                variableInfo.put("steps", stepInfo);
+            }
+            
+            return success("获取工作流变量信息成功", variableInfo);
+        } catch (Exception e) {
+            logger.error("获取工作流变量信息失败: {}", e.getMessage(), e);
+            return error("获取工作流变量信息失败: " + e.getMessage());
         }
     }
 }

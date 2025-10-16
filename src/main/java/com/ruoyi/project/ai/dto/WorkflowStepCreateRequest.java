@@ -65,10 +65,7 @@ public class WorkflowStepCreateRequest {
      */
     private String toolType;
     
-    /**
-     * 工具参数JSON（存储工具执行所需的参数）
-     */
-    private String toolParameters;
+
     
     /**
      * 是否启用工具（Y=启用工具 N=不启用工具，默认为N）
@@ -155,13 +152,7 @@ public class WorkflowStepCreateRequest {
         this.toolType = toolType;
     }
 
-    public String getToolParameters() {
-        return toolParameters;
-    }
 
-    public void setToolParameters(String toolParameters) {
-        this.toolParameters = toolParameters;
-    }
 
     public String getToolEnabled() {
         return toolEnabled;

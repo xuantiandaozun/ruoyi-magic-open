@@ -11,11 +11,390 @@
  Target Server Version : 80036 (8.0.36)
  File Encoding         : 65001
 
- Date: 18/06/2025 14:34:24
+ Date: 16/10/2025 11:22:41
 */
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
+
+-- ----------------------------
+-- Table structure for ai_blog_production_record
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_blog_production_record`;
+CREATE TABLE `ai_blog_production_record`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+  `repo_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '仓库地址',
+  `repo_title` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '仓库标题',
+  `repo_owner` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '仓库所有者',
+  `repo_language` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '仓库主要编程语言',
+  `production_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '生产类型（readme_analysis-README分析，ranking-排行榜，tutorial-教程，trending_analysis-趋势分析等）',
+  `blog_id` bigint NULL DEFAULT NULL COMMENT '关联的博客ID',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '生产状态（0-生产中，1-成功，2-失败）',
+  `production_time` datetime NULL DEFAULT NULL COMMENT '生产时间',
+  `completion_time` datetime NULL DEFAULT NULL COMMENT '完成时间',
+  `target_date` date NULL DEFAULT NULL COMMENT '目标日期（用于按日期生产的场景）',
+  `error_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '错误信息（失败时记录）',
+  `extra_data` json NULL COMMENT '扩展数据（存储其他相关信息，如仓库stars、forks等）',
+  `ai_model` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '使用的AI模型',
+  `content_source` varchar(522) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '内容来源（如README文件路径）',
+  `retry_count` int NULL DEFAULT 0 COMMENT '重试次数',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_repo_url`(`repo_url` ASC) USING BTREE,
+  INDEX `idx_production_type`(`production_type` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE,
+  INDEX `idx_target_date`(`target_date` ASC) USING BTREE,
+  INDEX `idx_blog_id`(`blog_id` ASC) USING BTREE,
+  INDEX `idx_production_time`(`production_time` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 383 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI博客生产记录表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for ai_cover_generation_record
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_cover_generation_record`;
+CREATE TABLE `ai_cover_generation_record`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+  `blog_id` bigint NULL DEFAULT NULL COMMENT '关联的博客ID',
+  `cover_type` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '封面类型（0-通用封面 1-个性化封面）',
+  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '博客分类',
+  `prompt` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT 'AI生图提示词',
+  `image_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '生成的图片URL',
+  `ai_model` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '使用的AI模型',
+  `generation_status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '生成状态（0-生成中 1-成功 2-失败 3-仅生成提示词）',
+  `is_used` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '是否被使用（0-未使用 1-已使用）',
+  `generation_time` datetime NULL DEFAULT NULL COMMENT '生成时间',
+  `error_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '错误信息',
+  `similarity_score` decimal(5, 2) NULL DEFAULT NULL COMMENT '与现有提示词的相似度得分',
+  `reuse_from_id` bigint NULL DEFAULT NULL COMMENT '复用的记录ID（通用封面复用时）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_blog_id`(`blog_id` ASC) USING BTREE,
+  INDEX `idx_cover_type`(`cover_type` ASC) USING BTREE,
+  INDEX `idx_category`(`category` ASC) USING BTREE,
+  INDEX `idx_generation_status`(`generation_status` ASC) USING BTREE,
+  INDEX `idx_is_used`(`is_used` ASC) USING BTREE,
+  INDEX `idx_generation_time`(`generation_time` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 272 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI生图记录表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for ai_model_config
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_model_config`;
+CREATE TABLE `ai_model_config`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '配置ID',
+  `provider` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '厂商类型（doubao、openai、deepseek、qianwen、glm、operouter等）',
+  `capability` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '模型类型（chat、vision、embedding、image等）',
+  `model` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '模型名称/ID',
+  `api_key` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'API密钥',
+  `endpoint` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'API端点',
+  `extra_params` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '额外参数（JSON）',
+  `enabled` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'Y' COMMENT '是否启用（Y是 N否）',
+  `is_default` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'N' COMMENT '是否默认（Y是 N否）',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '0' COMMENT '状态（0正常 1停用）',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_provider_capability`(`provider` ASC, `capability` ASC) USING BTREE,
+  INDEX `idx_enabled_status`(`enabled` ASC, `status` ASC) USING BTREE,
+  INDEX `idx_is_default`(`is_default` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 22 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI模型配置表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for ai_workflow
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_workflow`;
+CREATE TABLE `ai_workflow`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '工作流ID',
+  `workflow_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '工作流名称',
+  `workflow_description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '工作流描述',
+  `workflow_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'sequential' COMMENT '工作流类型（sequential=顺序执行）',
+  `workflow_version` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1.0' COMMENT '工作流版本',
+  `enabled` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '启用状态（0=禁用 1=启用）',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '状态（0=正常 1=停用）',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `user_id` bigint NULL DEFAULT NULL COMMENT '用户ID',
+  `config_json` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '配置JSON（扩展配置参数）',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_workflow_name`(`workflow_name` ASC) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_enabled`(`enabled` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流配置表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for ai_workflow_execution
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_workflow_execution`;
+CREATE TABLE `ai_workflow_execution`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '执行记录ID',
+  `workflow_id` bigint NOT NULL COMMENT '工作流ID',
+  `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'running' COMMENT '执行状态（running=运行中, completed=已完成, failed=失败）',
+  `input_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '输入数据（JSON格式）',
+  `output_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '输出数据（JSON格式）',
+  `error_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '错误信息',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_workflow_id`(`workflow_id` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  CONSTRAINT `fk_workflow_execution_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流执行记录表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for ai_workflow_step
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_workflow_step`;
+CREATE TABLE `ai_workflow_step`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '步骤ID',
+  `workflow_id` bigint NOT NULL COMMENT '工作流ID',
+  `step_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '步骤名称',
+  `step_description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '步骤描述',
+  `step_order` int NOT NULL COMMENT '步骤顺序',
+  `model_config_id` bigint NULL DEFAULT NULL COMMENT 'AI模型配置ID',
+  `system_prompt` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '系统提示词',
+  `input_variable` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '输入变量名',
+  `output_variable` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '输出变量名',
+  `enabled` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '启用状态（0=禁用 1=启用）',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '状态（0=正常 1=停用）',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `config_json` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '配置JSON（扩展配置参数）',
+  `tool_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '工具类型（如github_trending、database_query等）',
+  `tool_parameters` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '工具参数JSON（存储工具执行所需的参数）',
+  `tool_enabled` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'N' COMMENT '是否启用工具（Y=启用工具 N=不启用工具，默认为N）',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_workflow_id`(`workflow_id` ASC) USING BTREE,
+  INDEX `idx_step_order`(`step_order` ASC) USING BTREE,
+  INDEX `idx_enabled`(`enabled` ASC) USING BTREE,
+  INDEX `idx_tool_type`(`tool_type` ASC) USING BTREE,
+  INDEX `idx_tool_enabled`(`tool_enabled` ASC) USING BTREE,
+  CONSTRAINT `fk_workflow_step_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流步骤表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for blog
+-- ----------------------------
+DROP TABLE IF EXISTS `blog`;
+CREATE TABLE `blog`  (
+  `blog_id` bigint NOT NULL AUTO_INCREMENT COMMENT '博客ID',
+  `title` varchar(600) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '博客标题',
+  `summary` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '博客摘要',
+  `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '博客内容',
+  `cover_image` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '封面图片URL',
+  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '博客分类',
+  `tags` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '博客标签，多个用逗号分隔',
+  `seo_keywords` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'SEO关键字，多个用逗号分隔',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '状态（0草稿 1已发布 2已下线）',
+  `is_top` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '是否置顶（0否 1是）',
+  `is_original` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '是否原创（0转载 1原创）',
+  `view_count` bigint NULL DEFAULT 0 COMMENT '浏览次数',
+  `like_count` bigint NULL DEFAULT 0 COMMENT '点赞次数',
+  `comment_count` bigint NULL DEFAULT 0 COMMENT '评论次数',
+  `publish_time` datetime NULL DEFAULT NULL COMMENT '发布时间',
+  `feishu_doc_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '关联的飞书文档token',
+  `feishu_doc_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '关联的飞书文档名称（冗余字段）',
+  `feishu_sync_status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '飞书同步状态（0未同步 1已同步 2同步失败）',
+  `feishu_last_sync_time` datetime NULL DEFAULT NULL COMMENT '飞书最后同步时间',
+  `sort_order` int NULL DEFAULT 0 COMMENT '排序字段',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `last_read_time` datetime NULL DEFAULT NULL COMMENT '上次阅读时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`blog_id`) USING BTREE,
+  UNIQUE INDEX `uk_feishu_doc_token`(`feishu_doc_token` ASC) USING BTREE,
+  INDEX `idx_title`(`title` ASC) USING BTREE,
+  INDEX `idx_category`(`category` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE,
+  INDEX `idx_publish_time`(`publish_time` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_view_count`(`view_count` ASC) USING BTREE,
+  INDEX `idx_is_top_publish_time`(`is_top` ASC, `publish_time` DESC) USING BTREE,
+  INDEX `idx_seo_keywords`(`seo_keywords`(191) ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 308 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '个人博客表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for blog_comment
+-- ----------------------------
+DROP TABLE IF EXISTS `blog_comment`;
+CREATE TABLE `blog_comment`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '评论ID',
+  `blog_id` bigint NOT NULL COMMENT '博客ID',
+  `parent_id` bigint NULL DEFAULT NULL COMMENT '父评论ID（回复时使用）',
+  `user_id` bigint NULL DEFAULT NULL COMMENT '用户ID（游客为空）',
+  `user_ip` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '用户IP地址',
+  `nickname` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '昵称',
+  `email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '邮箱',
+  `website` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '网站',
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '评论内容',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '状态（0待审核 1已通过 2已拒绝）',
+  `reply_count` int NULL DEFAULT 0 COMMENT '回复数量',
+  `like_count` int NULL DEFAULT 0 COMMENT '点赞数量',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_blog_id`(`blog_id` ASC) USING BTREE,
+  INDEX `idx_parent_id`(`parent_id` ASC) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_user_ip`(`user_ip` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '博客评论表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for blog_en
+-- ----------------------------
+DROP TABLE IF EXISTS `blog_en`;
+CREATE TABLE `blog_en`  (
+  `blog_id` bigint NOT NULL AUTO_INCREMENT COMMENT '英文博客ID',
+  `title` varchar(600) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '英文博客标题',
+  `summary` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '英文博客摘要',
+  `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '英文博客内容',
+  `cover_image` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '封面图片URL',
+  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '博客分类（英文）',
+  `tags` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '博客标签，多个用逗号分隔',
+  `seo_keywords` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'SEO关键字，多个用逗号分隔',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '状态（0草稿 1已发布 2已下线）',
+  `is_top` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '是否置顶（0否 1是）',
+  `is_original` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '是否原创（0转载 1原创）',
+  `view_count` bigint NULL DEFAULT 0 COMMENT '浏览次数',
+  `like_count` bigint NULL DEFAULT 0 COMMENT '点赞次数',
+  `comment_count` bigint NULL DEFAULT 0 COMMENT '评论次数',
+  `publish_time` datetime NULL DEFAULT NULL COMMENT '发布时间',
+  `zh_blog_id` bigint NULL DEFAULT NULL COMMENT '关联的中文博客ID',
+  `feishu_doc_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '关联的飞书文档token',
+  `feishu_doc_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '关联的飞书文档名称（冗余字段）',
+  `feishu_sync_status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '飞书同步状态（0未同步 1已同步 2同步失败）',
+  `feishu_last_sync_time` datetime NULL DEFAULT NULL COMMENT '飞书最后同步时间',
+  `sort_order` int NULL DEFAULT 0 COMMENT '排序字段',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `last_read_time` datetime NULL DEFAULT NULL COMMENT '上次阅读时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`blog_id`) USING BTREE,
+  UNIQUE INDEX `uk_zh_blog_id`(`zh_blog_id` ASC) USING BTREE COMMENT '中文博客ID唯一索引',
+  INDEX `idx_title`(`title` ASC) USING BTREE,
+  INDEX `idx_category`(`category` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE,
+  INDEX `idx_publish_time`(`publish_time` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_view_count`(`view_count` ASC) USING BTREE,
+  INDEX `idx_is_top_publish_time`(`is_top` ASC, `publish_time` DESC) USING BTREE,
+  INDEX `idx_seo_keywords`(`seo_keywords`(191) ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 260 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '英文博客表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for blog_like_record
+-- ----------------------------
+DROP TABLE IF EXISTS `blog_like_record`;
+CREATE TABLE `blog_like_record`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `blog_id` bigint NOT NULL COMMENT '博客ID',
+  `user_id` bigint NULL DEFAULT NULL COMMENT '用户ID（游客为空）',
+  `user_ip` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '用户IP地址',
+  `like_status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '点赞状态（0取消点赞 1点赞）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_blog_user`(`blog_id` ASC, `user_id` ASC) USING BTREE COMMENT '用户对同一博客只能有一条记录',
+  UNIQUE INDEX `uk_blog_ip`(`blog_id` ASC, `user_ip` ASC) USING BTREE COMMENT '同一IP对同一博客只能有一条记录（游客限制）',
+  INDEX `idx_blog_id`(`blog_id` ASC) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_user_ip`(`user_ip` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 97 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '博客点赞记录表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for feishu_doc
+-- ----------------------------
+DROP TABLE IF EXISTS `feishu_doc`;
+CREATE TABLE `feishu_doc`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '文档token',
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '文档名称',
+  `type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '文档类型(doc/sheet/bitable/mindnote/file/folder)',
+  `url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '文档访问URL',
+  `owner_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '拥有者ID',
+  `parent_token` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '父文件夹token',
+  `is_folder` tinyint(1) NULL DEFAULT 0 COMMENT '是否为文件夹(0-否,1-是)',
+  `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '文档内容(缓存)',
+  `feishu_created_time` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '飞书创建时间(时间戳)',
+  `feishu_modified_time` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '飞书修改时间(时间戳)',
+  `key_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '关联的密钥名称',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_token_key`(`token` ASC, `key_name` ASC) USING BTREE,
+  INDEX `idx_name`(`name` ASC) USING BTREE,
+  INDEX `idx_type`(`type` ASC) USING BTREE,
+  INDEX `idx_parent_token`(`parent_token` ASC) USING BTREE,
+  INDEX `idx_key_name`(`key_name` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 208 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '飞书文档信息表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for feishu_users
+-- ----------------------------
+DROP TABLE IF EXISTS `feishu_users`;
+CREATE TABLE `feishu_users`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `open_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `union_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '飞书用户名称',
+  `email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '飞书用户邮箱',
+  `mobile` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '飞书用户手机号',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `open_id`(`open_id` ASC) USING BTREE,
+  UNIQUE INDEX `mobile`(`mobile` ASC) USING BTREE,
+  INDEX `idx_mobile`(`mobile` ASC) USING BTREE,
+  INDEX `idx_open_id`(`open_id` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '飞书用户表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for gen_table
@@ -37,6 +416,7 @@ CREATE TABLE `gen_table`  (
   `function_author` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '生成功能作者',
   `gen_type` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '生成代码方式（0zip压缩包 1自定义路径）',
   `gen_path` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '/' COMMENT '生成路径（不填默认项目路径）',
+  `vue_path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT 'vue 代码路径',
   `data_source` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '数据源',
   `parent_menu_id` bigint NULL DEFAULT NULL COMMENT '父级菜单id',
   `options` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '其它生成选项',
@@ -47,11 +427,7 @@ CREATE TABLE `gen_table`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`table_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1927246718610071553 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '代码生成业务表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of gen_table
--- ----------------------------
+) ENGINE = InnoDB AUTO_INCREMENT = 1945045179002720262 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '代码生成业务表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for gen_table_column
@@ -88,11 +464,248 @@ CREATE TABLE `gen_table_column`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`column_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1927247096080654341 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '代码生成业务表字段' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1945045179485065353 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '代码生成业务表字段' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Records of gen_table_column
+-- Table structure for github_repositories
 -- ----------------------------
+DROP TABLE IF EXISTS `github_repositories`;
+CREATE TABLE `github_repositories`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `github_id` bigint NOT NULL COMMENT 'GitHub仓库ID',
+  `name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '仓库名称',
+  `full_name` varchar(300) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '完整仓库名(owner/repo)',
+  `owner_login` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '所有者登录名',
+  `owner_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '所有者类型(User/Organization)',
+  `owner_github_id` bigint NOT NULL COMMENT '所有者GitHub ID',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '仓库描述',
+  `html_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '仓库GitHub页面URL',
+  `clone_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '克隆URL',
+  `ssh_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'SSH URL',
+  `homepage` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '项目主页',
+  `language` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '主要编程语言',
+  `size` int NULL DEFAULT 0 COMMENT '仓库大小(KB)',
+  `stargazers_count` int NULL DEFAULT 0 COMMENT 'Star数量',
+  `watchers_count` int NULL DEFAULT 0 COMMENT 'Watch数量',
+  `forks_count` int NULL DEFAULT 0 COMMENT 'Fork数量',
+  `open_issues_count` int NULL DEFAULT 0 COMMENT '开放Issue数量',
+  `is_private` tinyint(1) NULL DEFAULT 0 COMMENT '是否私有仓库',
+  `is_fork` tinyint(1) NULL DEFAULT 0 COMMENT '是否为Fork仓库',
+  `is_archived` tinyint(1) NULL DEFAULT 0 COMMENT '是否已归档',
+  `is_disabled` tinyint(1) NULL DEFAULT 0 COMMENT '是否已禁用',
+  `default_branch` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '默认分支',
+  `topics` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '仓库标签(JSON数组)',
+  `license_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '许可证名称',
+  `readme_content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT 'README原始内容',
+  `readme_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'README下载URL',
+  `ai_summary` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT 'AI生成的仓库简介',
+  `ai_summary_time` datetime NULL DEFAULT NULL COMMENT 'AI简介生成时间',
+  `github_created_at` datetime NULL DEFAULT NULL COMMENT 'GitHub仓库创建时间',
+  `github_updated_at` datetime NULL DEFAULT NULL COMMENT 'GitHub仓库最后更新时间',
+  `github_pushed_at` datetime NULL DEFAULT NULL COMMENT 'GitHub仓库最后推送时间',
+  `last_sync_time` datetime NULL DEFAULT NULL COMMENT '最后同步时间',
+  `sync_status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '同步状态(0-待同步 1-同步成功 2-同步失败)',
+  `error_message` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '错误信息',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_github_id`(`github_id` ASC) USING BTREE,
+  UNIQUE INDEX `uk_full_name`(`full_name` ASC) USING BTREE,
+  INDEX `idx_owner_login`(`owner_login` ASC) USING BTREE,
+  INDEX `idx_owner_type`(`owner_type` ASC) USING BTREE,
+  INDEX `idx_owner_github_id`(`owner_github_id` ASC) USING BTREE,
+  INDEX `idx_stargazers_count`(`stargazers_count` ASC) USING BTREE,
+  INDEX `idx_language`(`language` ASC) USING BTREE,
+  INDEX `idx_last_sync_time`(`last_sync_time` ASC) USING BTREE,
+  INDEX `idx_sync_status`(`sync_status` ASC) USING BTREE,
+  INDEX `idx_github_updated_at`(`github_updated_at` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 196 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'GitHub仓库监控表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for github_trending
+-- ----------------------------
+DROP TABLE IF EXISTS `github_trending`;
+CREATE TABLE `github_trending`  (
+  `id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '仓库标题',
+  `owner` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '仓库作者',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL COMMENT '仓库描述',
+  `url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '仓库地址',
+  `language` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '仓库语言',
+  `trending_days` int NULL DEFAULT 0 COMMENT '总上榜天数',
+  `continuous_trending_days` int NULL DEFAULT 0 COMMENT '连续上榜天数',
+  `first_trending_date` date NULL DEFAULT NULL COMMENT '首次上榜日期',
+  `last_trending_date` date NULL DEFAULT NULL COMMENT '最后一次上榜日期',
+  `updated_at` datetime NULL DEFAULT NULL COMMENT '跟新时间',
+  `is_tran_des` int NOT NULL DEFAULT 0 COMMENT '是否翻译描述',
+  `stars_count` int NULL DEFAULT 0 COMMENT '项目的 star 数量',
+  `forks_count` int NULL DEFAULT 0 COMMENT '项目的 fork 数量',
+  `open_issues_count` int NULL DEFAULT 0 COMMENT '开放问题数量',
+  `github_created_at` datetime NULL DEFAULT NULL COMMENT '仓库创建时间',
+  `github_updated_at` datetime NULL DEFAULT NULL COMMENT '仓库最后更新时间',
+  `readme_path` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL COMMENT 'readme 文件路径',
+  `readme_updated_at` datetime NULL DEFAULT NULL COMMENT 'readme 文件跟新日期',
+  `created_at` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_at` datetime NULL DEFAULT NULL COMMENT '修改时间',
+  `is_need_update` int NOT NULL DEFAULT 0 COMMENT '是否需要跟新项目',
+  `ai_readme_path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT 'ai翻译后的readme文件',
+  `rep_value` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '仓库价值:普通/值得关注/值得收藏/商业价值',
+  `promotion_article` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL COMMENT '仓库推广文章',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '更新者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '创建者',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `url`(`url` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = 'github流行榜单' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for github_users
+-- ----------------------------
+DROP TABLE IF EXISTS `github_users`;
+CREATE TABLE `github_users`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `github_id` bigint NOT NULL COMMENT 'GitHub用户/组织ID',
+  `login` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '用户名/组织名',
+  `name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '真实姓名/组织显示名称',
+  `avatar_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '头像URL',
+  `html_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'GitHub页面URL',
+  `type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '类型(User/Organization)',
+  `company` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '公司信息',
+  `blog` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '博客地址',
+  `location` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '位置信息',
+  `email` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '邮箱',
+  `hireable` tinyint(1) NULL DEFAULT NULL COMMENT '是否可雇佣(仅用户)',
+  `bio` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '个人简介(用户)/组织描述(组织)',
+  `twitter_username` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'Twitter用户名',
+  `public_repos` int NULL DEFAULT 0 COMMENT '公开仓库数量',
+  `public_gists` int NULL DEFAULT 0 COMMENT '公开Gist数量',
+  `followers` int NULL DEFAULT 0 COMMENT '关注者数量',
+  `following` int NULL DEFAULT 0 COMMENT '关注数量',
+  `github_created_at` datetime NULL DEFAULT NULL COMMENT 'GitHub账号创建时间',
+  `github_updated_at` datetime NULL DEFAULT NULL COMMENT 'GitHub账号最后更新时间',
+  `rank_position` int NULL DEFAULT NULL COMMENT '排名位置',
+  `is_top_100` tinyint(1) NULL DEFAULT 0 COMMENT '是否为前100(0-否 1-是)',
+  `is_watched` tinyint(1) NULL DEFAULT 0 COMMENT '是否关注(0-否 1-是)',
+  `watch_priority` int NULL DEFAULT 999 COMMENT '关注优先级(数字越小优先级越高)',
+  `last_sync_time` datetime NULL DEFAULT NULL COMMENT '最后同步时间',
+  `last_repo_sync_time` datetime NULL DEFAULT NULL COMMENT '最后仓库同步时间',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_github_id`(`github_id` ASC) USING BTREE,
+  UNIQUE INDEX `uk_login`(`login` ASC) USING BTREE,
+  INDEX `idx_type`(`type` ASC) USING BTREE,
+  INDEX `idx_followers`(`followers` ASC) USING BTREE,
+  INDEX `idx_is_top_100`(`is_top_100` ASC) USING BTREE,
+  INDEX `idx_is_watched`(`is_watched` ASC) USING BTREE,
+  INDEX `idx_watch_priority`(`watch_priority` ASC) USING BTREE,
+  INDEX `idx_rank_position`(`rank_position` ASC) USING BTREE,
+  INDEX `idx_last_sync_time`(`last_sync_time` ASC) USING BTREE,
+  INDEX `idx_last_repo_sync_time`(`last_repo_sync_time` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 202 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'GitHub用户/组织监控表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for magic_api_file
+-- ----------------------------
+DROP TABLE IF EXISTS `magic_api_file`;
+CREATE TABLE `magic_api_file`  (
+  `file_path` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `file_content` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  PRIMARY KEY (`file_path`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = 'magicAPI 接口表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for rds_instance_info
+-- ----------------------------
+DROP TABLE IF EXISTS `rds_instance_info`;
+CREATE TABLE `rds_instance_info`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `db_instance_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '实例ID',
+  `db_instance_description` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '实例描述',
+  `engine` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '数据库类型',
+  `engine_version` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '数据库版本',
+  `db_instance_class` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '实例规格',
+  `db_instance_cpu` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT 'CPU数量',
+  `db_instance_memory` int NULL DEFAULT NULL COMMENT '内存大小（MB）',
+  `db_instance_storage_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '存储类型',
+  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '实例系列',
+  `db_instance_status` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '实例状态',
+  `db_instance_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '实例类型',
+  `connection_mode` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '访问模式',
+  `connection_string` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '连接地址',
+  `pay_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '付费类型',
+  `lock_mode` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '锁定状态',
+  `lock_reason` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '锁定原因',
+  `deletion_protection` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '释放保护',
+  `instance_create_time` datetime NULL DEFAULT NULL COMMENT '实例创建时间',
+  `expire_time` datetime NULL DEFAULT NULL COMMENT '到期时间',
+  `destroy_time` datetime NULL DEFAULT NULL COMMENT '销毁时间',
+  `master_instance_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '主实例ID',
+  `guard_db_instance_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '灾备实例ID',
+  `temp_db_instance_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '临时实例ID',
+  `secret_key_id` bigint NULL DEFAULT NULL COMMENT '关联的密钥表ID',
+  `access_key` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '访问密钥（冗余）',
+  `secret_key` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '密钥（冗余）',
+  `key_region` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '密钥地域（冗余）',
+  `key_status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '密钥状态（冗余）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '删除标志（0存在 2删除）',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = 'RDS实例信息表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for social_media_article
+-- ----------------------------
+DROP TABLE IF EXISTS `social_media_article`;
+CREATE TABLE `social_media_article`  (
+  `article_id` bigint NOT NULL AUTO_INCREMENT COMMENT '文章ID',
+  `title_zh` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '中文标题',
+  `title_en` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '英文标题',
+  `summary_zh` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '中文摘要/微头条内容',
+  `summary_en` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '英文摘要/Twitter内容',
+  `content_zh` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '中文完整内容',
+  `content_en` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '英文完整内容',
+  `keywords_zh` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '中文关键词',
+  `keywords_en` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '英文关键词',
+  `article_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '文章类型(GITHUB_RANKING-GitHub排行榜,PROJECT_ANALYSIS-项目分析等)',
+  `content_angle` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '内容角度',
+  `target_platform` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '目标平台(toutiao-今日头条,twitter-推特,medium-Medium等)',
+  `publish_status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '发布状态(0-草稿,1-已发布,2-已下线)',
+  `source_repos` json NULL COMMENT '来源GitHub仓库信息(JSON格式)',
+  `related_blog_ids` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '关联的博客文章ID列表(逗号分隔)',
+  `generation_date` date NULL DEFAULT NULL COMMENT '生成日期',
+  `blog_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '博客名称',
+  `view_count` bigint NULL DEFAULT 0 COMMENT '阅读量',
+  `like_count` bigint NULL DEFAULT 0 COMMENT '点赞数',
+  `share_count` bigint NULL DEFAULT 0 COMMENT '分享数',
+  `comment_count` bigint NULL DEFAULT 0 COMMENT '评论数',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志(0代表存在 2代表删除)',
+  PRIMARY KEY (`article_id`) USING BTREE,
+  INDEX `idx_article_type`(`article_type` ASC) USING BTREE,
+  INDEX `idx_publish_status`(`publish_status` ASC) USING BTREE,
+  INDEX `idx_generation_date`(`generation_date` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_target_platform`(`target_platform` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 29 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体文章表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for sys_config
@@ -111,16 +724,7 @@ CREATE TABLE `sys_config`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`config_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 100 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '参数配置表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_config
--- ----------------------------
-INSERT INTO `sys_config` VALUES (2, '用户管理-账号初始密码', 'sys.user.initPassword', '123456', 'Y', 'admin', '2024-12-27 10:06:44', '', NULL, '初始化密码 123456', '0');
-INSERT INTO `sys_config` VALUES (3, '主框架页-侧边栏主题', 'sys.index.sideTheme', 'theme-light', 'Y', 'admin', '2024-12-27 10:06:44', '', '2024-12-28 16:43:36', '深色主题theme-dark，浅色主题theme-light', '0');
-INSERT INTO `sys_config` VALUES (4, '账号自助-验证码开关', 'sys.account.captchaEnabled', 'false', 'Y', 'admin', '2024-12-27 10:06:44', '', '2024-12-28 16:43:17', '是否开启验证码功能（true开启，false关闭）', '0');
-INSERT INTO `sys_config` VALUES (5, '账号自助-是否开启用户注册功能', 'sys.account.registerUser', 'false', 'Y', 'admin', '2024-12-27 10:06:44', '', NULL, '是否开启注册用户功能（true开启，false关闭）', '0');
-INSERT INTO `sys_config` VALUES (6, '用户登录-黑名单列表', 'sys.login.blackIPList', '', 'Y', 'admin', '2024-12-27 10:06:44', '', NULL, '设置登录IP黑名单限制，多个匹配项以;分隔，支持匹配（*通配、网段）', '0');
+) ENGINE = InnoDB AUTO_INCREMENT = 120 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '参数配置表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_data_source
@@ -170,11 +774,6 @@ CREATE TABLE `sys_dept`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 200 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '部门表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Records of sys_dept
--- ----------------------------
-INSERT INTO `sys_dept` VALUES (100, 0, '0', '总部', 0, '周小码', '15888888888', '', '0', '0', 'admin', '2024-12-27 10:06:44', '', '2024-12-28 16:33:15', NULL);
-
--- ----------------------------
 -- Table structure for sys_dict_data
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_dict_data`;
@@ -195,40 +794,7 @@ CREATE TABLE `sys_dict_data`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`dict_code`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 100 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '字典数据表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_dict_data
--- ----------------------------
-INSERT INTO `sys_dict_data` VALUES (1, 1, '男', '0', 'sys_user_sex', '', '', 'Y', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '性别男', '0');
-INSERT INTO `sys_dict_data` VALUES (2, 2, '女', '1', 'sys_user_sex', '', '', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '性别女', '0');
-INSERT INTO `sys_dict_data` VALUES (3, 3, '未知', '2', 'sys_user_sex', '', '', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '性别未知', '0');
-INSERT INTO `sys_dict_data` VALUES (4, 1, '显示', '0', 'sys_show_hide', '', 'primary', 'Y', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '显示菜单', '0');
-INSERT INTO `sys_dict_data` VALUES (5, 2, '隐藏', '1', 'sys_show_hide', '', 'danger', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '隐藏菜单', '0');
-INSERT INTO `sys_dict_data` VALUES (6, 1, '正常', '0', 'sys_normal_disable', '', 'primary', 'Y', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '正常状态', '0');
-INSERT INTO `sys_dict_data` VALUES (7, 2, '停用', '1', 'sys_normal_disable', '', 'danger', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '停用状态', '0');
-INSERT INTO `sys_dict_data` VALUES (8, 1, '正常', '0', 'sys_job_status', '', 'primary', 'Y', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '正常状态', '0');
-INSERT INTO `sys_dict_data` VALUES (9, 2, '暂停', '1', 'sys_job_status', '', 'danger', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '停用状态', '0');
-INSERT INTO `sys_dict_data` VALUES (10, 1, '默认', 'DEFAULT', 'sys_job_group', '', '', 'Y', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '默认分组', '0');
-INSERT INTO `sys_dict_data` VALUES (11, 2, '系统', 'SYSTEM', 'sys_job_group', '', '', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '系统分组', '0');
-INSERT INTO `sys_dict_data` VALUES (12, 1, '是', 'Y', 'sys_yes_no', '', 'primary', 'Y', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '系统默认是', '0');
-INSERT INTO `sys_dict_data` VALUES (13, 2, '否', 'N', 'sys_yes_no', '', 'danger', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '系统默认否', '0');
-INSERT INTO `sys_dict_data` VALUES (14, 1, '通知', '1', 'sys_notice_type', '', 'warning', 'Y', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '通知', '0');
-INSERT INTO `sys_dict_data` VALUES (15, 2, '公告', '2', 'sys_notice_type', '', 'success', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '公告', '0');
-INSERT INTO `sys_dict_data` VALUES (16, 1, '正常', '0', 'sys_notice_status', '', 'primary', 'Y', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '正常状态', '0');
-INSERT INTO `sys_dict_data` VALUES (17, 2, '关闭', '1', 'sys_notice_status', '', 'danger', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '关闭状态', '0');
-INSERT INTO `sys_dict_data` VALUES (18, 99, '其他', '0', 'sys_oper_type', '', 'info', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '其他操作', '0');
-INSERT INTO `sys_dict_data` VALUES (19, 1, '新增', '1', 'sys_oper_type', '', 'info', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '新增操作', '0');
-INSERT INTO `sys_dict_data` VALUES (20, 2, '修改', '2', 'sys_oper_type', '', 'info', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '修改操作', '0');
-INSERT INTO `sys_dict_data` VALUES (21, 3, '删除', '3', 'sys_oper_type', '', 'danger', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '删除操作', '0');
-INSERT INTO `sys_dict_data` VALUES (22, 4, '授权', '4', 'sys_oper_type', '', 'primary', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '授权操作', '0');
-INSERT INTO `sys_dict_data` VALUES (23, 5, '导出', '5', 'sys_oper_type', '', 'warning', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '导出操作', '0');
-INSERT INTO `sys_dict_data` VALUES (24, 6, '导入', '6', 'sys_oper_type', '', 'warning', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '导入操作', '0');
-INSERT INTO `sys_dict_data` VALUES (25, 7, '强退', '7', 'sys_oper_type', '', 'danger', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '强退操作', '0');
-INSERT INTO `sys_dict_data` VALUES (26, 8, '生成代码', '8', 'sys_oper_type', '', 'warning', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '生成操作', '0');
-INSERT INTO `sys_dict_data` VALUES (27, 9, '清空数据', '9', 'sys_oper_type', '', 'danger', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '清空操作', '0');
-INSERT INTO `sys_dict_data` VALUES (28, 1, '成功', '0', 'sys_common_status', '', 'primary', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '正常状态', '0');
-INSERT INTO `sys_dict_data` VALUES (29, 2, '失败', '1', 'sys_common_status', '', 'danger', 'N', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '停用状态', '0');
+) ENGINE = InnoDB AUTO_INCREMENT = 305 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '字典数据表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_dict_type
@@ -247,21 +813,42 @@ CREATE TABLE `sys_dict_type`  (
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`dict_id`) USING BTREE,
   UNIQUE INDEX `dict_type`(`dict_type` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 100 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '字典类型表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 113 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '字典类型表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Records of sys_dict_type
+-- Table structure for sys_file_upload_record
 -- ----------------------------
-INSERT INTO `sys_dict_type` VALUES (1, '用户性别', 'sys_user_sex', '0', 'admin', '2024-12-27 10:06:44', '', '2024-12-28 16:42:53', '用户性别列表', '0');
-INSERT INTO `sys_dict_type` VALUES (2, '菜单状态', 'sys_show_hide', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '菜单状态列表', '0');
-INSERT INTO `sys_dict_type` VALUES (3, '系统开关', 'sys_normal_disable', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '系统开关列表', '0');
-INSERT INTO `sys_dict_type` VALUES (4, '任务状态', 'sys_job_status', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '任务状态列表', '0');
-INSERT INTO `sys_dict_type` VALUES (5, '任务分组', 'sys_job_group', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '任务分组列表', '0');
-INSERT INTO `sys_dict_type` VALUES (6, '系统是否', 'sys_yes_no', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '系统是否列表', '0');
-INSERT INTO `sys_dict_type` VALUES (7, '通知类型', 'sys_notice_type', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '通知类型列表', '0');
-INSERT INTO `sys_dict_type` VALUES (8, '通知状态', 'sys_notice_status', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '通知状态列表', '0');
-INSERT INTO `sys_dict_type` VALUES (9, '操作类型', 'sys_oper_type', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '操作类型列表', '0');
-INSERT INTO `sys_dict_type` VALUES (10, '系统状态', 'sys_common_status', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '登录状态列表', '0');
+DROP TABLE IF EXISTS `sys_file_upload_record`;
+CREATE TABLE `sys_file_upload_record`  (
+  `record_id` bigint NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+  `original_filename` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '原始文件名',
+  `stored_filename` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '存储文件名',
+  `file_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '文件路径',
+  `file_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '文件访问URL',
+  `file_size` bigint NULL DEFAULT NULL COMMENT '文件大小（字节）',
+  `file_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '文件类型',
+  `file_extension` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '文件扩展名',
+  `mime_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT 'MIME类型',
+  `storage_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '存储类型',
+  `config_id` bigint NULL DEFAULT NULL COMMENT '关联的配置ID',
+  `upload_status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '1' COMMENT '上传状态（0失败 1成功）',
+  `error_message` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '错误信息',
+  `upload_ip` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '上传IP地址',
+  `user_agent` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '用户代理',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  `update_by` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '修改人',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '修改时间',
+  PRIMARY KEY (`record_id`) USING BTREE,
+  INDEX `idx_original_filename`(`original_filename` ASC) USING BTREE,
+  INDEX `idx_storage_type`(`storage_type` ASC) USING BTREE,
+  INDEX `idx_config_id`(`config_id` ASC) USING BTREE,
+  INDEX `idx_upload_status`(`upload_status` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_create_by`(`create_by` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 271 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '文件上传记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for sys_job
@@ -286,13 +873,6 @@ CREATE TABLE `sys_job`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 100 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Records of sys_job
--- ----------------------------
-INSERT INTO `sys_job` VALUES (1, '系统默认（无参）', 'DEFAULT', 'ryTask.ryNoParams', '0/10 * * * * ?', '3', '1', '1', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_job` VALUES (2, '系统默认（有参）', 'DEFAULT', 'ryTask.ryParams(\'ry\')', '0/15 * * * * ?', '3', '1', '1', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_job` VALUES (3, '系统默认（多参）', 'DEFAULT', 'ryTask.ryMultipleParams(\'ry\', true, 2000L, 316.50D, 100)', '0/20 * * * * ?', '3', '1', '1', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-
--- ----------------------------
 -- Table structure for sys_job_log
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_job_log`;
@@ -307,10 +887,6 @@ CREATE TABLE `sys_job_log`  (
   `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
   PRIMARY KEY (`job_log_id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度日志表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_job_log
--- ----------------------------
 
 -- ----------------------------
 -- Table structure for sys_logininfor
@@ -334,11 +910,7 @@ CREATE TABLE `sys_logininfor`  (
   PRIMARY KEY (`info_id`) USING BTREE,
   INDEX `idx_sys_logininfor_s`(`status` ASC) USING BTREE,
   INDEX `idx_sys_logininfor_lt`(`login_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 128 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '系统访问记录' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_logininfor
--- ----------------------------
+) ENGINE = InnoDB AUTO_INCREMENT = 269 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '系统访问记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_menu
@@ -367,102 +939,7 @@ CREATE TABLE `sys_menu`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '备注',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`menu_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2017 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '菜单权限表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_menu
--- ----------------------------
-INSERT INTO `sys_menu` VALUES (1, '系统管理', 0, 1, 'system', NULL, '', '', 1, 0, 'M', '0', '0', '', 'system', 'admin', '2024-12-27 10:06:44', '', NULL, '系统管理目录', '0');
-INSERT INTO `sys_menu` VALUES (2, '系统监控', 0, 2, 'monitor', NULL, '', '', 1, 0, 'M', '0', '0', '', 'monitor', 'admin', '2024-12-27 10:06:44', '', NULL, '系统监控目录', '0');
-INSERT INTO `sys_menu` VALUES (3, '系统工具', 0, 3, 'tool', NULL, '', '', 1, 0, 'M', '0', '0', '', 'tool', 'admin', '2024-12-27 10:06:44', '', NULL, '系统工具目录', '0');
-INSERT INTO `sys_menu` VALUES (100, '用户管理', 1, 1, 'user', 'system/user/index', '', '', 1, 0, 'C', '0', '0', 'system:user:list', 'user', 'admin', '2024-12-27 10:06:44', '', NULL, '用户管理菜单', '0');
-INSERT INTO `sys_menu` VALUES (101, '角色管理', 1, 2, 'role', 'system/role/index', '', '', 1, 0, 'C', '0', '0', 'system:role:list', 'peoples', 'admin', '2024-12-27 10:06:44', '', NULL, '角色管理菜单', '0');
-INSERT INTO `sys_menu` VALUES (102, '菜单管理', 1, 3, 'menu', 'system/menu/index', '', '', 1, 0, 'C', '0', '0', 'system:menu:list', 'tree-table', 'admin', '2024-12-27 10:06:44', '', NULL, '菜单管理菜单', '0');
-INSERT INTO `sys_menu` VALUES (103, '部门管理', 1, 4, 'dept', 'system/dept/index', '', '', 1, 0, 'C', '0', '0', 'system:dept:list', 'tree', 'admin', '2024-12-27 10:06:44', '', NULL, '部门管理菜单', '0');
-INSERT INTO `sys_menu` VALUES (104, '岗位管理', 1, 5, 'post', 'system/post/index', '', '', 1, 0, 'C', '0', '0', 'system:post:list', 'post', 'admin', '2024-12-27 10:06:44', '', NULL, '岗位管理菜单', '0');
-INSERT INTO `sys_menu` VALUES (105, '字典管理', 1, 6, 'dict', 'system/dict/index', '', '', 1, 0, 'C', '0', '0', 'system:dict:list', 'dict', 'admin', '2024-12-27 10:06:44', '', NULL, '字典管理菜单', '0');
-INSERT INTO `sys_menu` VALUES (106, '参数设置', 1, 7, 'config', 'system/config/index', '', '', 1, 0, 'C', '0', '0', 'system:config:list', 'edit', 'admin', '2024-12-27 10:06:44', '', NULL, '参数设置菜单', '0');
-INSERT INTO `sys_menu` VALUES (107, '通知公告', 1, 8, 'notice', 'system/notice/index', '', '', 1, 0, 'C', '0', '0', 'system:notice:list', 'message', 'admin', '2024-12-27 10:06:44', '', NULL, '通知公告菜单', '0');
-INSERT INTO `sys_menu` VALUES (108, '日志管理', 1, 9, 'log', '', '', '', 1, 0, 'M', '0', '0', '', 'log', 'admin', '2024-12-27 10:06:44', '', NULL, '日志管理菜单', '0');
-INSERT INTO `sys_menu` VALUES (109, '在线用户', 2, 1, 'online', 'monitor/online/index', '', '', 1, 0, 'C', '0', '0', 'monitor:online:list', 'online', 'admin', '2024-12-27 10:06:44', '', NULL, '在线用户菜单', '0');
-INSERT INTO `sys_menu` VALUES (110, '定时任务', 2, 2, 'job', 'monitor/job/index', '', '', 1, 0, 'C', '0', '0', 'monitor:job:list', 'job', 'admin', '2024-12-27 10:06:44', '', NULL, '定时任务菜单', '0');
-INSERT INTO `sys_menu` VALUES (111, '数据监控', 2, 3, 'druid', 'monitor/druid/index', '', '', 1, 0, 'C', '0', '0', 'monitor:druid:list', 'druid', 'admin', '2024-12-27 10:06:44', '', NULL, '数据监控菜单', '0');
-INSERT INTO `sys_menu` VALUES (112, '服务监控', 2, 4, 'server', 'monitor/server/index', '', '', 1, 0, 'C', '0', '0', 'monitor:server:list', 'server', 'admin', '2024-12-27 10:06:44', '', NULL, '服务监控菜单', '0');
-INSERT INTO `sys_menu` VALUES (113, '缓存监控', 2, 5, 'cache', 'monitor/cache/index', '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list', 'redis', 'admin', '2024-12-27 10:06:44', '', NULL, '缓存监控菜单', '0');
-INSERT INTO `sys_menu` VALUES (114, '缓存列表', 2, 6, 'cacheList', 'monitor/cache/list', '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list', 'redis-list', 'admin', '2024-12-27 10:06:44', '', NULL, '缓存列表菜单', '0');
-INSERT INTO `sys_menu` VALUES (115, '表单构建', 3, 1, 'build', 'tool/build/index', '', '', 1, 0, 'C', '0', '0', 'tool:build:list', 'build', 'admin', '2024-12-27 10:06:44', '', NULL, '表单构建菜单', '0');
-INSERT INTO `sys_menu` VALUES (116, '代码生成', 3, 2, 'gen', 'tool/gen/index', '', '', 1, 0, 'C', '0', '0', 'tool:gen:list', 'code', 'admin', '2024-12-27 10:06:44', '', NULL, '代码生成菜单', '0');
-INSERT INTO `sys_menu` VALUES (500, '操作日志', 108, 1, 'operlog', 'monitor/operlog/index', '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list', 'form', 'admin', '2024-12-27 10:06:44', '', NULL, '操作日志菜单', '0');
-INSERT INTO `sys_menu` VALUES (501, '登录日志', 108, 2, 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor', 'admin', '2024-12-27 10:06:44', '', NULL, '登录日志菜单', '0');
-INSERT INTO `sys_menu` VALUES (1000, '用户查询', 100, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1001, '用户新增', 100, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:add', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1002, '用户修改', 100, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1003, '用户删除', 100, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1004, '用户导出', 100, 5, '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:export', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1005, '用户导入', 100, 6, '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:import', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1006, '重置密码', 100, 7, '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:resetPwd', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1007, '角色查询', 101, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1008, '角色新增', 101, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:add', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1009, '角色修改', 101, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1010, '角色删除', 101, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1011, '角色导出', 101, 5, '', '', '', '', 1, 0, 'F', '0', '0', 'system:role:export', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1012, '菜单查询', 102, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'system:menu:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1013, '菜单新增', 102, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'system:menu:add', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1014, '菜单修改', 102, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'system:menu:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1015, '菜单删除', 102, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'system:menu:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1016, '部门查询', 103, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'system:dept:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1017, '部门新增', 103, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'system:dept:add', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1018, '部门修改', 103, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'system:dept:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1019, '部门删除', 103, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'system:dept:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1020, '岗位查询', 104, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1021, '岗位新增', 104, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:add', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1022, '岗位修改', 104, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1023, '岗位删除', 104, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1024, '岗位导出', 104, 5, '', '', '', '', 1, 0, 'F', '0', '0', 'system:post:export', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1025, '字典查询', 105, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1026, '字典新增', 105, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:add', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1027, '字典修改', 105, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1028, '字典删除', 105, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1029, '字典导出', 105, 5, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:dict:export', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1030, '参数查询', 106, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1031, '参数新增', 106, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:add', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1032, '参数修改', 106, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1033, '参数删除', 106, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1034, '参数导出', 106, 5, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:config:export', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1035, '公告查询', 107, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1036, '公告新增', 107, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:add', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1037, '公告修改', 107, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1038, '公告删除', 107, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1039, '操作查询', 500, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1040, '操作删除', 500, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1041, '日志导出', 500, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:export', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1042, '登录查询', 501, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1043, '登录删除', 501, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1044, '日志导出', 501, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:export', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1045, '账户解锁', 501, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:unlock', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1046, '在线查询', 109, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1047, '批量强退', 109, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:batchLogout', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1048, '单条强退', 109, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:forceLogout', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1049, '任务查询', 110, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1050, '任务新增', 110, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:add', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1051, '任务修改', 110, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1052, '任务删除', 110, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1053, '状态修改', 110, 5, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:changeStatus', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1054, '任务导出', 110, 6, '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:job:export', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1055, '生成查询', 116, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:query', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1056, '生成修改', 116, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:edit', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1057, '生成删除', 116, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:remove', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1058, '导入代码', 116, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:import', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1059, '预览代码', 116, 5, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:preview', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (1060, '生成代码', 116, 6, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:code', '#', 'admin', '2024-12-27 10:06:44', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (2002, '数据源管理', 3, 10, 'datasource', 'tool/datasource/index', NULL, '', 1, 0, 'C', '0', '0', 'system:datasource:list', 'database', 'admin', '2025-05-19 17:30:04', '', '2025-05-19 17:34:33', '数据源管理菜单', '0');
-INSERT INTO `sys_menu` VALUES (2003, '数据源查询', 2002, 1, '', NULL, NULL, '', 1, 0, 'F', '0', '0', 'system:datasource:query', '#', 'admin', '2025-05-19 17:30:05', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (2004, '数据源新增', 2002, 2, '', NULL, NULL, '', 1, 0, 'F', '0', '0', 'system:datasource:add', '#', 'admin', '2025-05-19 17:30:05', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (2005, '数据源修改', 2002, 3, '', NULL, NULL, '', 1, 0, 'F', '0', '0', 'system:datasource:edit', '#', 'admin', '2025-05-19 17:30:05', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (2006, '数据源删除', 2002, 4, '', NULL, NULL, '', 1, 0, 'F', '0', '0', 'system:datasource:remove', '#', 'admin', '2025-05-19 17:30:05', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (2007, '数据源导出', 2002, 5, '', NULL, NULL, '', 1, 0, 'F', '0', '0', 'system:datasource:export', '#', 'admin', '2025-05-19 17:30:05', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (2008, '测试连接', 2002, 6, '', NULL, NULL, '', 1, 0, 'F', '0', '0', 'system:datasource:test', '#', 'admin', '2025-05-19 17:30:05', '', NULL, '', '0');
-INSERT INTO `sys_menu` VALUES (2009, '刷新数据源', 2002, 7, '', NULL, NULL, '', 1, 0, 'F', '0', '0', 'system:datasource:refresh', '#', 'admin', '2025-05-19 17:30:05', '', NULL, '', '0');
+) ENGINE = InnoDB AUTO_INCREMENT = 2081 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '菜单权限表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_notice
@@ -482,10 +959,6 @@ CREATE TABLE `sys_notice`  (
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`notice_id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 10 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '通知公告表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_notice
--- ----------------------------
 
 -- ----------------------------
 -- Table structure for sys_oper_log
@@ -518,11 +991,7 @@ CREATE TABLE `sys_oper_log`  (
   INDEX `idx_sys_oper_log_bt`(`business_type` ASC) USING BTREE,
   INDEX `idx_sys_oper_log_s`(`status` ASC) USING BTREE,
   INDEX `idx_sys_oper_log_ot`(`oper_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 253 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '操作日志记录' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_oper_log
--- ----------------------------
+) ENGINE = InnoDB AUTO_INCREMENT = 649 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '操作日志记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_post
@@ -544,11 +1013,6 @@ CREATE TABLE `sys_post`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '岗位信息表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Records of sys_post
--- ----------------------------
-INSERT INTO `sys_post` VALUES (1, '001', '超管', 1, '0', 'admin', '2024-12-27 10:06:44', 'admin', '2025-05-22 16:28:42', '', '0');
-
--- ----------------------------
 -- Table structure for sys_role
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_role`;
@@ -568,12 +1032,7 @@ CREATE TABLE `sys_role`  (
   `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
   PRIMARY KEY (`role_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 102 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '角色信息表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_role
--- ----------------------------
-INSERT INTO `sys_role` VALUES (1, '超级管理员', 'admin', 1, '1', 1, 1, '0', '0', 'admin', '2024-12-27 10:06:44', '', NULL, '超级管理员');
+) ENGINE = InnoDB AUTO_INCREMENT = 105 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '角色信息表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_role_dept
@@ -587,13 +1046,6 @@ CREATE TABLE `sys_role_dept`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '角色和部门关联表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Records of sys_role_dept
--- ----------------------------
-INSERT INTO `sys_role_dept` VALUES (1, 2, 100);
-INSERT INTO `sys_role_dept` VALUES (2, 2, 101);
-INSERT INTO `sys_role_dept` VALUES (3, 2, 105);
-
--- ----------------------------
 -- Table structure for sys_role_menu
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_role_menu`;
@@ -602,11 +1054,57 @@ CREATE TABLE `sys_role_menu`  (
   `role_id` bigint NOT NULL COMMENT '角色ID',
   `menu_id` bigint NOT NULL COMMENT '菜单ID',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '角色和菜单关联表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 92 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '角色和菜单关联表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Records of sys_role_menu
+-- Table structure for sys_secret_key
 -- ----------------------------
+DROP TABLE IF EXISTS `sys_secret_key`;
+CREATE TABLE `sys_secret_key`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `provider_type` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '厂商类型（1云厂商 2应用厂商）',
+  `provider_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '厂商名称',
+  `key_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '密钥类型',
+  `key_name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '密钥名称/别名',
+  `access_key` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '访问密钥',
+  `secret_key` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '密钥',
+  `scope_type` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '使用范围',
+  `scope_name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '范围名称',
+  `region` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '地域',
+  `expire_time` datetime NULL DEFAULT NULL COMMENT '过期时间',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '状态（0正常 1停用）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '删除标志（0存在 2删除）',
+  `provider_brand` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '厂商品牌',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '第三方密钥管理表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for sys_storage_config
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_storage_config`;
+CREATE TABLE `sys_storage_config`  (
+  `config_id` bigint NOT NULL AUTO_INCREMENT COMMENT '配置ID',
+  `storage_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '存储类型（local-本地存储, aliyun-阿里云OSS, tencent-腾讯云COS, amazon-亚马逊S3, azure-微软Azure）',
+  `config_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '配置名称',
+  `is_default` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '是否默认配置（0否 1是）',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '状态（0正常 1停用）',
+  `config_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL COMMENT '配置数据（JSON格式）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`config_id`) USING BTREE,
+  UNIQUE INDEX `uk_storage_config_name`(`config_name` ASC) USING BTREE,
+  INDEX `idx_storage_type`(`storage_type` ASC) USING BTREE,
+  INDEX `idx_is_default`(`is_default` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '存储配置表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for sys_user
@@ -621,7 +1119,7 @@ CREATE TABLE `sys_user`  (
   `email` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '用户邮箱',
   `phonenumber` varchar(11) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '手机号码',
   `sex` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '用户性别（0男 1女 2未知）',
-  `avatar` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '头像地址',
+  `avatar` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '头像地址',
   `password` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '密码',
   `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '帐号状态（0正常 1停用）',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
@@ -632,15 +1130,10 @@ CREATE TABLE `sys_user`  (
   `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '更新者',
   `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
+  `feishu_access_token` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL COMMENT '飞书用户token',
+  `feishu_token_expire_time` datetime NULL DEFAULT NULL COMMENT '飞书token 过期时间',
   PRIMARY KEY (`user_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 103 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '用户信息表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_user
--- ----------------------------
-INSERT INTO `sys_user` VALUES (1, 100, 'admin', '超级管理员', '00', '2395104945@qq.com', '15888888888', '0', '', '2e72f04c0177f90550ab36d934d24fc3c2befdc1e7e7a1ba19793788b39ed984', '0', '0', '127.0.0.1', '2024-12-27 10:06:44', 'admin', '2024-12-27 10:06:44', 'admin', '2025-06-18 11:28:47', '管理员');
-INSERT INTO `sys_user` VALUES (101, 100, 'root', 'root', '00', '', '', '0', '', '2e72f04c0177f90550ab36d934d24fc3c2befdc1e7e7a1ba19793788b39ed984', '0', '0', '', NULL, '', '2024-12-30 15:12:31', 'admin', '2025-06-11 12:21:36', 'root 用户');
-INSERT INTO `sys_user` VALUES (102, 100, 'cs', 'cs', '00', '', '', '0', '', '2e72f04c0177f90550ab36d934d24fc3c2befdc1e7e7a1ba19793788b39ed984', '0', '1', '', NULL, '', '2024-12-30 15:17:59', NULL, NULL, NULL);
+) ENGINE = InnoDB AUTO_INCREMENT = 110 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '用户信息表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_user_post
@@ -654,11 +1147,6 @@ CREATE TABLE `sys_user_post`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '用户与岗位关联表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Records of sys_user_post
--- ----------------------------
-INSERT INTO `sys_user_post` VALUES (1, 1, 1);
-
--- ----------------------------
 -- Table structure for sys_user_role
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_user_role`;
@@ -667,12 +1155,6 @@ CREATE TABLE `sys_user_role`  (
   `user_id` bigint NOT NULL COMMENT '用户ID',
   `role_id` bigint NOT NULL COMMENT '角色ID',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '用户和角色关联表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Records of sys_user_role
--- ----------------------------
-INSERT INTO `sys_user_role` VALUES (1, 1, 1);
-INSERT INTO `sys_user_role` VALUES (2, 2, 2);
+) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '用户和角色关联表' ROW_FORMAT = Dynamic;
 
 SET FOREIGN_KEY_CHECKS = 1;
