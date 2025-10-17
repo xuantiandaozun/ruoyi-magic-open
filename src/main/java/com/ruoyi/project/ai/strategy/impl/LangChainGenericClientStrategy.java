@@ -621,6 +621,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("- `user_prompt`：用户提示词（支持变量占位符，如：{{input_variable}}）\n");
             enhancedPrompt.append("- `input_variable`：输入变量名（从前一步或外部输入获取）\n");
             enhancedPrompt.append("- `output_variable`：输出变量名（供后续步骤使用）\n");
+            enhancedPrompt.append("- `tool_type`：工具类型（如：database_query、github_repo_tree等）\n");
+            enhancedPrompt.append("- `tool_enabled`：工具启用状态（1=启用，0=禁用）\n");
             enhancedPrompt.append("- `enabled`：启用状态（1=启用，0=禁用）\n\n");
             
             enhancedPrompt.append("## 工作流管理工具\n");
@@ -972,7 +974,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             workflow.setType(type != null ? type : "sequential");
             workflow.setVersion("1.0");
             workflow.setEnabled("1");
-            workflow.setStatus("active");
+            workflow.setStatus("0");
             workflow.setDelFlag("0");
             
             boolean workflowSaved = workflowService.save(workflow);
@@ -994,8 +996,12 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     step.setUserPrompt((String) stepData.get("userPrompt"));
                     step.setInputVariable((String) stepData.get("inputVariable"));
                     step.setEnabled("1");
-                    step.setStatus("active");
+                    step.setStatus("0");
                     step.setDelFlag("0");
+                    
+                    // 设置工具配置
+                    step.setToolTypes((String) stepData.get("toolType"));
+                    step.setToolEnabled((String) stepData.get("toolEnabled"));
                     
                     stepService.save(step);
                 }
@@ -1062,8 +1068,12 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     step.setUserPrompt((String) stepData.get("userPrompt"));
                     step.setInputVariable((String) stepData.get("inputVariable"));
                     step.setEnabled("1");
-                    step.setStatus("active");
+                    step.setStatus("0");
                     step.setDelFlag("0");
+                    
+                    // 设置工具配置
+                    step.setToolTypes((String) stepData.get("toolType"));
+                    step.setToolEnabled((String) stepData.get("toolEnabled"));
                     
                     stepService.save(step);
                 }
@@ -1260,7 +1270,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     .addStringProperty("description", "工作流描述")
                     .addStringProperty("type", "工作流类型")
                     .addProperty("steps", dev.langchain4j.model.chat.request.json.JsonArraySchema.builder()
-                        .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable等字段")
+                        .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable、toolType、toolEnabled等字段")
                         .build())
                     .required("name", "description", "type", "steps")
                     .build())
@@ -1277,7 +1287,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     .addStringProperty("description", "工作流描述")
                     .addStringProperty("type", "工作流类型")
                     .addProperty("steps", dev.langchain4j.model.chat.request.json.JsonArraySchema.builder()
-                        .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable等字段")
+                        .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable、toolType、toolEnabled等字段")
                         .build())
                     .required("workflowId", "name", "description", "type", "steps")
                     .build())
