@@ -24,7 +24,9 @@ import com.ruoyi.framework.web.page.PageDomain;
 import com.ruoyi.framework.web.page.TableDataInfo;
 import com.ruoyi.framework.web.page.TableSupport;
 import com.ruoyi.project.ai.domain.AiWorkflow;
+import com.ruoyi.project.ai.domain.AiWorkflowSchedule;
 import com.ruoyi.project.ai.service.IAiWorkflowService;
+import com.ruoyi.project.ai.service.IAiWorkflowScheduleService;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +45,9 @@ public class AiWorkflowController extends BaseController {
 
     @Autowired
     private IAiWorkflowService workflowService;
+
+    @Autowired
+    private IAiWorkflowScheduleService scheduleService;
 
     /**
      * 分页查询工作流列表
@@ -143,6 +148,159 @@ public class AiWorkflowController extends BaseController {
         } catch (Exception e) {
             logger.error("获取启用工作流列表失败: {}", e.getMessage(), e);
             return error("获取启用工作流列表失败: " + e.getMessage());
+        }
+    }
+
+    // ==================== 定时任务管理接口 ====================
+
+    /**
+     * 获取工作流的定时调度配置列表
+     */
+    @Operation(summary = "获取工作流的定时调度配置列表")
+    @SaCheckPermission("ai:workflow:schedule:list")
+    @GetMapping("/{id}/schedules")
+    public AjaxResult getWorkflowSchedules(@PathVariable Long id) {
+        try {
+            List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(id);
+            return success(schedules);
+        } catch (Exception e) {
+            logger.error("获取工作流定时调度配置失败: {}", e.getMessage(), e);
+            return error("获取工作流定时调度配置失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 为工作流创建定时调度配置
+     */
+    @Operation(summary = "为工作流创建定时调度配置")
+    @SaCheckPermission("ai:workflow:schedule:add")
+    @Log(title = "AI工作流定时调度", businessType = BusinessType.INSERT)
+    @PostMapping("/{id}/schedule")
+    public AjaxResult createSchedule(@PathVariable Long id, @Validated @RequestBody AiWorkflowSchedule schedule) {
+        try {
+            // 验证工作流是否存在
+            AiWorkflow workflow = workflowService.getById(id);
+            if (workflow == null) {
+                return error("工作流不存在");
+            }
+
+            // 设置工作流ID
+            schedule.setWorkflowId(id);
+            
+            // 设置默认值
+            if (schedule.getEnabled() == null) {
+                schedule.setEnabled("N");
+            }
+            if (schedule.getStatus() == null) {
+                schedule.setStatus("1"); // 暂停状态
+            }
+            if (schedule.getMisfirePolicy() == null) {
+                schedule.setMisfirePolicy("3"); // 放弃执行
+            }
+            if (schedule.getConcurrent() == null) {
+                schedule.setConcurrent("N"); // 不允许并发
+            }
+            if (schedule.getRetryCount() == null) {
+                schedule.setRetryCount(0);
+            }
+            if (schedule.getExecutionTimeout() == null) {
+                schedule.setExecutionTimeout(3600); // 默认1小时超时
+            }
+            if (schedule.getPriority() == null) {
+                schedule.setPriority(5); // 默认优先级
+            }
+
+            boolean result = scheduleService.save(schedule);
+            return toAjax(result);
+        } catch (Exception e) {
+            logger.error("创建工作流定时调度配置失败: {}", e.getMessage(), e);
+            return error("创建工作流定时调度配置失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 启用工作流的所有定时调度
+     */
+    @Operation(summary = "启用工作流的所有定时调度")
+    @SaCheckPermission("ai:workflow:schedule:edit")
+    @Log(title = "AI工作流定时调度", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/schedules/enable")
+    public AjaxResult enableAllSchedules(@PathVariable Long id) {
+        try {
+            List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(id);
+            int successCount = 0;
+            
+            for (AiWorkflowSchedule schedule : schedules) {
+                if ("Y".equals(schedule.getEnabled())) {
+                    try {
+                        if (scheduleService.startSchedule(schedule.getId())) {
+                            successCount++;
+                        }
+                    } catch (Exception e) {
+                        logger.error("启用调度任务失败，ID：{}", schedule.getId(), e);
+                    }
+                }
+            }
+            
+            return success("成功启用 " + successCount + " 个调度任务");
+        } catch (Exception e) {
+            logger.error("启用工作流所有定时调度失败: {}", e.getMessage(), e);
+            return error("启用工作流所有定时调度失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 禁用工作流的所有定时调度
+     */
+    @Operation(summary = "禁用工作流的所有定时调度")
+    @SaCheckPermission("ai:workflow:schedule:edit")
+    @Log(title = "AI工作流定时调度", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/schedules/disable")
+    public AjaxResult disableAllSchedules(@PathVariable Long id) {
+        try {
+            List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(id);
+            int successCount = 0;
+            
+            for (AiWorkflowSchedule schedule : schedules) {
+                try {
+                    if (scheduleService.pauseSchedule(schedule.getId())) {
+                        successCount++;
+                    }
+                } catch (Exception e) {
+                    logger.error("禁用调度任务失败，ID：{}", schedule.getId(), e);
+                }
+            }
+            
+            return success("成功禁用 " + successCount + " 个调度任务");
+        } catch (Exception e) {
+            logger.error("禁用工作流所有定时调度失败: {}", e.getMessage(), e);
+            return error("禁用工作流所有定时调度失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取工作流定时调度统计信息
+     */
+    @Operation(summary = "获取工作流定时调度统计信息")
+    @SaCheckPermission("ai:workflow:schedule:list")
+    @GetMapping("/{id}/schedules/statistics")
+    public AjaxResult getScheduleStatistics(@PathVariable Long id) {
+        try {
+            List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(id);
+            
+            long totalCount = schedules.size();
+            long enabledCount = schedules.stream().filter(s -> "Y".equals(s.getEnabled())).count();
+            long runningCount = schedules.stream().filter(s -> "0".equals(s.getStatus())).count();
+            long pausedCount = schedules.stream().filter(s -> "1".equals(s.getStatus())).count();
+            
+            return success()
+                .put("totalCount", totalCount)
+                .put("enabledCount", enabledCount)
+                .put("runningCount", runningCount)
+                .put("pausedCount", pausedCount);
+        } catch (Exception e) {
+            logger.error("获取工作流定时调度统计信息失败: {}", e.getMessage(), e);
+            return error("获取工作流定时调度统计信息失败: " + e.getMessage());
         }
     }
 }
