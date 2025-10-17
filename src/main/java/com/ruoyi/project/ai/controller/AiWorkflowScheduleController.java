@@ -60,7 +60,6 @@ public class AiWorkflowScheduleController extends BaseController {
         
         QueryWrapper qw = QueryWrapper.create()
             .from("ai_workflow_schedule")
-            .where("del_flag = '0'")
             .orderBy("create_time desc");
         
         Page<AiWorkflowSchedule> result = scheduleService.page(page, qw);

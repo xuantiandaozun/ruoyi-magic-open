@@ -1,7 +1,9 @@
 package com.ruoyi.project.ai.controller;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -293,11 +295,13 @@ public class AiWorkflowController extends BaseController {
             long runningCount = schedules.stream().filter(s -> "0".equals(s.getStatus())).count();
             long pausedCount = schedules.stream().filter(s -> "1".equals(s.getStatus())).count();
             
-            return success()
-                .put("totalCount", totalCount)
-                .put("enabledCount", enabledCount)
-                .put("runningCount", runningCount)
-                .put("pausedCount", pausedCount);
+            Map<String, Object> statistics = new HashMap<>();
+            statistics.put("total", totalCount);
+            statistics.put("enabled", enabledCount);
+            statistics.put("running", runningCount);
+            statistics.put("paused", pausedCount);
+            
+            return success(statistics);
         } catch (Exception e) {
             logger.error("获取工作流定时调度统计信息失败: {}", e.getMessage(), e);
             return error("获取工作流定时调度统计信息失败: " + e.getMessage());

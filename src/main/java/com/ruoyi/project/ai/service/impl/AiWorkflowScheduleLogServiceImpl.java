@@ -36,7 +36,6 @@ public class AiWorkflowScheduleLogServiceImpl extends ServiceImpl<AiWorkflowSche
         QueryWrapper qw = QueryWrapper.create()
             .from("ai_workflow_schedule_log")
             .where(new QueryColumn("schedule_id").eq(scheduleId))
-            .and(new QueryColumn("del_flag").eq("0"))
             .orderBy(new QueryColumn("create_time").desc());
         return list(qw);
     }
@@ -46,7 +45,6 @@ public class AiWorkflowScheduleLogServiceImpl extends ServiceImpl<AiWorkflowSche
         QueryWrapper qw = QueryWrapper.create()
             .from("ai_workflow_schedule_log")
             .where(new QueryColumn("workflow_id").eq(workflowId))
-            .and(new QueryColumn("del_flag").eq("0"))
             .orderBy(new QueryColumn("create_time").desc());
         return list(qw);
     }
@@ -56,7 +54,6 @@ public class AiWorkflowScheduleLogServiceImpl extends ServiceImpl<AiWorkflowSche
         QueryWrapper qw = QueryWrapper.create()
             .from("ai_workflow_schedule_log")
             .where(new QueryColumn("status").eq(status))
-            .and(new QueryColumn("del_flag").eq("0"))
             .orderBy(new QueryColumn("create_time").desc());
         return list(qw);
     }
@@ -66,7 +63,6 @@ public class AiWorkflowScheduleLogServiceImpl extends ServiceImpl<AiWorkflowSche
         QueryWrapper qw = QueryWrapper.create()
             .from("ai_workflow_schedule_log")
             .where(new QueryColumn("trigger_type").eq(triggerType))
-            .and(new QueryColumn("del_flag").eq("0"))
             .orderBy(new QueryColumn("create_time").desc());
         return list(qw);
     }

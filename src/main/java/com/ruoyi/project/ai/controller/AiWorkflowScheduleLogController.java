@@ -52,21 +52,20 @@ public class AiWorkflowScheduleLogController extends BaseController {
         
         QueryWrapper qw = QueryWrapper.create()
             .from("ai_workflow_schedule_log")
-            .where("del_flag = '0'")
             .orderBy("create_time desc");
         
         // 添加查询条件
         if (query.getScheduleId() != null) {
-            qw.and("schedule_id = {0}", query.getScheduleId());
+            qw.and("schedule_id = ?", query.getScheduleId());
         }
         if (query.getWorkflowId() != null) {
-            qw.and("workflow_id = {0}", query.getWorkflowId());
+            qw.and("workflow_id = ?", query.getWorkflowId());
         }
         if (query.getStatus() != null && !query.getStatus().isEmpty()) {
-            qw.and("status = {0}", query.getStatus());
+            qw.and("status = ?", query.getStatus());
         }
         if (query.getTriggerType() != null && !query.getTriggerType().isEmpty()) {
-            qw.and("trigger_type = {0}", query.getTriggerType());
+            qw.and("trigger_type = ?", query.getTriggerType());
         }
         
         Page<AiWorkflowScheduleLog> result = scheduleLogService.page(page, qw);
@@ -166,14 +165,13 @@ public class AiWorkflowScheduleLogController extends BaseController {
         
         QueryWrapper qw = QueryWrapper.create()
             .from("ai_workflow_schedule_log")
-            .where("del_flag = '0'")
-            .and("create_time >= DATE_SUB(NOW(), INTERVAL {0} DAY)", days);
+            .where("create_time >= DATE_SUB(NOW(), INTERVAL ? DAY)", days);
         
         if (scheduleId != null) {
-            qw.and("schedule_id = {0}", scheduleId);
+            qw.and("schedule_id = ?", scheduleId);
         }
         if (workflowId != null) {
-            qw.and("workflow_id = {0}", workflowId);
+            qw.and("workflow_id = ?", workflowId);
         }
         
         // 总执行次数
@@ -212,7 +210,6 @@ public class AiWorkflowScheduleLogController extends BaseController {
     public AjaxResult getRecentLogs(@RequestParam(defaultValue = "10") int limit) {
         QueryWrapper qw = QueryWrapper.create()
             .from("ai_workflow_schedule_log")
-            .where("del_flag = '0'")
             .orderBy("create_time desc")
             .limit(limit);
         

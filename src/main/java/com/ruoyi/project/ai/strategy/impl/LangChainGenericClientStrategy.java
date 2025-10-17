@@ -17,7 +17,12 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.row.Db;
 import com.mybatisflex.core.row.Row;
+import com.ruoyi.common.utils.spring.SpringUtils;
+import com.ruoyi.project.ai.domain.AiWorkflow;
+import com.ruoyi.project.ai.domain.AiWorkflowStep;
 import com.ruoyi.project.ai.dto.AiChatMessage;
+import com.ruoyi.project.ai.service.IAiWorkflowService;
+import com.ruoyi.project.ai.service.IAiWorkflowStepService;
 import com.ruoyi.project.ai.strategy.AiClientStrategy;
 
 import cn.hutool.core.util.StrUtil;
@@ -31,6 +36,7 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
@@ -568,6 +574,77 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("- **状态字段含义**：'0' 通常表示正常/启用，'1' 表示停用/禁用\n");
             enhancedPrompt.append("- **关联查询优化**：使用适当的JOIN类型，注意性能影响\n\n");
 
+            // 添加工作流功能说明
+            enhancedPrompt.append("# AI工作流管理能力说明\n");
+            enhancedPrompt.append("你现在具备了AI工作流管理能力！可以帮助用户管理和执行AI工作流，实现复杂的多步骤AI任务自动化。\n\n");
+            
+            enhancedPrompt.append("## 工作流核心概念\n");
+            enhancedPrompt.append("**工作流（Workflow）**：由多个AI步骤组成的自动化任务流程，每个步骤可以配置不同的AI模型和提示词\n");
+            enhancedPrompt.append("**工作流步骤（Workflow Step）**：工作流中的单个AI处理节点，包含系统提示词、用户提示词、输入输出变量等配置\n");
+            enhancedPrompt.append("**顺序执行**：步骤按照设定的顺序依次执行，前一步的输出可作为后一步的输入\n");
+            enhancedPrompt.append("**变量传递**：通过输入变量名和输出变量名实现步骤间的数据传递\n\n");
+            
+            enhancedPrompt.append("## 工作流类型\n");
+            enhancedPrompt.append("- **sequential（顺序工作流）**：最常用的类型，步骤按顺序依次执行\n");
+            enhancedPrompt.append("- **langchain4j_agent（LangChain4j代理）**：基于LangChain4j框架的智能代理工作流\n");
+            enhancedPrompt.append("- **conditional（条件工作流）**：支持条件分支的工作流\n");
+            enhancedPrompt.append("- **loop（循环工作流）**：支持循环执行的工作流\n\n");
+            
+            enhancedPrompt.append("## 支持的工具类型\n");
+            enhancedPrompt.append("- **数据库查询工具**：执行SQL查询获取数据\n");
+            enhancedPrompt.append("- **文件操作工具**：读取、写入、处理文件\n");
+            enhancedPrompt.append("- **HTTP请求工具**：调用外部API接口\n");
+            enhancedPrompt.append("- **GitHub趋势工具**：获取GitHub热门项目信息\n");
+            enhancedPrompt.append("- **OSS文件读取工具**：通过OSS URL获取远程文件内容，支持README文档等文件的读取\n");
+            enhancedPrompt.append("- **GitHub仓库目录工具**：通过GitHub API获取指定仓库的文件目录结构，支持递归查看和分支选择\n");
+            enhancedPrompt.append("- **GitHub文件内容工具**：通过GitHub API获取指定仓库中特定文件的完整内容，支持代码文件、配置文件等\n\n");
+            
+            enhancedPrompt.append("## 工作流数据结构\n");
+            enhancedPrompt.append("**ai_workflow表字段说明：**\n");
+            enhancedPrompt.append("- `id`：工作流唯一标识\n");
+            enhancedPrompt.append("- `workflow_name`：工作流名称\n");
+            enhancedPrompt.append("- `workflow_description`：工作流描述\n");
+            enhancedPrompt.append("- `workflow_type`：工作流类型（sequential/langchain4j_agent/conditional/loop）\n");
+            enhancedPrompt.append("- `workflow_version`：版本号\n");
+            enhancedPrompt.append("- `enabled`：启用状态（1=启用，0=禁用）\n");
+            enhancedPrompt.append("- `status`：状态（0=正常，1=停用）\n");
+            enhancedPrompt.append("- `config_json`：额外配置参数（JSON格式）\n\n");
+            
+            enhancedPrompt.append("**ai_workflow_step表字段说明：**\n");
+            enhancedPrompt.append("- `id`：步骤唯一标识\n");
+            enhancedPrompt.append("- `workflow_id`：所属工作流ID\n");
+            enhancedPrompt.append("- `step_name`：步骤名称\n");
+            enhancedPrompt.append("- `step_description`：步骤描述\n");
+            enhancedPrompt.append("- `step_order`：执行顺序（数字越小越先执行）\n");
+            enhancedPrompt.append("- `model_config_id`：使用的AI模型配置ID\n");
+            enhancedPrompt.append("- `system_prompt`：系统提示词\n");
+            enhancedPrompt.append("- `user_prompt`：用户提示词（支持变量占位符，如：{{input_variable}}）\n");
+            enhancedPrompt.append("- `input_variable`：输入变量名（从前一步或外部输入获取）\n");
+            enhancedPrompt.append("- `output_variable`：输出变量名（供后续步骤使用）\n");
+            enhancedPrompt.append("- `enabled`：启用状态（1=启用，0=禁用）\n\n");
+            
+            enhancedPrompt.append("## 工作流管理工具\n");
+            enhancedPrompt.append("你可以使用以下工具来管理工作流：\n");
+            enhancedPrompt.append("1. **getWorkflowList**：获取系统中配置的工作流列表，包括名称和步骤信息\n");
+            enhancedPrompt.append("2. **addWorkflow**：新增工作流，包括工作流基本信息和步骤配置\n");
+            enhancedPrompt.append("3. **updateWorkflow**：修改现有工作流，可以更新工作流信息和步骤配置\n\n");
+            
+            enhancedPrompt.append("## 工作流使用场景示例\n");
+            enhancedPrompt.append("- **内容创作流程**：文案生成 → 内容优化 → 格式调整 → 质量检查\n");
+            enhancedPrompt.append("- **数据分析流程**：数据查询 → 数据清洗 → 统计分析 → 报告生成\n");
+            enhancedPrompt.append("- **代码审查流程**：代码分析 → 问题识别 → 优化建议 → 文档生成\n");
+            enhancedPrompt.append("- **客服处理流程**：问题分类 → 知识库查询 → 答案生成 → 质量评估\n");
+            enhancedPrompt.append("- **项目文档分析流程**：GitHub仓库目录获取 → 关键文件识别 → 文件内容读取 → 项目总结生成\n");
+            enhancedPrompt.append("- **开源项目调研流程**：GitHub趋势获取 → 项目README读取 → 代码结构分析 → 技术评估报告\n");
+            enhancedPrompt.append("- **技术文档整理流程**：OSS文档读取 → 内容结构化 → 知识点提取 → 学习指南生成\n\n");
+            
+            enhancedPrompt.append("## 工作流最佳实践\n");
+            enhancedPrompt.append("1. **合理设计步骤顺序**：确保前后步骤的逻辑关系正确\n");
+            enhancedPrompt.append("2. **明确变量传递**：为每个步骤设置清晰的输入输出变量名\n");
+            enhancedPrompt.append("3. **优化提示词**：为每个步骤编写专门的系统提示词和用户提示词\n");
+            enhancedPrompt.append("4. **选择合适模型**：根据步骤特点选择最适合的AI模型配置\n");
+            enhancedPrompt.append("5. **测试验证**：创建工作流后进行充分测试，确保各步骤正常运行\n\n");
+
             return enhancedPrompt.toString();
         } catch (Exception e) {
             log.error("构建增强系统提示失败: {}", e.getMessage(), e);
@@ -822,6 +899,193 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
     }
 
     /**
+     * 获取工作流列表和步骤信息
+     */
+    private static String getWorkflowList() {
+        try {
+            IAiWorkflowService workflowService = SpringUtils.getBean(IAiWorkflowService.class);
+            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
+            
+            // 获取所有启用的工作流
+            List<AiWorkflow> workflows = workflowService.listByEnabled("1");
+            
+            Map<String, Object> result = new HashMap<>();
+            List<Map<String, Object>> workflowList = new ArrayList<>();
+            
+            for (AiWorkflow workflow : workflows) {
+                Map<String, Object> workflowInfo = new HashMap<>();
+                workflowInfo.put("id", workflow.getId());
+                workflowInfo.put("name", workflow.getName());
+                workflowInfo.put("description", workflow.getDescription());
+                workflowInfo.put("type", workflow.getType());
+                workflowInfo.put("version", workflow.getVersion());
+                workflowInfo.put("status", workflow.getStatus());
+                
+                // 获取工作流步骤
+                List<AiWorkflowStep> steps = stepService.selectByWorkflowId(workflow.getId());
+                List<Map<String, Object>> stepList = new ArrayList<>();
+                
+                for (AiWorkflowStep step : steps) {
+                    Map<String, Object> stepInfo = new HashMap<>();
+                    stepInfo.put("id", step.getId());
+                    stepInfo.put("stepName", step.getStepName());
+                    stepInfo.put("description", step.getDescription());
+                    stepInfo.put("stepOrder", step.getStepOrder());
+                    stepInfo.put("systemPrompt", step.getSystemPrompt());
+                    stepInfo.put("userPrompt", step.getUserPrompt());
+                    stepInfo.put("inputVariable", step.getInputVariable());
+                    stepInfo.put("enabled", step.getEnabled());
+                    stepList.add(stepInfo);
+                }
+                
+                workflowInfo.put("steps", stepList);
+                workflowList.add(workflowInfo);
+            }
+            
+            result.put("success", true);
+            result.put("count", workflowList.size());
+            result.put("workflows", workflowList);
+            
+            return JSONUtil.toJsonStr(result);
+            
+        } catch (Exception e) {
+            log.error("获取工作流列表失败: {}", e.getMessage(), e);
+            Map<String, Object> errorResult = new HashMap<>();
+            errorResult.put("success", false);
+            errorResult.put("error", "获取工作流列表失败: " + e.getMessage());
+            return JSONUtil.toJsonStr(errorResult);
+        }
+    }
+
+    /**
+     * 新增工作流
+     */
+    private static String addWorkflow(String name, String description, String type, List<Map<String, Object>> steps) {
+        try {
+            IAiWorkflowService workflowService = SpringUtils.getBean(IAiWorkflowService.class);
+            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
+            
+            // 创建工作流
+            AiWorkflow workflow = new AiWorkflow();
+            workflow.setName(name);
+            workflow.setDescription(description);
+            workflow.setType(type != null ? type : "sequential");
+            workflow.setVersion("1.0");
+            workflow.setEnabled("1");
+            workflow.setStatus("active");
+            workflow.setDelFlag("0");
+            
+            boolean workflowSaved = workflowService.save(workflow);
+            if (!workflowSaved) {
+                throw new RuntimeException("保存工作流失败");
+            }
+            
+            // 创建工作流步骤
+            if (steps != null && !steps.isEmpty()) {
+                for (int i = 0; i < steps.size(); i++) {
+                    Map<String, Object> stepData = steps.get(i);
+                    
+                    AiWorkflowStep step = new AiWorkflowStep();
+                    step.setWorkflowId(workflow.getId());
+                    step.setStepName((String) stepData.get("stepName"));
+                    step.setDescription((String) stepData.get("description"));
+                    step.setStepOrder(i + 1);
+                    step.setSystemPrompt((String) stepData.get("systemPrompt"));
+                    step.setUserPrompt((String) stepData.get("userPrompt"));
+                    step.setInputVariable((String) stepData.get("inputVariable"));
+                    step.setEnabled("1");
+                    step.setStatus("active");
+                    step.setDelFlag("0");
+                    
+                    stepService.save(step);
+                }
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("workflowId", workflow.getId());
+            result.put("message", "工作流创建成功");
+            
+            return JSONUtil.toJsonStr(result);
+            
+        } catch (Exception e) {
+            log.error("新增工作流失败: {}", e.getMessage(), e);
+            Map<String, Object> errorResult = new HashMap<>();
+            errorResult.put("success", false);
+            errorResult.put("error", "新增工作流失败: " + e.getMessage());
+            return JSONUtil.toJsonStr(errorResult);
+        }
+    }
+
+    /**
+     * 修改工作流
+     */
+    private static String updateWorkflow(Long workflowId, String name, String description, String type, List<Map<String, Object>> steps) {
+        try {
+            IAiWorkflowService workflowService = SpringUtils.getBean(IAiWorkflowService.class);
+            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
+            
+            // 更新工作流基本信息
+            AiWorkflow workflow = workflowService.getById(workflowId);
+            if (workflow == null) {
+                throw new RuntimeException("工作流不存在");
+            }
+            
+            if (name != null) workflow.setName(name);
+            if (description != null) workflow.setDescription(description);
+            if (type != null) workflow.setType(type);
+            
+            boolean workflowUpdated = workflowService.updateById(workflow);
+            if (!workflowUpdated) {
+                throw new RuntimeException("更新工作流失败");
+            }
+            
+            // 更新工作流步骤（先删除原有步骤，再添加新步骤）
+            if (steps != null) {
+                // 删除原有步骤
+                List<AiWorkflowStep> existingSteps = stepService.selectByWorkflowId(workflowId);
+                for (AiWorkflowStep existingStep : existingSteps) {
+                    existingStep.setDelFlag("1");
+                    stepService.updateById(existingStep);
+                }
+                
+                // 添加新步骤
+                for (int i = 0; i < steps.size(); i++) {
+                    Map<String, Object> stepData = steps.get(i);
+                    
+                    AiWorkflowStep step = new AiWorkflowStep();
+                    step.setWorkflowId(workflowId);
+                    step.setStepName((String) stepData.get("stepName"));
+                    step.setDescription((String) stepData.get("description"));
+                    step.setStepOrder(i + 1);
+                    step.setSystemPrompt((String) stepData.get("systemPrompt"));
+                    step.setUserPrompt((String) stepData.get("userPrompt"));
+                    step.setInputVariable((String) stepData.get("inputVariable"));
+                    step.setEnabled("1");
+                    step.setStatus("active");
+                    step.setDelFlag("0");
+                    
+                    stepService.save(step);
+                }
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("workflowId", workflowId);
+            result.put("message", "工作流更新成功");
+            
+            return JSONUtil.toJsonStr(result);
+            
+        } catch (Exception e) {
+            log.error("修改工作流失败: {}", e.getMessage(), e);
+            Map<String, Object> errorResult = new HashMap<>();
+            errorResult.put("success", false);
+            errorResult.put("error", "修改工作流失败: " + e.getMessage());
+            return JSONUtil.toJsonStr(errorResult);
+        }
+    }
+
+    /**
      * 处理工具调用
      */
     private void handleToolCalls(AiMessage aiMessage, List<ChatMessage> messages, 
@@ -965,7 +1229,10 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加当前用户消息
             messages.add(new UserMessage(message));
             
-            // 构建数据库查询工具规范
+            // 构建工具规范列表
+            List<ToolSpecification> toolSpecs = new ArrayList<>();
+            
+            // 数据库查询工具
             ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
                 .name("database_query")
                 .description("执行数据库查询以获取相关信息")
@@ -974,11 +1241,53 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     .required("sql")
                     .build())
                 .build();
+            toolSpecs.add(databaseQueryToolSpec);
+            
+            // 获取工作流列表工具
+            ToolSpecification getWorkflowListToolSpec = ToolSpecification.builder()
+                .name("get_workflow_list")
+                .description("获取系统中所有已启用的工作流列表及其步骤信息")
+                .parameters(JsonObjectSchema.builder().build())
+                .build();
+            toolSpecs.add(getWorkflowListToolSpec);
+            
+            // 添加工作流工具
+            ToolSpecification addWorkflowToolSpec = ToolSpecification.builder()
+                .name("add_workflow")
+                .description("创建新的工作流，包括工作流基本信息和步骤配置")
+                .parameters(JsonObjectSchema.builder()
+                    .addStringProperty("name", "工作流名称")
+                    .addStringProperty("description", "工作流描述")
+                    .addStringProperty("type", "工作流类型")
+                    .addProperty("steps", dev.langchain4j.model.chat.request.json.JsonArraySchema.builder()
+                        .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable等字段")
+                        .build())
+                    .required("name", "description", "type", "steps")
+                    .build())
+                .build();
+            toolSpecs.add(addWorkflowToolSpec);
+            
+            // 修改工作流工具
+            ToolSpecification updateWorkflowToolSpec = ToolSpecification.builder()
+                .name("update_workflow")
+                .description("修改现有工作流的信息和步骤配置")
+                .parameters(JsonObjectSchema.builder()
+                    .addNumberProperty("workflowId", "要修改的工作流ID")
+                    .addStringProperty("name", "工作流名称")
+                    .addStringProperty("description", "工作流描述")
+                    .addStringProperty("type", "工作流类型")
+                    .addProperty("steps", dev.langchain4j.model.chat.request.json.JsonArraySchema.builder()
+                        .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable等字段")
+                        .build())
+                    .required("workflowId", "name", "description", "type", "steps")
+                    .build())
+                .build();
+            toolSpecs.add(updateWorkflowToolSpec);
             
             // 构建聊天请求
             dev.langchain4j.model.chat.request.ChatRequest chatRequest = dev.langchain4j.model.chat.request.ChatRequest.builder()
                 .messages(messages)
-                .toolSpecifications(List.of(databaseQueryToolSpec))
+                .toolSpecifications(toolSpecs)
                 .build();
             
             // 执行流式聊天
@@ -1051,7 +1360,10 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加当前用户消息
             messages.add(new UserMessage(message));
             
-            // 构建数据库查询工具规范
+            // 构建工具规范列表
+            List<ToolSpecification> toolSpecs = new ArrayList<>();
+            
+            // 数据库查询工具
             ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
                 .name("database_query")
                 .description("执行数据库查询以获取相关信息")
@@ -1060,11 +1372,67 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     .required("sql")
                     .build())
                 .build();
+            toolSpecs.add(databaseQueryToolSpec);
+            
+            // 获取工作流列表工具
+            ToolSpecification getWorkflowListToolSpec = ToolSpecification.builder()
+                .name("get_workflow_list")
+                .description("获取系统中所有已启用的工作流列表及其步骤信息")
+                .parameters(JsonObjectSchema.builder().build())
+                .build();
+            toolSpecs.add(getWorkflowListToolSpec);
+            
+            // 添加工作流工具
+            ToolSpecification addWorkflowToolSpec = ToolSpecification.builder()
+                .name("add_workflow")
+                .description("创建新的工作流，包括工作流基本信息和步骤配置")
+                .parameters(JsonObjectSchema.builder()
+                    .addStringProperty("name", "工作流名称")
+                    .addStringProperty("description", "工作流描述")
+                    .addStringProperty("type", "工作流类型")
+                    .addProperty("steps", JsonArraySchema.builder()
+                        .items(JsonObjectSchema.builder()
+                            .addStringProperty("stepName", "步骤名称")
+                            .addStringProperty("description", "步骤描述")
+                            .addNumberProperty("stepOrder", "步骤顺序")
+                            .addStringProperty("systemPrompt", "系统提示")
+                            .addStringProperty("userPrompt", "用户提示")
+                            .addStringProperty("inputVariable", "输入变量")
+                            .build())
+                        .build())
+                    .required("name", "description", "type", "steps")
+                    .build())
+                .build();
+            toolSpecs.add(addWorkflowToolSpec);
+            
+            // 修改工作流工具
+            ToolSpecification updateWorkflowToolSpec = ToolSpecification.builder()
+                .name("update_workflow")
+                .description("修改现有工作流的信息和步骤配置")
+                .parameters(JsonObjectSchema.builder()
+                    .addNumberProperty("workflowId", "要修改的工作流ID")
+                    .addStringProperty("name", "工作流名称")
+                    .addStringProperty("description", "工作流描述")
+                    .addStringProperty("type", "工作流类型")
+                    .addProperty("steps", JsonArraySchema.builder()
+                        .items(JsonObjectSchema.builder()
+                            .addStringProperty("stepName", "步骤名称")
+                            .addStringProperty("description", "步骤描述")
+                            .addNumberProperty("stepOrder", "步骤顺序")
+                            .addStringProperty("systemPrompt", "系统提示")
+                            .addStringProperty("userPrompt", "用户提示")
+                            .addStringProperty("inputVariable", "输入变量")
+                            .build())
+                        .build())
+                    .required("workflowId", "name", "description", "type", "steps")
+                    .build())
+                .build();
+            toolSpecs.add(updateWorkflowToolSpec);
             
             // 构建聊天请求
-            dev.langchain4j.model.chat.request.ChatRequest chatRequest = dev.langchain4j.model.chat.request.ChatRequest.builder()
+            ChatRequest chatRequest = ChatRequest.builder()
                 .messages(messages)
-                .toolSpecifications(List.of(databaseQueryToolSpec))
+                .toolSpecifications(toolSpecs)
                 .build();
             
             // 执行流式聊天
@@ -1119,17 +1487,74 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加AI消息到对话历史
             messages.add(aiMessage);
             
-            // 创建数据库查询工具规范
-            JsonObjectSchema parametersSchema = JsonObjectSchema.builder()
-                .addStringProperty("sql", "要执行的SQL查询语句")
-                .required("sql")
-                .build();
+            // 构建工具规范列表
+            List<ToolSpecification> toolSpecs = new ArrayList<>();
             
+            // 数据库查询工具
             ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
                 .name("database_query")
                 .description("执行数据库查询并返回结果")
-                .parameters(parametersSchema)
+                .parameters(JsonObjectSchema.builder()
+                    .addStringProperty("sql", "要执行的SQL查询语句")
+                    .required("sql")
+                    .build())
                 .build();
+            toolSpecs.add(databaseQueryToolSpec);
+            
+            // 获取工作流列表工具
+            ToolSpecification getWorkflowListToolSpec = ToolSpecification.builder()
+                .name("get_workflow_list")
+                .description("获取系统中所有已启用的工作流列表及其步骤信息")
+                .parameters(JsonObjectSchema.builder().build())
+                .build();
+            toolSpecs.add(getWorkflowListToolSpec);
+            
+            // 添加工作流工具
+            ToolSpecification addWorkflowToolSpec = ToolSpecification.builder()
+                .name("add_workflow")
+                .description("创建新的工作流，包括工作流基本信息和步骤配置")
+                .parameters(JsonObjectSchema.builder()
+                    .addStringProperty("name", "工作流名称")
+                    .addStringProperty("description", "工作流描述")
+                    .addStringProperty("type", "工作流类型")
+                    .addProperty("steps", JsonArraySchema.builder()
+                        .items(JsonObjectSchema.builder()
+                            .addStringProperty("stepName", "步骤名称")
+                            .addStringProperty("description", "步骤描述")
+                            .addNumberProperty("stepOrder", "步骤顺序")
+                            .addStringProperty("systemPrompt", "系统提示")
+                            .addStringProperty("userPrompt", "用户提示")
+                            .addStringProperty("inputVariable", "输入变量")
+                            .build())
+                        .build())
+                    .required("name", "description", "type", "steps")
+                    .build())
+                .build();
+            toolSpecs.add(addWorkflowToolSpec);
+            
+            // 修改工作流工具
+            ToolSpecification updateWorkflowToolSpec = ToolSpecification.builder()
+                .name("update_workflow")
+                .description("修改现有工作流的信息和步骤配置")
+                .parameters(JsonObjectSchema.builder()
+                    .addNumberProperty("workflowId", "要修改的工作流ID")
+                    .addStringProperty("name", "工作流名称")
+                    .addStringProperty("description", "工作流描述")
+                    .addStringProperty("type", "工作流类型")
+                    .addProperty("steps", JsonArraySchema.builder()
+                        .items(JsonObjectSchema.builder()
+                            .addStringProperty("stepName", "步骤名称")
+                            .addStringProperty("description", "步骤描述")
+                            .addNumberProperty("stepOrder", "步骤顺序")
+                            .addStringProperty("systemPrompt", "系统提示")
+                            .addStringProperty("userPrompt", "用户提示")
+                            .addStringProperty("inputVariable", "输入变量")
+                            .build())
+                        .build())
+                    .required("workflowId", "name", "description", "type", "steps")
+                    .build())
+                .build();
+            toolSpecs.add(updateWorkflowToolSpec);
             
             // 执行工具调用
             aiMessage.toolExecutionRequests().forEach(toolRequest -> {
@@ -1150,6 +1575,30 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                         
                         // 执行数据库查询
                         result = executeDatabaseQuery(sql);
+                    } else if ("get_workflow_list".equals(toolName)) {
+                        // 获取工作流列表
+                        result = getWorkflowList();
+                    } else if ("add_workflow".equals(toolName)) {
+                        // 添加工作流
+                        Map<String, Object> args = parseToolArguments(arguments);
+                        String name = (String) args.get("name");
+                        String description = (String) args.get("description");
+                        String type = (String) args.get("type");
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> steps = (List<Map<String, Object>>) args.get("steps");
+                        
+                        result = addWorkflow(name, description, type, steps);
+                    } else if ("update_workflow".equals(toolName)) {
+                        // 修改工作流
+                        Map<String, Object> args = parseToolArguments(arguments);
+                        Long workflowId = Long.valueOf(args.get("workflowId").toString());
+                        String name = (String) args.get("name");
+                        String description = (String) args.get("description");
+                        String type = (String) args.get("type");
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> steps = (List<Map<String, Object>>) args.get("steps");
+                        
+                        result = updateWorkflow(workflowId, name, description, type, steps);
                     } else {
                         result = "未知的工具: " + toolName;
                     }
