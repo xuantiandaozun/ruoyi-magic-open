@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 
 import com.ruoyi.project.ai.domain.AiWorkflowSchedule;
 import com.ruoyi.project.ai.service.IAiWorkflowScheduleService;
+import com.ruoyi.project.monitor.domain.SysJob;
+import com.ruoyi.project.monitor.service.ISysJobService;
 
 /**
  * 工作流调度初始化服务
@@ -25,6 +27,9 @@ public class WorkflowScheduleInitService implements CommandLineRunner {
 
     @Autowired
     private IAiWorkflowScheduleService scheduleService;
+
+    @Autowired
+    private ISysJobService sysJobService;
 
     @Override
     public void run(String... args) throws Exception {
@@ -45,16 +50,17 @@ public class WorkflowScheduleInitService implements CommandLineRunner {
             // 逐个启动调度任务
             for (AiWorkflowSchedule schedule : enabledSchedules) {
                 try {
-                    boolean success = scheduleService.startSchedule(schedule.getId());
-                    if (success) {
-                        successCount++;
-                        log.info("启动工作流调度任务成功：{} (ID: {})", 
-                            schedule.getScheduleName(), schedule.getId());
-                    } else {
-                        failCount++;
-                        log.warn("启动工作流调度任务失败：{} (ID: {})", 
-                            schedule.getScheduleName(), schedule.getId());
-                    }
+                    // 先创建Quartz任务
+                    SysJob job = scheduleService.createQuartzJobForInit(schedule);
+                    sysJobService.insertJob(job);
+                    sysJobService.createScheduleJob(job);
+                    
+                    // 更新下次执行时间
+                    scheduleService.updateNextExecutionTime(schedule.getId());
+                    
+                    successCount++;
+                    log.info("启动工作流调度任务成功：{} (ID: {})", 
+                        schedule.getScheduleName(), schedule.getId());
                 } catch (Exception e) {
                     failCount++;
                     log.error("启动工作流调度任务异常：{} (ID: {})", 

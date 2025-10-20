@@ -54,12 +54,4 @@ public class SysJobLog extends BaseEntity
     /** 异常信息 */
     @Excel(name = "异常信息")
     public String exceptionInfo;
-
-    /** 开始时间 */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    public Date startTime;
-
-    /** 停止时间 */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    public Date stopTime;
 }

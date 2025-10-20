@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
+import com.ruoyi.common.exception.job.TaskException;
 import com.ruoyi.common.utils.job.ScheduleUtils;
 import com.ruoyi.framework.service.BatchInitializationService;
 import com.ruoyi.project.monitor.domain.SysJob;
@@ -197,6 +198,19 @@ public class SysJobServiceImpl extends ServiceImpl<SysJobMapper, SysJob> impleme
     public int insertJob(SysJob job)
     {
         return save(job) ? 1 : 0;
+    }
+    
+    /**
+     * 创建Quartz调度任务
+     * 
+     * @param job 调度信息
+     * @throws SchedulerException 调度异常
+     * @throws TaskException 任务异常
+     */
+    @Override
+    public void createScheduleJob(SysJob job) throws SchedulerException, TaskException
+    {
+        ScheduleUtils.createScheduleJob(scheduler, job);
     }
 
     /**

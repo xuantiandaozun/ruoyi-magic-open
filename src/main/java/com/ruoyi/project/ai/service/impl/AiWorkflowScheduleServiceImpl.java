@@ -21,7 +21,6 @@ import com.ruoyi.project.ai.service.IAiWorkflowScheduleService;
 import com.ruoyi.project.monitor.domain.SysJob;
 import com.ruoyi.project.monitor.service.ISysJobService;
 
-import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
 
 /**
@@ -82,6 +81,9 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
             // 创建Quartz任务
             SysJob job = createQuartzJob(schedule);
             sysJobService.insertJob(job);
+            
+            // 实际创建Quartz调度任务
+            sysJobService.createScheduleJob(job);
 
             // 更新调度状态
             schedule.setStatus("0"); // 正常
@@ -218,6 +220,13 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
             .and(new QueryColumn("del_flag").eq("0"))
             .orderBy(new QueryColumn("create_time").desc());
         return list(qw);
+    }
+    
+    /**
+     * 创建Quartz任务对象（用于系统初始化）
+     */
+    public SysJob createQuartzJobForInit(AiWorkflowSchedule schedule) {
+        return createQuartzJob(schedule);
     }
 
     /**

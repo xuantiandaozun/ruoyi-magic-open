@@ -616,7 +616,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("- `step_name`：步骤名称\n");
             enhancedPrompt.append("- `step_description`：步骤描述\n");
             enhancedPrompt.append("- `step_order`：执行顺序（数字越小越先执行）\n");
-            enhancedPrompt.append("- `model_config_id`：使用的AI模型配置ID\n");
+            enhancedPrompt.append("- `model_config_id`：使用的AI模型配置ID（工作流默认使用deepseek配置ID=19）\n");
             enhancedPrompt.append("- `system_prompt`：系统提示词\n");
             enhancedPrompt.append("- `user_prompt`：用户提示词（支持变量占位符，如：{{input_variable}}）\n");
             enhancedPrompt.append("- `input_variable`：输入变量名（从前一步或外部输入获取）\n");
@@ -644,8 +644,9 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("1. **合理设计步骤顺序**：确保前后步骤的逻辑关系正确\n");
             enhancedPrompt.append("2. **明确变量传递**：为每个步骤设置清晰的输入输出变量名\n");
             enhancedPrompt.append("3. **优化提示词**：为每个步骤编写专门的系统提示词和用户提示词\n");
-            enhancedPrompt.append("4. **选择合适模型**：根据步骤特点选择最适合的AI模型配置\n");
-            enhancedPrompt.append("5. **测试验证**：创建工作流后进行充分测试，确保各步骤正常运行\n\n");
+            enhancedPrompt.append("4. **选择合适模型**：工作流默认使用deepseek模型配置(ID=19)，确保所有步骤统一使用此配置\n");
+            enhancedPrompt.append("5. **工具配置要求**：如果步骤需要调用工具，必须同时配置tool_type和tool_enabled字段\n");
+            enhancedPrompt.append("6. **测试验证**：创建工作流后进行充分测试，确保各步骤正常运行\n\n");
 
             return enhancedPrompt.toString();
         } catch (Exception e) {
@@ -992,6 +993,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     step.setStepName((String) stepData.get("stepName"));
                     step.setDescription((String) stepData.get("description"));
                     step.setStepOrder(i + 1);
+                    // 固定使用deepseek配置ID为19
+                    step.setModelConfigId(19L);
                     step.setSystemPrompt((String) stepData.get("systemPrompt"));
                     step.setUserPrompt((String) stepData.get("userPrompt"));
                     step.setInputVariable((String) stepData.get("inputVariable"));
@@ -1002,6 +1005,15 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     // 设置工具配置
                     step.setToolTypes((String) stepData.get("toolType"));
                     step.setToolEnabled((String) stepData.get("toolEnabled"));
+                    
+                    // 如果配置了工具类型，必须配置工具启用状态
+                    String toolType = (String) stepData.get("toolType");
+                    if (StrUtil.isNotBlank(toolType)) {
+                        String toolEnabled = (String) stepData.get("toolEnabled");
+                        if (StrUtil.isBlank(toolEnabled)) {
+                            step.setToolEnabled("Y"); // 默认启用工具
+                        }
+                    }
                     
                     stepService.save(step);
                 }
@@ -1064,6 +1076,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     step.setStepName((String) stepData.get("stepName"));
                     step.setDescription((String) stepData.get("description"));
                     step.setStepOrder(i + 1);
+                    // 固定使用deepseek配置ID为19
+                    step.setModelConfigId(19L);
                     step.setSystemPrompt((String) stepData.get("systemPrompt"));
                     step.setUserPrompt((String) stepData.get("userPrompt"));
                     step.setInputVariable((String) stepData.get("inputVariable"));
@@ -1074,6 +1088,15 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     // 设置工具配置
                     step.setToolTypes((String) stepData.get("toolType"));
                     step.setToolEnabled((String) stepData.get("toolEnabled"));
+                    
+                    // 如果配置了工具类型，必须配置工具启用状态
+                    String toolType = (String) stepData.get("toolType");
+                    if (StrUtil.isNotBlank(toolType)) {
+                        String toolEnabled = (String) stepData.get("toolEnabled");
+                        if (StrUtil.isBlank(toolEnabled)) {
+                            step.setToolEnabled("Y"); // 默认启用工具
+                        }
+                    }
                     
                     stepService.save(step);
                 }

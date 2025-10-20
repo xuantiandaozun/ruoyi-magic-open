@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.mybatisflex.core.service.IService;
 import com.ruoyi.project.ai.domain.AiWorkflowSchedule;
+import com.ruoyi.project.monitor.domain.SysJob;
 
 /**
  * AI工作流定时调度Service接口
@@ -90,4 +91,12 @@ public interface IAiWorkflowScheduleService extends IService<AiWorkflowSchedule>
      * @return 启用的调度配置列表
      */
     List<AiWorkflowSchedule> listEnabledSchedules();
+    
+    /**
+     * 创建Quartz任务对象（用于系统初始化）
+     * 
+     * @param schedule 工作流调度配置
+     * @return Quartz任务对象
+     */
+    SysJob createQuartzJobForInit(AiWorkflowSchedule schedule);
 }

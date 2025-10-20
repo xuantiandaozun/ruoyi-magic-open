@@ -86,6 +86,15 @@ public interface ISysJobService extends IService<SysJob>
      * @return 结果
      */
     public int insertJob(SysJob job) throws SchedulerException, TaskException;
+    
+    /**
+     * 创建Quartz调度任务
+     * 
+     * @param job 调度信息
+     * @throws SchedulerException 调度异常
+     * @throws TaskException 任务异常
+     */
+    public void createScheduleJob(SysJob job) throws SchedulerException, TaskException;
 
     /**
      * 更新任务

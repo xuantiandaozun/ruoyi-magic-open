@@ -42,7 +42,19 @@ public class WorkflowScheduleTask {
      * 
      * @param scheduleId 调度ID
      */
-    public void execute(Long scheduleId) {
+    public void execute(Integer scheduleId) {
+        log.info("开始执行工作流调度任务，调度ID：{}", scheduleId);
+        
+        // 转换为Long类型
+        executeInternal(Long.valueOf(scheduleId));
+    }
+    
+    /**
+     * 执行工作流调度任务（内部方法）
+     * 
+     * @param scheduleId 调度ID
+     */
+    private void executeInternal(Long scheduleId) {
         log.info("开始执行工作流调度任务，调度ID：{}", scheduleId);
 
         Long logId = null;
