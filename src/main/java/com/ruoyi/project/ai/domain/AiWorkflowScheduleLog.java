@@ -110,13 +110,4 @@ public class AiWorkflowScheduleLog extends BaseEntity {
     @Column(isLogicDelete = true)
     private String delFlag;
 
-    /** 创建者用户ID */
-    @Column("user_id")
-    private Long userId;
-
-    /** 调度名称（关联查询字段） */
-    private String scheduleName;
-
-    /** 工作流名称（关联查询字段） */
-    private String workflowName;
 }
