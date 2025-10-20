@@ -97,7 +97,22 @@ public class AiWorkflowController extends BaseController {
     @Log(title = "AI工作流", businessType = BusinessType.UPDATE)
     @PutMapping
     public AjaxResult edit(@Validated @RequestBody AiWorkflow workflow) {
-        return toAjax(workflowService.updateById(workflow));
+        boolean result = workflowService.updateById(workflow);
+        
+        // 如果工作流更新成功，同时更新相关调度任务的下次执行时间
+        if (result) {
+            try {
+                List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(workflow.getId());
+                for (AiWorkflowSchedule schedule : schedules) {
+                    scheduleService.updateNextExecutionTime(schedule.getId());
+                }
+            } catch (Exception e) {
+                logger.error("更新工作流调度任务下次执行时间失败: {}", e.getMessage(), e);
+                // 不影响主流程，只记录错误日志
+            }
+        }
+        
+        return toAjax(result);
     }
 
     /**

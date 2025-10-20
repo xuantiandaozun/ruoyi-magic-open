@@ -108,10 +108,21 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
                 throw new ServiceException("调度配置不存在");
             }
 
-            // 暂停Quartz任务
+            // 查询已存在的Quartz任务
             String jobName = "WORKFLOW_SCHEDULE_" + scheduleId;
             String jobGroup = "WORKFLOW_SCHEDULE";
-            sysJobService.pauseJob(createQuartzJob(schedule));
+            
+            QueryWrapper jobQuery = QueryWrapper.create()
+                .from("sys_job")
+                .where(new QueryColumn("job_name").eq(jobName))
+                .and(new QueryColumn("job_group").eq(jobGroup));
+            
+            SysJob existingJob = sysJobService.getOne(jobQuery);
+            
+            if (existingJob != null) {
+                // 暂停Quartz任务
+                sysJobService.pauseJob(existingJob);
+            }
 
             // 更新调度状态
             schedule.setStatus("1"); // 暂停
@@ -134,8 +145,21 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
                 throw new ServiceException("调度配置不存在");
             }
 
-            // 恢复Quartz任务
-            sysJobService.resumeJob(createQuartzJob(schedule));
+            // 查询已存在的Quartz任务
+            String jobName = "WORKFLOW_SCHEDULE_" + scheduleId;
+            String jobGroup = "WORKFLOW_SCHEDULE";
+            
+            QueryWrapper jobQuery = QueryWrapper.create()
+                .from("sys_job")
+                .where(new QueryColumn("job_name").eq(jobName))
+                .and(new QueryColumn("job_group").eq(jobGroup));
+            
+            SysJob existingJob = sysJobService.getOne(jobQuery);
+            
+            if (existingJob != null) {
+                // 恢复Quartz任务
+                sysJobService.resumeJob(existingJob);
+            }
 
             // 更新调度状态
             schedule.setStatus("0"); // 正常
@@ -159,8 +183,21 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
                 throw new ServiceException("调度配置不存在");
             }
 
-            // 删除Quartz任务
-            sysJobService.deleteJob(createQuartzJob(schedule));
+            // 查询已存在的Quartz任务
+            String jobName = "WORKFLOW_SCHEDULE_" + scheduleId;
+            String jobGroup = "WORKFLOW_SCHEDULE";
+            
+            QueryWrapper jobQuery = QueryWrapper.create()
+                .from("sys_job")
+                .where(new QueryColumn("job_name").eq(jobName))
+                .and(new QueryColumn("job_group").eq(jobGroup));
+            
+            SysJob existingJob = sysJobService.getOne(jobQuery);
+            
+            if (existingJob != null) {
+                // 删除Quartz任务
+                sysJobService.deleteJob(existingJob);
+            }
 
             // 逻辑删除调度配置
             schedule.setDelFlag("2");
@@ -182,8 +219,21 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
                 throw new ServiceException("调度配置不存在");
             }
 
-            // 立即执行Quartz任务
-            sysJobService.run(createQuartzJob(schedule));
+            // 查询已存在的Quartz任务
+            String jobName = "WORKFLOW_SCHEDULE_" + scheduleId;
+            String jobGroup = "WORKFLOW_SCHEDULE";
+            
+            QueryWrapper jobQuery = QueryWrapper.create()
+                .from("sys_job")
+                .where(new QueryColumn("job_name").eq(jobName))
+                .and(new QueryColumn("job_group").eq(jobGroup));
+            
+            SysJob existingJob = sysJobService.getOne(jobQuery);
+            
+            if (existingJob != null) {
+                // 立即执行Quartz任务
+                sysJobService.run(existingJob);
+            }
 
             log.info("立即执行工作流调度任务成功，调度ID：{}", scheduleId);
             return true;

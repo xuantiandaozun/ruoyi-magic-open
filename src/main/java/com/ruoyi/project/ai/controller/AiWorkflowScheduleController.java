@@ -207,8 +207,9 @@ public class AiWorkflowScheduleController extends BaseController {
     @PutMapping("/execute/{id}")
     public AjaxResult executeOnce(@PathVariable Long id) {
         try {
+            // 异步执行任务
             workflowScheduleTask.executeManually(id);
-            return success("执行成功");
+            return success("执行任务已启动，请查看执行日志获取结果");
         } catch (Exception e) {
             logger.error("立即执行调度任务失败，ID：{}", id, e);
             return error("执行失败：" + e.getMessage());
