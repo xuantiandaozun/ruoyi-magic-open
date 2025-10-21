@@ -1,5 +1,7 @@
 package com.ruoyi.project.ai.domain;
 
+import java.util.Date;
+
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
@@ -10,8 +12,6 @@ import com.ruoyi.framework.web.domain.BaseEntity;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-
-import java.util.Date;
 
 /**
  * AI工作流定时调度日志对象 ai_workflow_schedule_log
@@ -34,10 +34,20 @@ public class AiWorkflowScheduleLog extends BaseEntity {
     @Column("schedule_id")
     private Long scheduleId;
 
+    /** 调度名称（非数据库字段，用于前端显示） */
+    @Excel(name = "调度名称")
+    @Column(ignore = true)
+    private String scheduleName;
+
     /** 工作流ID */
     @Excel(name = "工作流ID")
     @Column("workflow_id")
     private Long workflowId;
+
+    /** 工作流名称（非数据库字段，用于前端显示） */
+    @Excel(name = "工作流名称")
+    @Column(ignore = true)
+    private String workflowName;
 
     /** 执行ID */
     @Excel(name = "执行ID")

@@ -591,13 +591,14 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("- **loop（循环工作流）**：支持循环执行的工作流\n\n");
             
             enhancedPrompt.append("## 支持的工具类型\n");
-            enhancedPrompt.append("- **数据库查询工具**：执行SQL查询获取数据\n");
-            enhancedPrompt.append("- **文件操作工具**：读取、写入、处理文件\n");
-            enhancedPrompt.append("- **HTTP请求工具**：调用外部API接口\n");
-            enhancedPrompt.append("- **GitHub趋势工具**：获取GitHub热门项目信息\n");
-            enhancedPrompt.append("- **OSS文件读取工具**：通过OSS URL获取远程文件内容，支持README文档等文件的读取\n");
-            enhancedPrompt.append("- **GitHub仓库目录工具**：通过GitHub API获取指定仓库的文件目录结构，支持递归查看和分支选择\n");
-            enhancedPrompt.append("- **GitHub文件内容工具**：通过GitHub API获取指定仓库中特定文件的完整内容，支持代码文件、配置文件等\n\n");
+            enhancedPrompt.append("- **database_query**：执行SQL查询获取数据\n");
+            enhancedPrompt.append("- **blog_save**：保存中文博客文章\n");
+            enhancedPrompt.append("- **blog_en_save**：保存英文博客文章\n");
+            enhancedPrompt.append("- **social_media_article_save**：保存自媒体文章，支持中英文双语内容和多平台发布\n");
+            enhancedPrompt.append("- **github_trending**：获取GitHub今日首次上榜热门仓库信息\n");
+            enhancedPrompt.append("- **oss_file_read**：通过OSS URL获取远程文件内容，支持README文档等文件的读取\n");
+            enhancedPrompt.append("- **github_repo_tree**：通过GitHub API获取指定仓库的文件目录结构，支持递归查看和分支选择\n");
+            enhancedPrompt.append("- **github_file_content**：通过GitHub API获取指定仓库中特定文件的完整内容，支持代码文件、配置文件等\n\n");
             
             enhancedPrompt.append("## 工作流数据结构\n");
             enhancedPrompt.append("**ai_workflow表字段说明：**\n");
@@ -621,7 +622,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("- `user_prompt`：用户提示词（支持变量占位符，如：{{input_variable}}）\n");
             enhancedPrompt.append("- `input_variable`：输入变量名（从前一步或外部输入获取）\n");
             enhancedPrompt.append("- `output_variable`：输出变量名（供后续步骤使用）\n");
-            enhancedPrompt.append("- `tool_type`：工具类型（如：database_query、github_repo_tree等）\n");
+            enhancedPrompt.append("- `tool_type`：工具类型（使用英文工具名称，如：database_query、blog_save、blog_en_save、social_media_article_save、github_trending、oss_file_read、github_repo_tree、github_file_content等，多个工具用逗号分隔）\n");
             enhancedPrompt.append("- `tool_enabled`：工具启用状态（1=启用，0=禁用）\n");
             enhancedPrompt.append("- `enabled`：启用状态（1=启用，0=禁用）\n\n");
             
@@ -642,10 +643,14 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             
             enhancedPrompt.append("## 工作流最佳实践\n");
             enhancedPrompt.append("1. **合理设计步骤顺序**：确保前后步骤的逻辑关系正确\n");
-            enhancedPrompt.append("2. **明确变量传递**：为每个步骤设置清晰的输入输出变量名\n");
+            enhancedPrompt.append("2. **明确变量传递**：为每个步骤设置清晰的输入输出变量名，并遵循以下规则：\n");
+            enhancedPrompt.append("   - 第一步：输入变量可以为空（从外部获取数据），但输出变量不能为空\n");
+            enhancedPrompt.append("   - 后续步骤：输入变量和输出变量都不能为空，必须明确指定变量名\n");
+            enhancedPrompt.append("   - 变量名使用有意义的英文命名，如：user_input, analysis_result, final_report\n");
+            enhancedPrompt.append("   - 确保前一步的输出变量名与后一步的输入变量名匹配，实现数据正确传递\n");
             enhancedPrompt.append("3. **优化提示词**：为每个步骤编写专门的系统提示词和用户提示词\n");
             enhancedPrompt.append("4. **选择合适模型**：工作流默认使用deepseek模型配置(ID=19)，确保所有步骤统一使用此配置\n");
-            enhancedPrompt.append("5. **工具配置要求**：如果步骤需要调用工具，必须同时配置tool_type和tool_enabled字段\n");
+            enhancedPrompt.append("5. **工具配置要求**：如果步骤需要调用工具，必须同时配置tool_type和tool_enabled字段，tool_type必须使用英文工具名称（如database_query、blog_save等），不能使用中文名称\n");
             enhancedPrompt.append("6. **测试验证**：创建工作流后进行充分测试，确保各步骤正常运行\n\n");
 
             return enhancedPrompt.toString();
@@ -937,7 +942,10 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     stepInfo.put("systemPrompt", step.getSystemPrompt());
                     stepInfo.put("userPrompt", step.getUserPrompt());
                     stepInfo.put("inputVariable", step.getInputVariable());
+                    stepInfo.put("outputVariable", step.getOutputVariable());
                     stepInfo.put("enabled", step.getEnabled());
+                    stepInfo.put("toolTypes", step.getToolTypes());
+                    stepInfo.put("toolEnabled", step.getToolEnabled());
                     stepList.add(stepInfo);
                 }
                 
@@ -957,6 +965,44 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             errorResult.put("success", false);
             errorResult.put("error", "获取工作流列表失败: " + e.getMessage());
             return JSONUtil.toJsonStr(errorResult);
+        }
+    }
+
+    /**
+     * 验证工作流步骤的变量配置
+     * 规则：第一步的输入变量可以为空，但输出变量不能为空
+     *      后续步骤的输入输出变量都不能为空
+     *      
+     * @param steps 工作流步骤列表
+     * @throws RuntimeException 如果变量配置不符合规则
+     */
+    private static void validateWorkflowSteps(List<Map<String, Object>> steps) {
+        if (steps == null || steps.isEmpty()) {
+            return;
+        }
+        
+        for (int i = 0; i < steps.size(); i++) {
+            Map<String, Object> stepData = steps.get(i);
+            String stepName = (String) stepData.get("stepName");
+            String inputVariable = (String) stepData.get("inputVariable");
+            String outputVariable = (String) stepData.get("outputVariable");
+            
+            // 第一步的特殊验证
+            if (i == 0) {
+                // 第一步的输出变量不能为空
+                if (StrUtil.isBlank(outputVariable)) {
+                    throw new RuntimeException("第一步 '" + stepName + "' 的输出变量名不能为空");
+                }
+            } else {
+                // 后续步骤的输入变量不能为空
+                if (StrUtil.isBlank(inputVariable)) {
+                    throw new RuntimeException("步骤 '" + stepName + "' 的输入变量名不能为空");
+                }
+                // 后续步骤的输出变量也不能为空
+                if (StrUtil.isBlank(outputVariable)) {
+                    throw new RuntimeException("步骤 '" + stepName + "' 的输出变量名不能为空");
+                }
+            }
         }
     }
 
@@ -985,6 +1031,9 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             
             // 创建工作流步骤
             if (steps != null && !steps.isEmpty()) {
+                // 验证步骤变量配置
+                validateWorkflowSteps(steps);
+                
                 for (int i = 0; i < steps.size(); i++) {
                     Map<String, Object> stepData = steps.get(i);
                     
@@ -998,6 +1047,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     step.setSystemPrompt((String) stepData.get("systemPrompt"));
                     step.setUserPrompt((String) stepData.get("userPrompt"));
                     step.setInputVariable((String) stepData.get("inputVariable"));
+                    step.setOutputVariable((String) stepData.get("outputVariable"));
                     step.setEnabled("1");
                     step.setStatus("0");
                     step.setDelFlag("0");
@@ -1060,6 +1110,9 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             
             // 更新工作流步骤（先删除原有步骤，再添加新步骤）
             if (steps != null) {
+                // 验证步骤变量配置
+                validateWorkflowSteps(steps);
+                
                 // 删除原有步骤
                 List<AiWorkflowStep> existingSteps = stepService.selectByWorkflowId(workflowId);
                 for (AiWorkflowStep existingStep : existingSteps) {
@@ -1081,6 +1134,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     step.setSystemPrompt((String) stepData.get("systemPrompt"));
                     step.setUserPrompt((String) stepData.get("userPrompt"));
                     step.setInputVariable((String) stepData.get("inputVariable"));
+                    step.setOutputVariable((String) stepData.get("outputVariable"));
                     step.setEnabled("1");
                     step.setStatus("0");
                     step.setDelFlag("0");
@@ -1294,6 +1348,16 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     .addStringProperty("type", "工作流类型")
                     .addProperty("steps", dev.langchain4j.model.chat.request.json.JsonArraySchema.builder()
                         .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable、toolType、toolEnabled等字段")
+                        .items(JsonObjectSchema.builder()
+                            .addStringProperty("stepName", "步骤名称")
+                            .addStringProperty("description", "步骤描述")
+                            .addNumberProperty("stepOrder", "步骤顺序")
+                            .addStringProperty("systemPrompt", "系统提示")
+                            .addStringProperty("userPrompt", "用户提示")
+                            .addStringProperty("inputVariable", "输入变量")
+                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
+                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
+                            .build())
                         .build())
                     .required("name", "description", "type", "steps")
                     .build())
@@ -1311,6 +1375,16 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     .addStringProperty("type", "工作流类型")
                     .addProperty("steps", dev.langchain4j.model.chat.request.json.JsonArraySchema.builder()
                         .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable、toolType、toolEnabled等字段")
+                        .items(JsonObjectSchema.builder()
+                            .addStringProperty("stepName", "步骤名称")
+                            .addStringProperty("description", "步骤描述")
+                            .addNumberProperty("stepOrder", "步骤顺序")
+                            .addStringProperty("systemPrompt", "系统提示")
+                            .addStringProperty("userPrompt", "用户提示")
+                            .addStringProperty("inputVariable", "输入变量")
+                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
+                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
+                            .build())
                         .build())
                     .required("workflowId", "name", "description", "type", "steps")
                     .build())
@@ -1431,6 +1505,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                             .addStringProperty("systemPrompt", "系统提示")
                             .addStringProperty("userPrompt", "用户提示")
                             .addStringProperty("inputVariable", "输入变量")
+                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
+                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
                             .build())
                         .build())
                     .required("name", "description", "type", "steps")
@@ -1455,6 +1531,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                             .addStringProperty("systemPrompt", "系统提示")
                             .addStringProperty("userPrompt", "用户提示")
                             .addStringProperty("inputVariable", "输入变量")
+                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
+                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
                             .build())
                         .build())
                     .required("workflowId", "name", "description", "type", "steps")
@@ -1558,6 +1636,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                             .addStringProperty("systemPrompt", "系统提示")
                             .addStringProperty("userPrompt", "用户提示")
                             .addStringProperty("inputVariable", "输入变量")
+                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
+                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
                             .build())
                         .build())
                     .required("name", "description", "type", "steps")
@@ -1582,6 +1662,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                             .addStringProperty("systemPrompt", "系统提示")
                             .addStringProperty("userPrompt", "用户提示")
                             .addStringProperty("inputVariable", "输入变量")
+                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
+                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
                             .build())
                         .build())
                     .required("workflowId", "name", "description", "type", "steps")
@@ -1620,11 +1702,33 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                         @SuppressWarnings("unchecked")
                         List<Map<String, Object>> steps = (List<Map<String, Object>>) args.get("steps");
                         
+                        // 参数验证
+                        if (name == null || name.trim().isEmpty()) {
+                            throw new IllegalArgumentException("缺少必要参数: name");
+                        }
+                        if (description == null || description.trim().isEmpty()) {
+                            throw new IllegalArgumentException("缺少必要参数: description");
+                        }
+                        if (type == null || type.trim().isEmpty()) {
+                            throw new IllegalArgumentException("缺少必要参数: type");
+                        }
+                        if (steps == null || steps.isEmpty()) {
+                            throw new IllegalArgumentException("缺少必要参数: steps 或 steps不能为空");
+                        }
+                        
                         result = addWorkflow(name, description, type, steps);
                     } else if ("update_workflow".equals(toolName)) {
                         // 修改工作流
                         Map<String, Object> args = parseToolArguments(arguments);
-                        Long workflowId = Long.valueOf(args.get("workflowId").toString());
+                        // 支持两种命名方式：workflowId和workflow_id
+                        Object workflowIdObj = args.get("workflowId");
+                        if (workflowIdObj == null) {
+                            workflowIdObj = args.get("workflow_id");
+                        }
+                        if (workflowIdObj == null) {
+                            throw new IllegalArgumentException("缺少必要参数: workflowId 或 workflow_id");
+                        }
+                        Long workflowId = Long.valueOf(workflowIdObj.toString());
                         String name = (String) args.get("name");
                         String description = (String) args.get("description");
                         String type = (String) args.get("type");

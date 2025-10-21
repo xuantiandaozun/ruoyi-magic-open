@@ -51,21 +51,26 @@ public class AiWorkflowScheduleLogController extends BaseController {
         Page<AiWorkflowScheduleLog> page = Page.of(pageDomain.getPageNum(), pageDomain.getPageSize());
         
         QueryWrapper qw = QueryWrapper.create()
-            .from("ai_workflow_schedule_log")
-            .orderBy("create_time desc");
+            .select("log.*, " +
+                    "schedule.schedule_name as scheduleName, " +
+                    "workflow.workflow_name as workflowName")
+            .from("ai_workflow_schedule_log").as("log")
+            .leftJoin("ai_workflow_schedule").as("schedule").on("log.schedule_id = schedule.id")
+            .leftJoin("ai_workflow").as("workflow").on("log.workflow_id = workflow.id")
+            .orderBy("log.create_time desc");
         
         // 添加查询条件
         if (query.getScheduleId() != null) {
-            qw.and("schedule_id = ?", query.getScheduleId());
+            qw.and("log.schedule_id = ?", query.getScheduleId());
         }
         if (query.getWorkflowId() != null) {
-            qw.and("workflow_id = ?", query.getWorkflowId());
+            qw.and("log.workflow_id = ?", query.getWorkflowId());
         }
         if (query.getStatus() != null && !query.getStatus().isEmpty()) {
-            qw.and("status = ?", query.getStatus());
+            qw.and("log.status = ?", query.getStatus());
         }
         if (query.getTriggerType() != null && !query.getTriggerType().isEmpty()) {
-            qw.and("trigger_type = ?", query.getTriggerType());
+            qw.and("log.trigger_type = ?", query.getTriggerType());
         }
         
         Page<AiWorkflowScheduleLog> result = scheduleLogService.page(page, qw);
@@ -123,7 +128,16 @@ public class AiWorkflowScheduleLogController extends BaseController {
     @SaCheckPermission("ai:workflow:schedule:log:query")
     @GetMapping("/{id}")
     public AjaxResult getInfo(@PathVariable Long id) {
-        AiWorkflowScheduleLog log = scheduleLogService.getById(id);
+        QueryWrapper qw = QueryWrapper.create()
+            .select("log.*, " +
+                    "schedule.schedule_name as scheduleName, " +
+                    "workflow.workflow_name as workflowName")
+            .from("ai_workflow_schedule_log").as("log")
+            .leftJoin("ai_workflow_schedule").as("schedule").on("log.schedule_id = schedule.id")
+            .leftJoin("ai_workflow").as("workflow").on("log.workflow_id = workflow.id")
+            .where("log.id = ?", id);
+        
+        AiWorkflowScheduleLog log = scheduleLogService.getOne(qw);
         return success(log);
     }
 
@@ -164,29 +178,29 @@ public class AiWorkflowScheduleLogController extends BaseController {
         // 为了简化，这里返回基本统计信息
         
         QueryWrapper qw = QueryWrapper.create()
-            .from("ai_workflow_schedule_log")
-            .where("create_time >= DATE_SUB(NOW(), INTERVAL ? DAY)", days);
+            .from("ai_workflow_schedule_log").as("log")
+            .where("log.create_time >= DATE_SUB(NOW(), INTERVAL ? DAY)", days);
         
         if (scheduleId != null) {
-            qw.and("schedule_id = ?", scheduleId);
+            qw.and("log.schedule_id = ?", scheduleId);
         }
         if (workflowId != null) {
-            qw.and("workflow_id = ?", workflowId);
+            qw.and("log.workflow_id = ?", workflowId);
         }
         
         // 总执行次数
         long totalCount = scheduleLogService.count(qw);
         
         // 成功次数
-        QueryWrapper successQw = qw.clone().and("status = '0'");
+        QueryWrapper successQw = qw.clone().and("log.status = 'completed'");
         long successCount = scheduleLogService.count(successQw);
         
         // 失败次数
-        QueryWrapper failQw = qw.clone().and("status = '1'");
+        QueryWrapper failQw = qw.clone().and("log.status = 'failed'");
         long failCount = scheduleLogService.count(failQw);
         
         // 运行中次数
-        QueryWrapper runningQw = qw.clone().and("status = '2'");
+        QueryWrapper runningQw = qw.clone().and("log.status = 'running'");
         long runningCount = scheduleLogService.count(runningQw);
         
         // 计算成功率
@@ -209,8 +223,13 @@ public class AiWorkflowScheduleLogController extends BaseController {
     @GetMapping("/recent")
     public AjaxResult getRecentLogs(@RequestParam(defaultValue = "10") int limit) {
         QueryWrapper qw = QueryWrapper.create()
-            .from("ai_workflow_schedule_log")
-            .orderBy("create_time desc")
+            .select("log.*, " +
+                    "schedule.schedule_name as scheduleName, " +
+                    "workflow.workflow_name as workflowName")
+            .from("ai_workflow_schedule_log").as("log")
+            .leftJoin("ai_workflow_schedule").as("schedule").on("log.schedule_id = schedule.id")
+            .leftJoin("ai_workflow").as("workflow").on("log.workflow_id = workflow.id")
+            .orderBy("log.create_time desc")
             .limit(limit);
         
         List<AiWorkflowScheduleLog> logs = scheduleLogService.list(qw);
