@@ -313,18 +313,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 构建增强的系统提示（包含数据库信息）
             String enhancedSystemPrompt = buildEnhancedSystemPrompt("");
             
-            // 创建数据库查询工具规范
-            JsonObjectSchema parametersSchema = JsonObjectSchema.builder()
-                .addStringProperty("sql", "要执行的SQL查询语句")
-                .required("sql")
-                .build();
-            
-            ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
-                .name("databaseQuery")
-                .description("执行数据库查询并返回结果")
-                .parameters(parametersSchema)
-                .build();
-            
             // 构建消息列表
             List<ChatMessage> messages = new ArrayList<>();
             if (StrUtil.isNotBlank(enhancedSystemPrompt)) {
@@ -335,7 +323,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 构建聊天请求
             ChatRequest chatRequest = ChatRequest.builder()
                 .messages(messages)
-                .toolSpecifications(List.of(databaseQueryToolSpec))
+                .toolSpecifications(buildToolSpecifications())
                 .build();
             
             // 执行流式聊天
@@ -386,18 +374,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 构建增强的系统提示（包含数据库信息）
             String enhancedSystemPrompt = buildEnhancedSystemPrompt(systemPrompt);
             
-            // 创建数据库查询工具规范
-            JsonObjectSchema parametersSchema = JsonObjectSchema.builder()
-                .addStringProperty("sql", "要执行的SQL查询语句")
-                .required("sql")
-                .build();
-            
-            ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
-                .name("databaseQuery")
-                .description("执行数据库查询并返回结果")
-                .parameters(parametersSchema)
-                .build();
-            
             // 构建消息列表
             List<ChatMessage> messages = new ArrayList<>();
             if (StrUtil.isNotBlank(enhancedSystemPrompt)) {
@@ -408,7 +384,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 构建聊天请求
             ChatRequest chatRequest = ChatRequest.builder()
                 .messages(messages)
-                .toolSpecifications(List.of(databaseQueryToolSpec))
+                .toolSpecifications(buildToolSpecifications())
                 .build();
             
             // 执行流式聊天
@@ -472,14 +448,22 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             StringBuilder enhancedPrompt = new StringBuilder();
             enhancedPrompt.append(originalPrompt).append("\n\n");
             
-            enhancedPrompt.append("# 数据库查询能力说明\n");
-            enhancedPrompt.append("你现在具备了数据库查询能力！当用户询问数据相关问题时，你可以使用 `database_query` 工具来执行SQL查询获取准确的数据。\n\n");
+            enhancedPrompt.append("# 🛠️ 工具调用能力说明\n");
+            enhancedPrompt.append("你现在具备了强大的工具调用能力！请严格按照以下指南使用工具：\n\n");
             
-            enhancedPrompt.append("## 核心原则\n");
-            enhancedPrompt.append("1. **数据驱动回答**：当涉及具体数据查询时，必须使用database_query工具获取实际数据\n");
-            enhancedPrompt.append("2. **安全第一**：只能执行SELECT查询，严禁任何修改操作\n");
-            enhancedPrompt.append("3. **性能优化**：所有查询必须使用LIMIT限制结果数量\n");
-            enhancedPrompt.append("4. **准确性保证**：严格按照表结构信息构造SQL语句\n\n");
+            enhancedPrompt.append("## 📋 可用工具列表\n");
+            enhancedPrompt.append("1. **database_query** - 执行数据库查询\n");
+            enhancedPrompt.append("2. **get_workflow_list** - 获取工作流列表\n");
+            enhancedPrompt.append("3. **add_workflow** - 创建新工作流\n");
+            enhancedPrompt.append("4. **update_workflow** - 更新现有工作流\n\n");
+            
+            enhancedPrompt.append("## 🎯 工具调用核心原则\n");
+            enhancedPrompt.append("1. **精确匹配**：工具名称必须完全匹配，区分大小写\n");
+            enhancedPrompt.append("2. **参数完整**：所有必需参数都必须提供，格式正确\n");
+            enhancedPrompt.append("3. **显式指定**：database_query 工具必须在用户提示词中显式指定才能使用，非显式指定不能使用\n");
+            enhancedPrompt.append("4. **数据驱动**：涉及数据查询时，必须使用 database_query 工具\n");
+            enhancedPrompt.append("5. **安全第一**：只能执行 SELECT 查询，严禁修改操作\n");
+            enhancedPrompt.append("6. **性能优化**：所有查询必须使用 LIMIT 限制结果数量\n\n");
             
             enhancedPrompt.append("=== 数据库表结构信息 ===\n");
             enhancedPrompt.append("以下是你可以查询的数据库表详细结构信息。请仔细阅读每个表的字段定义、数据类型、业务含义和约束条件：\n\n");
@@ -496,9 +480,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
 
             enhancedPrompt.append("=== 表关系说明 ===\n");
             enhancedPrompt.append("**主要表关系：**\n");
-            enhancedPrompt.append("- sys_user（用户表）与 sys_role（角色表）通过 sys_user_role 关联\n");
-            enhancedPrompt.append("- sys_user（用户表）与 sys_dept（部门表）通过 dept_id 字段关联\n");
-            enhancedPrompt.append("- sys_role（角色表）与 sys_menu（菜单表）通过 sys_role_menu 关联\n");
             enhancedPrompt.append("- **重要提醒：请严格根据上述表结构中的实际字段进行查询，不要假设字段存在**\n");
             enhancedPrompt.append("- 常见审计字段（如果表中存在）：create_time、update_time、create_by、update_by\n");
             enhancedPrompt.append("- 常见删除标识字段（如果表中存在）：del_flag（'0'=正常，'2'=删除）\n\n");
@@ -509,7 +490,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("2. 只能执行SELECT查询语句，严禁执行任何修改数据的操作\n");
             enhancedPrompt.append("3. 查询时必须注意性能，建议使用LIMIT限制结果数量（如：LIMIT 10）\n");
             enhancedPrompt.append("4. 字段名请使用反引号包围，如：`user_name`、`role_id`\n");
-            enhancedPrompt.append("5. 使用databaseQuery工具来执行SQL查询\n");
+            enhancedPrompt.append("5. 使用databaseQuery工具来执行SQL查询（必须在用户提示词中显式指定才能使用）\n");
             enhancedPrompt.append("6. 查询条件中的字符串值请使用单引号，如：WHERE `status` = '0'\n");
             enhancedPrompt.append("7. 注意区分字段的数据类型，数字类型不需要引号，字符串类型需要引号\n\n");
 
@@ -521,37 +502,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
 
             enhancedPrompt.append("**查询示例（仅供参考，实际查询必须根据上述表结构中的实际字段）：**\n");
             enhancedPrompt.append("```sql\n");
-            enhancedPrompt.append("-- 查询前10个正常用户的基本信息（请根据sys_user表的实际字段调整）\n");
-            enhancedPrompt.append("SELECT `user_id`, `user_name`, `nick_name`, `email`, `phonenumber` \n");
-            enhancedPrompt.append("FROM `sys_user` \n");
-            enhancedPrompt.append("WHERE `status` = '0' AND `del_flag` = '0' \n");
-            enhancedPrompt.append("ORDER BY `create_time` DESC LIMIT 10;\n\n");
-
-            enhancedPrompt.append("-- 查询所有角色信息\n");
-            enhancedPrompt.append("SELECT `role_id`, `role_name`, `role_key`, `role_sort` \n");
-            enhancedPrompt.append("FROM `sys_role` \n");
-            enhancedPrompt.append("WHERE `del_flag` = '0' \n");
-            enhancedPrompt.append("ORDER BY `role_sort`;\n\n");
-
-            enhancedPrompt.append("-- 统计正常用户数量\n");
-            enhancedPrompt.append("SELECT COUNT(*) as user_count \n");
-            enhancedPrompt.append("FROM `sys_user` \n");
-            enhancedPrompt.append("WHERE `status` = '0' AND `del_flag` = '0';\n\n");
-            
-            enhancedPrompt.append("-- 查询用户及其所属部门信息\n");
-            enhancedPrompt.append("SELECT u.`user_name`, u.`nick_name`, d.`dept_name`, d.`leader` \n");
-            enhancedPrompt.append("FROM `sys_user` u \n");
-            enhancedPrompt.append("LEFT JOIN `sys_dept` d ON u.`dept_id` = d.`dept_id` \n");
-            enhancedPrompt.append("WHERE u.`del_flag` = '0' AND d.`del_flag` = '0' \n");
-            enhancedPrompt.append("ORDER BY d.`order_num`, u.`user_name` LIMIT 20;\n\n");
-            
-            enhancedPrompt.append("-- 查询用户的角色分配情况\n");
-            enhancedPrompt.append("SELECT u.`user_name`, u.`nick_name`, r.`role_name`, r.`role_key` \n");
-            enhancedPrompt.append("FROM `sys_user` u \n");
-            enhancedPrompt.append("INNER JOIN `sys_user_role` ur ON u.`user_id` = ur.`user_id` \n");
-            enhancedPrompt.append("INNER JOIN `sys_role` r ON ur.`role_id` = r.`role_id` \n");
-            enhancedPrompt.append("WHERE u.`del_flag` = '0' AND r.`del_flag` = '0' AND r.`status` = '0' \n");
-            enhancedPrompt.append("ORDER BY u.`user_name`, r.`role_sort` LIMIT 30;\n\n");
             
             enhancedPrompt.append("-- 查询部门层级结构\n");
             enhancedPrompt.append("SELECT `dept_id`, `dept_name`, `parent_id`, `ancestors`, `order_num` \n");
@@ -651,7 +601,52 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("3. **优化提示词**：为每个步骤编写专门的系统提示词和用户提示词\n");
             enhancedPrompt.append("4. **选择合适模型**：工作流默认使用deepseek模型配置(ID=19)，确保所有步骤统一使用此配置\n");
             enhancedPrompt.append("5. **工具配置要求**：如果步骤需要调用工具，必须同时配置tool_type和tool_enabled字段，tool_type必须使用英文工具名称（如database_query、blog_save等），不能使用中文名称\n");
-            enhancedPrompt.append("6. **测试验证**：创建工作流后进行充分测试，确保各步骤正常运行\n\n");
+            enhancedPrompt.append("6. **用户提示词工具调用规范**：在用户提示词中必须**显式指定工具名称**，AI才能正确调用相应的工具\n");
+            enhancedPrompt.append("   - ✅ **正确写法**：\"请使用 github_trending 查询今天上榜的热门仓库信息，选择2-3个最有意思的项目...\"\n");
+            enhancedPrompt.append("   - ❌ **错误写法**：\"请分析今天的GitHub热门项目，选择2-3个最有意思的项目...\"\n");
+            enhancedPrompt.append("7. **测试验证**：创建工作流后进行充分测试，确保各步骤正常运行\n\n");
+            
+            // 添加工具调用示例
+            enhancedPrompt.append("## 🔧 工具调用示例\n");
+            enhancedPrompt.append("以下是正确的工具调用示例，请严格按照此格式调用工具：\n\n");
+            
+            enhancedPrompt.append("### 1. 数据库查询示例\n");
+            enhancedPrompt.append("```\n");
+            enhancedPrompt.append("用户问：\"请使用 database_query 查询部门信息\"\n");
+            enhancedPrompt.append("正确调用：database_query\n");
+            enhancedPrompt.append("参数：{\"sql\": \"SELECT `dept_id`, `dept_name`, `parent_id` FROM `sys_dept` WHERE `del_flag` = '0' LIMIT 10\"}\n");
+            enhancedPrompt.append("\n");
+            enhancedPrompt.append("用户问：\"查询部门信息\"（未显式指定工具）\n");
+            enhancedPrompt.append("错误做法：不能调用 database_query 工具\n");
+            enhancedPrompt.append("正确做法：提示用户需要明确指定使用 database_query 工具\n");
+            enhancedPrompt.append("```\n\n");
+            
+            enhancedPrompt.append("### 2. 工作流管理示例\n");
+            enhancedPrompt.append("```\n");
+            enhancedPrompt.append("用户问：\"显示所有工作流\"\n");
+            enhancedPrompt.append("正确调用：get_workflow_list\n");
+            enhancedPrompt.append("参数：{}\n");
+            enhancedPrompt.append("```\n\n");
+            
+            enhancedPrompt.append("### 3. 创建工作流示例\n");
+            enhancedPrompt.append("```\n");
+            enhancedPrompt.append("用户问：\"创建一个数据分析工作流\"\n");
+            enhancedPrompt.append("正确调用：add_workflow\n");
+            enhancedPrompt.append("参数：{\n");
+            enhancedPrompt.append("  \"name\": \"数据分析工作流\",\n");
+            enhancedPrompt.append("  \"description\": \"用于数据分析的工作流\",\n");
+            enhancedPrompt.append("  \"type\": \"sequential\",\n");
+            enhancedPrompt.append("  \"steps\": [...]\n");
+            enhancedPrompt.append("}\n");
+            enhancedPrompt.append("```\n\n");
+            
+            enhancedPrompt.append("## ⚠️ 重要提醒\n");
+            enhancedPrompt.append("- **database_query 工具使用限制**：只有当用户在提示词中显式指定使用 database_query 或明确要求查询数据库时才能使用，否则不能使用\n");
+            enhancedPrompt.append("- 工具名称必须完全匹配：database_query、get_workflow_list、add_workflow、update_workflow\n");
+            enhancedPrompt.append("- 参数格式必须是有效的JSON\n");
+            enhancedPrompt.append("- SQL查询必须使用反引号包围字段名和表名\n");
+            enhancedPrompt.append("- 所有查询都必须包含LIMIT子句\n");
+            enhancedPrompt.append("- 当用户明确要求查询数据时，使用database_query工具获取实际数据\n\n");
 
             return enhancedPrompt.toString();
         } catch (Exception e) {
@@ -1181,56 +1176,104 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加AI消息到对话历史
             messages.add(aiMessage);
             
-            // 创建数据库查询工具规范
-            JsonObjectSchema parametersSchema = JsonObjectSchema.builder()
-                .addStringProperty("sql", "要执行的SQL查询语句")
-                .required("sql")
-                .build();
-            
-            ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
-                .name("databaseQuery")
-                .description("执行数据库查询并返回结果")
-                .parameters(parametersSchema)
-                .build();
+            // 使用统一的工具规范构建方法
+            List<ToolSpecification> toolSpecs = buildToolSpecifications();
             
             // 执行工具调用
             aiMessage.toolExecutionRequests().forEach(toolRequest -> {
+                String toolName = toolRequest.name();
+                String arguments = toolRequest.arguments();
+                String toolId = toolRequest.id();
+                
+                log.info("开始执行工具调用 - 工具名称: {}, 工具ID: {}, 参数: {}", toolName, toolId, arguments);
+                
                 try {
-                    String toolName = toolRequest.name();
-                    String arguments = toolRequest.arguments();
-                    
-                    log.info("执行工具调用: {} with arguments: {}", toolName, arguments);
-                    
                     String result;
-                    if ("databaseQuery".equals(toolName)) {
-                        // 解析参数
-                        Map<String, Object> args = parseToolArguments(arguments);
-                        String sql = (String) args.get("sql");
-                        
-                        // 执行数据库查询
-                        result = executeDatabaseQuery(sql);
-                    } else {
-                        result = "未知的工具: " + toolName;
+                    Map<String, Object> args = parseToolArguments(arguments);
+                    
+                    log.debug("解析后的工具参数: {}", args);
+                    
+                    switch (toolName) {
+                        case "database_query":
+                            String sql = (String) args.get("sql");
+                            if (sql == null || sql.trim().isEmpty()) {
+                                throw new IllegalArgumentException("SQL查询语句不能为空");
+                            }
+                            log.debug("执行数据库查询: {}", sql);
+                            result = executeDatabaseQuery(sql);
+                            log.debug("数据库查询结果长度: {} 字符", result.length());
+                            break;
+                        case "get_workflow_list":
+                            log.debug("获取工作流列表");
+                            result = getWorkflowList();
+                            log.debug("工作流列表结果长度: {} 字符", result.length());
+                            break;
+                        case "add_workflow":
+                            String name = (String) args.get("name");
+                            String description = (String) args.get("description");
+                            String type = (String) args.get("type");
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> steps = (List<Map<String, Object>>) args.get("steps");
+                            
+                            if (name == null || name.trim().isEmpty()) {
+                                throw new IllegalArgumentException("工作流名称不能为空");
+                            }
+                            if (type == null || type.trim().isEmpty()) {
+                                throw new IllegalArgumentException("工作流类型不能为空");
+                            }
+                            
+                            log.debug("添加工作流 - 名称: {}, 类型: {}, 步骤数量: {}", name, type, steps != null ? steps.size() : 0);
+                            result = addWorkflow(name, description, type, steps);
+                            log.debug("添加工作流结果: {}", result);
+                            break;
+                        case "update_workflow":
+                            Object workflowIdObj = args.get("workflow_id");
+                            if (workflowIdObj == null) {
+                                throw new IllegalArgumentException("工作流ID不能为空");
+                            }
+                            
+                            Long workflowId = Long.valueOf(workflowIdObj.toString());
+                            String updateName = (String) args.get("name");
+                            String updateDescription = (String) args.get("description");
+                            String updateType = (String) args.get("type");
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> updateSteps = (List<Map<String, Object>>) args.get("steps");
+                            
+                            log.debug("更新工作流 - ID: {}, 名称: {}, 类型: {}", workflowId, updateName, updateType);
+                            result = updateWorkflow(workflowId, updateName, updateDescription, updateType, updateSteps);
+                            log.debug("更新工作流结果: {}", result);
+                            break;
+                        default:
+                            log.warn("未知的工具名称: {}", toolName);
+                            result = "错误: 未知的工具 '" + toolName + "'。可用工具: database_query, get_workflow_list, add_workflow, update_workflow";
                     }
                     
                     // 添加工具执行结果到对话历史
                     messages.add(ToolExecutionResultMessage.from(toolRequest, result));
                     
                     // 发送工具执行结果给用户
-                    onToken.accept("\n[工具执行结果] " + result + "\n");
+                    onToken.accept("\n[工具执行成功] " + toolName + ": " + result + "\n");
+                    log.info("工具调用成功 - 工具名称: {}, 工具ID: {}, 结果长度: {} 字符", toolName, toolId, result.length());
                     
-                } catch (Exception e) {
-                    log.error("工具调用执行失败: {}", e.getMessage(), e);
-                    String errorResult = "工具执行失败: " + e.getMessage();
+                } catch (IllegalArgumentException e) {
+                    log.warn("工具调用参数错误 - 工具名称: {}, 工具ID: {}, 错误: {}", toolName, toolId, e.getMessage());
+                    String errorResult = "参数错误: " + e.getMessage();
                     messages.add(ToolExecutionResultMessage.from(toolRequest, errorResult));
-                    onToken.accept("\n[工具执行错误] " + errorResult + "\n");
+                    onToken.accept("\n[工具参数错误] " + toolName + ": " + errorResult + "\n");
+                } catch (Exception e) {
+                    log.error("工具调用执行失败 - 工具名称: {}, 工具ID: {}, 参数: {}, 错误: {}", 
+                             toolName, toolId, arguments, e.getMessage(), e);
+                    String errorResult = "工具执行失败: " + e.getMessage() + 
+                                       (e.getCause() != null ? " (原因: " + e.getCause().getMessage() + ")" : "");
+                    messages.add(ToolExecutionResultMessage.from(toolRequest, errorResult));
+                    onToken.accept("\n[工具执行错误] " + toolName + ": " + errorResult + "\n");
                 }
             });
             
             // 构建聊天请求
             ChatRequest chatRequest = ChatRequest.builder()
                 .messages(messages)
-                .toolSpecifications(List.of(databaseQueryToolSpec))
+                .toolSpecifications(toolSpecs)
                 .build();
             
             // 继续对话，让AI基于工具结果生成最终回复
@@ -1269,17 +1312,126 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
     }
     
     /**
+     * 构建所有可用的工具规范
+     */
+    private List<ToolSpecification> buildToolSpecifications() {
+        List<ToolSpecification> toolSpecs = new ArrayList<>();
+        
+        // 获取AI可访问的表列表
+        String allowedTablesDescription = "执行数据库查询并返回结果。";
+        try {
+            Row configRow = Db.selectOneBySql("SELECT config_value FROM sys_config WHERE config_key = ?", "ai.database.allowed_tables");
+            String allowedTables = configRow != null ? configRow.getString("config_value") : null;
+            if (StrUtil.isNotBlank(allowedTables)) {
+                allowedTablesDescription += "允许查询的表包括：" + allowedTables + "。";
+            }
+        } catch (Exception e) {
+            log.warn("获取允许访问的表列表失败: {}", e.getMessage());
+        }
+        
+        // 数据库查询工具
+        ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
+            .name("database_query")
+            .description(allowedTablesDescription)
+            .parameters(JsonObjectSchema.builder()
+                .addStringProperty("sql", "要执行的SQL查询语句，必须是SELECT语句")
+                .required("sql")
+                .build())
+            .build();
+        toolSpecs.add(databaseQueryToolSpec);
+        
+        // 获取工作流列表工具
+        ToolSpecification getWorkflowListToolSpec = ToolSpecification.builder()
+            .name("get_workflow_list")
+            .description("获取系统中所有已启用的工作流列表及其步骤信息。用于查看现有工作流配置。")
+            .parameters(JsonObjectSchema.builder().build())
+            .build();
+        toolSpecs.add(getWorkflowListToolSpec);
+        
+        // 添加工作流工具
+        ToolSpecification addWorkflowToolSpec = ToolSpecification.builder()
+            .name("add_workflow")
+            .description("创建新的工作流，包括工作流基本信息和步骤配置。用于自动化复杂的AI任务流程。")
+            .parameters(JsonObjectSchema.builder()
+                .addStringProperty("name", "工作流名称")
+                .addStringProperty("description", "工作流描述")
+                .addStringProperty("type", "工作流类型，推荐使用 sequential")
+                .addProperty("steps", JsonArraySchema.builder()
+                    .items(JsonObjectSchema.builder()
+                        .addStringProperty("stepName", "步骤名称")
+                        .addStringProperty("description", "步骤描述")
+                        .addNumberProperty("stepOrder", "步骤顺序，从1开始")
+                        .addStringProperty("systemPrompt", "系统提示词")
+                        .addStringProperty("userPrompt", "用户提示词，支持变量占位符如{{input_variable}}")
+                        .addStringProperty("inputVariable", "输入变量名，第一步可为空")
+                        .addStringProperty("outputVariable", "输出变量名，不能为空")
+                        .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
+                        .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
+                        .build())
+                    .build())
+                .required("name", "description", "type", "steps")
+                .build())
+            .build();
+        toolSpecs.add(addWorkflowToolSpec);
+        
+        // 修改工作流工具
+        ToolSpecification updateWorkflowToolSpec = ToolSpecification.builder()
+            .name("update_workflow")
+            .description("修改现有工作流的信息和步骤配置。用于更新已存在的工作流。")
+            .parameters(JsonObjectSchema.builder()
+                .addNumberProperty("workflowId", "要修改的工作流ID")
+                .addStringProperty("name", "工作流名称")
+                .addStringProperty("description", "工作流描述")
+                .addStringProperty("type", "工作流类型")
+                .addProperty("steps", JsonArraySchema.builder()
+                    .items(JsonObjectSchema.builder()
+                        .addStringProperty("stepName", "步骤名称")
+                        .addStringProperty("description", "步骤描述")
+                        .addNumberProperty("stepOrder", "步骤顺序，从1开始")
+                        .addStringProperty("systemPrompt", "系统提示词")
+                        .addStringProperty("userPrompt", "用户提示词，支持变量占位符如{{input_variable}}")
+                        .addStringProperty("inputVariable", "输入变量名，第一步可为空")
+                        .addStringProperty("outputVariable", "输出变量名，不能为空")
+                        .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
+                        .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
+                        .build())
+                    .build())
+                .required("workflowId", "name", "description", "type", "steps")
+                .build())
+            .build();
+        toolSpecs.add(updateWorkflowToolSpec);
+        
+        return toolSpecs;
+    }
+    
+    /**
      * 解析工具参数
      */
     private Map<String, Object> parseToolArguments(String arguments) {
         try {
             if (StrUtil.isBlank(arguments)) {
+                log.debug("工具参数为空，返回空Map");
                 return new HashMap<>();
             }
-            return objectMapper.readValue(arguments, Map.class);
+            
+            log.debug("开始解析工具参数: {}", arguments);
+            Map<String, Object> result = objectMapper.readValue(arguments, Map.class);
+            log.debug("工具参数解析成功，包含 {} 个参数", result.size());
+            return result;
+            
+        } catch (com.fasterxml.jackson.core.JsonParseException e) {
+            log.error("工具参数JSON格式错误 - 参数: {}, 错误位置: 行{} 列{}, 错误: {}", 
+                     arguments, e.getLocation().getLineNr(), e.getLocation().getColumnNr(), e.getMessage());
+            throw new IllegalArgumentException("JSON格式错误: " + e.getMessage() + 
+                                             " (位置: 行" + e.getLocation().getLineNr() + 
+                                             " 列" + e.getLocation().getColumnNr() + ")");
+        } catch (com.fasterxml.jackson.databind.JsonMappingException e) {
+            log.error("工具参数JSON映射错误 - 参数: {}, 错误: {}", arguments, e.getMessage());
+            throw new IllegalArgumentException("JSON映射错误: " + e.getMessage());
         } catch (Exception e) {
-            log.error("解析工具参数失败: {}", e.getMessage(), e);
-            return new HashMap<>();
+            log.error("解析工具参数时发生未知错误 - 参数: {}, 错误类型: {}, 错误: {}", 
+                     arguments, e.getClass().getSimpleName(), e.getMessage(), e);
+            throw new IllegalArgumentException("参数解析失败: " + e.getMessage());
         }
     }
 
@@ -1317,79 +1469,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             messages.add(new UserMessage(message));
             
             // 构建工具规范列表
-            List<ToolSpecification> toolSpecs = new ArrayList<>();
-            
-            // 数据库查询工具
-            ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
-                .name("database_query")
-                .description("执行数据库查询以获取相关信息")
-                .parameters(JsonObjectSchema.builder()
-                    .addStringProperty("sql", "要执行的SQL查询语句")
-                    .required("sql")
-                    .build())
-                .build();
-            toolSpecs.add(databaseQueryToolSpec);
-            
-            // 获取工作流列表工具
-            ToolSpecification getWorkflowListToolSpec = ToolSpecification.builder()
-                .name("get_workflow_list")
-                .description("获取系统中所有已启用的工作流列表及其步骤信息")
-                .parameters(JsonObjectSchema.builder().build())
-                .build();
-            toolSpecs.add(getWorkflowListToolSpec);
-            
-            // 添加工作流工具
-            ToolSpecification addWorkflowToolSpec = ToolSpecification.builder()
-                .name("add_workflow")
-                .description("创建新的工作流，包括工作流基本信息和步骤配置")
-                .parameters(JsonObjectSchema.builder()
-                    .addStringProperty("name", "工作流名称")
-                    .addStringProperty("description", "工作流描述")
-                    .addStringProperty("type", "工作流类型")
-                    .addProperty("steps", dev.langchain4j.model.chat.request.json.JsonArraySchema.builder()
-                        .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable、toolType、toolEnabled等字段")
-                        .items(JsonObjectSchema.builder()
-                            .addStringProperty("stepName", "步骤名称")
-                            .addStringProperty("description", "步骤描述")
-                            .addNumberProperty("stepOrder", "步骤顺序")
-                            .addStringProperty("systemPrompt", "系统提示")
-                            .addStringProperty("userPrompt", "用户提示")
-                            .addStringProperty("inputVariable", "输入变量")
-                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
-                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
-                            .build())
-                        .build())
-                    .required("name", "description", "type", "steps")
-                    .build())
-                .build();
-            toolSpecs.add(addWorkflowToolSpec);
-            
-            // 修改工作流工具
-            ToolSpecification updateWorkflowToolSpec = ToolSpecification.builder()
-                .name("update_workflow")
-                .description("修改现有工作流的信息和步骤配置")
-                .parameters(JsonObjectSchema.builder()
-                    .addNumberProperty("workflowId", "要修改的工作流ID")
-                    .addStringProperty("name", "工作流名称")
-                    .addStringProperty("description", "工作流描述")
-                    .addStringProperty("type", "工作流类型")
-                    .addProperty("steps", dev.langchain4j.model.chat.request.json.JsonArraySchema.builder()
-                        .description("工作流步骤列表，每个步骤包含stepName、description、stepOrder、systemPrompt、userPrompt、inputVariable、toolType、toolEnabled等字段")
-                        .items(JsonObjectSchema.builder()
-                            .addStringProperty("stepName", "步骤名称")
-                            .addStringProperty("description", "步骤描述")
-                            .addNumberProperty("stepOrder", "步骤顺序")
-                            .addStringProperty("systemPrompt", "系统提示")
-                            .addStringProperty("userPrompt", "用户提示")
-                            .addStringProperty("inputVariable", "输入变量")
-                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
-                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
-                            .build())
-                        .build())
-                    .required("workflowId", "name", "description", "type", "steps")
-                    .build())
-                .build();
-            toolSpecs.add(updateWorkflowToolSpec);
+            List<ToolSpecification> toolSpecs = buildToolSpecifications();
             
             // 构建聊天请求
             dev.langchain4j.model.chat.request.ChatRequest chatRequest = dev.langchain4j.model.chat.request.ChatRequest.builder()
@@ -1468,77 +1548,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             messages.add(new UserMessage(message));
             
             // 构建工具规范列表
-            List<ToolSpecification> toolSpecs = new ArrayList<>();
-            
-            // 数据库查询工具
-            ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
-                .name("database_query")
-                .description("执行数据库查询以获取相关信息")
-                .parameters(JsonObjectSchema.builder()
-                    .addStringProperty("sql", "要执行的SQL查询语句")
-                    .required("sql")
-                    .build())
-                .build();
-            toolSpecs.add(databaseQueryToolSpec);
-            
-            // 获取工作流列表工具
-            ToolSpecification getWorkflowListToolSpec = ToolSpecification.builder()
-                .name("get_workflow_list")
-                .description("获取系统中所有已启用的工作流列表及其步骤信息")
-                .parameters(JsonObjectSchema.builder().build())
-                .build();
-            toolSpecs.add(getWorkflowListToolSpec);
-            
-            // 添加工作流工具
-            ToolSpecification addWorkflowToolSpec = ToolSpecification.builder()
-                .name("add_workflow")
-                .description("创建新的工作流，包括工作流基本信息和步骤配置")
-                .parameters(JsonObjectSchema.builder()
-                    .addStringProperty("name", "工作流名称")
-                    .addStringProperty("description", "工作流描述")
-                    .addStringProperty("type", "工作流类型")
-                    .addProperty("steps", JsonArraySchema.builder()
-                        .items(JsonObjectSchema.builder()
-                            .addStringProperty("stepName", "步骤名称")
-                            .addStringProperty("description", "步骤描述")
-                            .addNumberProperty("stepOrder", "步骤顺序")
-                            .addStringProperty("systemPrompt", "系统提示")
-                            .addStringProperty("userPrompt", "用户提示")
-                            .addStringProperty("inputVariable", "输入变量")
-                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
-                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
-                            .build())
-                        .build())
-                    .required("name", "description", "type", "steps")
-                    .build())
-                .build();
-            toolSpecs.add(addWorkflowToolSpec);
-            
-            // 修改工作流工具
-            ToolSpecification updateWorkflowToolSpec = ToolSpecification.builder()
-                .name("update_workflow")
-                .description("修改现有工作流的信息和步骤配置")
-                .parameters(JsonObjectSchema.builder()
-                    .addNumberProperty("workflowId", "要修改的工作流ID")
-                    .addStringProperty("name", "工作流名称")
-                    .addStringProperty("description", "工作流描述")
-                    .addStringProperty("type", "工作流类型")
-                    .addProperty("steps", JsonArraySchema.builder()
-                        .items(JsonObjectSchema.builder()
-                            .addStringProperty("stepName", "步骤名称")
-                            .addStringProperty("description", "步骤描述")
-                            .addNumberProperty("stepOrder", "步骤顺序")
-                            .addStringProperty("systemPrompt", "系统提示")
-                            .addStringProperty("userPrompt", "用户提示")
-                            .addStringProperty("inputVariable", "输入变量")
-                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
-                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
-                            .build())
-                        .build())
-                    .required("workflowId", "name", "description", "type", "steps")
-                    .build())
-                .build();
-            toolSpecs.add(updateWorkflowToolSpec);
+            List<ToolSpecification> toolSpecs = buildToolSpecifications();
             
             // 构建聊天请求
             ChatRequest chatRequest = ChatRequest.builder()
@@ -1598,147 +1608,93 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加AI消息到对话历史
             messages.add(aiMessage);
             
-            // 构建工具规范列表
-            List<ToolSpecification> toolSpecs = new ArrayList<>();
-            
-            // 数据库查询工具
-            ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
-                .name("database_query")
-                .description("执行数据库查询并返回结果")
-                .parameters(JsonObjectSchema.builder()
-                    .addStringProperty("sql", "要执行的SQL查询语句")
-                    .required("sql")
-                    .build())
-                .build();
-            toolSpecs.add(databaseQueryToolSpec);
-            
-            // 获取工作流列表工具
-            ToolSpecification getWorkflowListToolSpec = ToolSpecification.builder()
-                .name("get_workflow_list")
-                .description("获取系统中所有已启用的工作流列表及其步骤信息")
-                .parameters(JsonObjectSchema.builder().build())
-                .build();
-            toolSpecs.add(getWorkflowListToolSpec);
-            
-            // 添加工作流工具
-            ToolSpecification addWorkflowToolSpec = ToolSpecification.builder()
-                .name("add_workflow")
-                .description("创建新的工作流，包括工作流基本信息和步骤配置")
-                .parameters(JsonObjectSchema.builder()
-                    .addStringProperty("name", "工作流名称")
-                    .addStringProperty("description", "工作流描述")
-                    .addStringProperty("type", "工作流类型")
-                    .addProperty("steps", JsonArraySchema.builder()
-                        .items(JsonObjectSchema.builder()
-                            .addStringProperty("stepName", "步骤名称")
-                            .addStringProperty("description", "步骤描述")
-                            .addNumberProperty("stepOrder", "步骤顺序")
-                            .addStringProperty("systemPrompt", "系统提示")
-                            .addStringProperty("userPrompt", "用户提示")
-                            .addStringProperty("inputVariable", "输入变量")
-                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
-                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
-                            .build())
-                        .build())
-                    .required("name", "description", "type", "steps")
-                    .build())
-                .build();
-            toolSpecs.add(addWorkflowToolSpec);
-            
-            // 修改工作流工具
-            ToolSpecification updateWorkflowToolSpec = ToolSpecification.builder()
-                .name("update_workflow")
-                .description("修改现有工作流的信息和步骤配置")
-                .parameters(JsonObjectSchema.builder()
-                    .addNumberProperty("workflowId", "要修改的工作流ID")
-                    .addStringProperty("name", "工作流名称")
-                    .addStringProperty("description", "工作流描述")
-                    .addStringProperty("type", "工作流类型")
-                    .addProperty("steps", JsonArraySchema.builder()
-                        .items(JsonObjectSchema.builder()
-                            .addStringProperty("stepName", "步骤名称")
-                            .addStringProperty("description", "步骤描述")
-                            .addNumberProperty("stepOrder", "步骤顺序")
-                            .addStringProperty("systemPrompt", "系统提示")
-                            .addStringProperty("userPrompt", "用户提示")
-                            .addStringProperty("inputVariable", "输入变量")
-                            .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
-                            .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
-                            .build())
-                        .build())
-                    .required("workflowId", "name", "description", "type", "steps")
-                    .build())
-                .build();
-            toolSpecs.add(updateWorkflowToolSpec);
+            // 构建统一的工具规范列表
+            List<ToolSpecification> toolSpecs = buildToolSpecifications();
             
             // 执行工具调用
             aiMessage.toolExecutionRequests().forEach(toolRequest -> {
                 try {
                     String toolName = toolRequest.name();
                     String arguments = toolRequest.arguments();
+                    String toolId = toolRequest.id();
                     
-                    log.info("执行工具调用: {} with arguments: {}", toolName, arguments);
+                    log.debug("开始执行工具调用 - 工具ID: {}, 工具名称: {}, 参数: {}", toolId, toolName, arguments);
                     
                     // 发送工具调用事件
                     onToolCall.accept(toolName, arguments);
                     
+                    // 解析参数
+                    Map<String, Object> args = parseToolArguments(arguments);
+                    log.debug("解析后的参数: {}", args);
+                    
                     String result;
-                    if ("database_query".equals(toolName)) {
-                        // 解析参数
-                        Map<String, Object> args = parseToolArguments(arguments);
-                        String sql = (String) args.get("sql");
-                        
-                        // 执行数据库查询
-                        result = executeDatabaseQuery(sql);
-                    } else if ("get_workflow_list".equals(toolName)) {
-                        // 获取工作流列表
-                        result = getWorkflowList();
-                    } else if ("add_workflow".equals(toolName)) {
-                        // 添加工作流
-                        Map<String, Object> args = parseToolArguments(arguments);
-                        String name = (String) args.get("name");
-                        String description = (String) args.get("description");
-                        String type = (String) args.get("type");
-                        @SuppressWarnings("unchecked")
-                        List<Map<String, Object>> steps = (List<Map<String, Object>>) args.get("steps");
-                        
-                        // 参数验证
-                        if (name == null || name.trim().isEmpty()) {
-                            throw new IllegalArgumentException("缺少必要参数: name");
-                        }
-                        if (description == null || description.trim().isEmpty()) {
-                            throw new IllegalArgumentException("缺少必要参数: description");
-                        }
-                        if (type == null || type.trim().isEmpty()) {
-                            throw new IllegalArgumentException("缺少必要参数: type");
-                        }
-                        if (steps == null || steps.isEmpty()) {
-                            throw new IllegalArgumentException("缺少必要参数: steps 或 steps不能为空");
-                        }
-                        
-                        result = addWorkflow(name, description, type, steps);
-                    } else if ("update_workflow".equals(toolName)) {
-                        // 修改工作流
-                        Map<String, Object> args = parseToolArguments(arguments);
-                        // 支持两种命名方式：workflowId和workflow_id
-                        Object workflowIdObj = args.get("workflowId");
-                        if (workflowIdObj == null) {
-                            workflowIdObj = args.get("workflow_id");
-                        }
-                        if (workflowIdObj == null) {
-                            throw new IllegalArgumentException("缺少必要参数: workflowId 或 workflow_id");
-                        }
-                        Long workflowId = Long.valueOf(workflowIdObj.toString());
-                        String name = (String) args.get("name");
-                        String description = (String) args.get("description");
-                        String type = (String) args.get("type");
-                        @SuppressWarnings("unchecked")
-                        List<Map<String, Object>> steps = (List<Map<String, Object>>) args.get("steps");
-                        
-                        result = updateWorkflow(workflowId, name, description, type, steps);
-                    } else {
-                        result = "未知的工具: " + toolName;
+                    switch (toolName) {
+                        case "database_query":
+                            String sql = (String) args.get("sql");
+                            if (sql == null || sql.trim().isEmpty()) {
+                                throw new IllegalArgumentException("缺少必要参数: sql");
+                            }
+                            log.debug("执行SQL查询: {}", sql);
+                            result = executeDatabaseQuery(sql);
+                            break;
+                            
+                        case "get_workflow_list":
+                            log.debug("获取工作流列表");
+                            result = getWorkflowList();
+                            break;
+                            
+                        case "add_workflow":
+                            String name = (String) args.get("name");
+                            String description = (String) args.get("description");
+                            String type = (String) args.get("type");
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> steps = (List<Map<String, Object>>) args.get("steps");
+                            
+                            // 参数验证
+                            if (name == null || name.trim().isEmpty()) {
+                                throw new IllegalArgumentException("缺少必要参数: name");
+                            }
+                            if (description == null || description.trim().isEmpty()) {
+                                throw new IllegalArgumentException("缺少必要参数: description");
+                            }
+                            if (type == null || type.trim().isEmpty()) {
+                                throw new IllegalArgumentException("缺少必要参数: type");
+                            }
+                            if (steps == null || steps.isEmpty()) {
+                                throw new IllegalArgumentException("缺少必要参数: steps 或 steps不能为空");
+                            }
+                            
+                            log.debug("添加工作流 - 名称: {}, 类型: {}, 步骤数: {}", name, type, steps.size());
+                            result = addWorkflow(name, description, type, steps);
+                            break;
+                            
+                        case "update_workflow":
+                            // 支持两种命名方式：workflowId和workflow_id
+                            Object workflowIdObj = args.get("workflowId");
+                            if (workflowIdObj == null) {
+                                workflowIdObj = args.get("workflow_id");
+                            }
+                            if (workflowIdObj == null) {
+                                throw new IllegalArgumentException("缺少必要参数: workflowId 或 workflow_id");
+                            }
+                            Long workflowId = Long.valueOf(workflowIdObj.toString());
+                            String updateName = (String) args.get("name");
+                            String updateDescription = (String) args.get("description");
+                            String updateType = (String) args.get("type");
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> updateSteps = (List<Map<String, Object>>) args.get("steps");
+                            
+                            log.debug("更新工作流 - ID: {}, 名称: {}", workflowId, updateName);
+                            result = updateWorkflow(workflowId, updateName, updateDescription, updateType, updateSteps);
+                            break;
+                            
+                        default:
+                            log.warn("未知的工具名称: {}", toolName);
+                            result = "未知的工具: " + toolName;
+                            break;
                     }
+                    
+                    log.debug("工具调用成功 - 工具ID: {}, 结果长度: {}", toolId, result != null ? result.length() : 0);
                     
                     // 发送工具结果事件
                     onToolResult.accept(toolName, result);
@@ -1746,8 +1702,13 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     // 添加工具执行结果到对话历史
                     messages.add(ToolExecutionResultMessage.from(toolRequest, result));
                     
+                } catch (IllegalArgumentException e) {
+                    log.error("工具调用参数错误 - 工具: {}, 错误: {}", toolRequest.name(), e.getMessage());
+                    String errorResult = "参数错误: " + e.getMessage();
+                    onToolResult.accept(toolRequest.name(), errorResult);
+                    messages.add(ToolExecutionResultMessage.from(toolRequest, errorResult));
                 } catch (Exception e) {
-                    log.error("工具调用执行失败: {}", e.getMessage(), e);
+                    log.error("工具调用执行失败 - 工具: {}, 错误: {}", toolRequest.name(), e.getMessage(), e);
                     String errorResult = "工具执行失败: " + e.getMessage();
                     onToolResult.accept(toolRequest.name(), errorResult);
                     messages.add(ToolExecutionResultMessage.from(toolRequest, errorResult));
@@ -1757,7 +1718,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 构建聊天请求
             dev.langchain4j.model.chat.request.ChatRequest chatRequest = dev.langchain4j.model.chat.request.ChatRequest.builder()
                 .messages(messages)
-                .toolSpecifications(List.of(databaseQueryToolSpec))
+                .toolSpecifications(toolSpecs)
                 .build();
             
             // 继续对话，让AI基于工具结果生成最终回复
