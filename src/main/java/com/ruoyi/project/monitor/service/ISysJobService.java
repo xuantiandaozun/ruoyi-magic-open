@@ -32,6 +32,14 @@ public interface ISysJobService extends IService<SysJob>
     public SysJob selectJobById(Long jobId);
 
     /**
+     * 通过任务名称查询调度信息
+     * 
+     * @param jobName 任务名称
+     * @return 调度任务对象信息
+     */
+    public SysJob selectJobByName(String jobName);
+
+    /**
      * 暂停任务
      * 
      * @param job 调度信息

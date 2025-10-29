@@ -14,8 +14,11 @@ import org.springframework.stereotype.Service;
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
+import com.ruoyi.common.constant.ScheduleConstants;
 import com.ruoyi.common.exception.job.TaskException;
 import com.ruoyi.common.utils.job.ScheduleUtils;
+
+import cn.hutool.core.util.StrUtil;
 import com.ruoyi.framework.service.BatchInitializationService;
 import com.ruoyi.project.monitor.domain.SysJob;
 import com.ruoyi.project.monitor.mapper.SysJobMapper;
@@ -111,6 +114,22 @@ public class SysJobServiceImpl extends ServiceImpl<SysJobMapper, SysJob> impleme
     }
 
     /**
+     * 通过任务名称查询调度信息
+     * 
+     * @param jobName 任务名称
+     * @return 调度任务对象信息
+     */
+    @Override
+    public SysJob selectJobByName(String jobName)
+    {
+        QueryWrapper queryWrapper = QueryWrapper.create()
+            .from("sys_job")
+            .where(new QueryColumn("job_name").eq(jobName))
+            .and(new QueryColumn("del_flag").eq("0"));
+        return getOne(queryWrapper);
+    }
+
+    /**
      * 暂停任务
      * 
      * @param job 调度信息
@@ -197,6 +216,10 @@ public class SysJobServiceImpl extends ServiceImpl<SysJobMapper, SysJob> impleme
     @Override
     public int insertJob(SysJob job)
     {
+        // 如果未设置计划策略，使用默认值
+        if (StrUtil.isEmpty(job.misfirePolicy)) {
+            job.misfirePolicy = ScheduleConstants.MISFIRE_DEFAULT;
+        }
         return save(job) ? 1 : 0;
     }
     

@@ -72,29 +72,52 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
     @Override
     @Transactional
     public boolean startSchedule(Long scheduleId) {
+        long startTime = System.currentTimeMillis();
+        log.info("开始启动调度任务，scheduleId: {}", scheduleId);
+        
         try {
             AiWorkflowSchedule schedule = getById(scheduleId);
             if (schedule == null) {
-                throw new ServiceException("调度配置不存在");
+                log.warn("启动调度失败：未找到调度记录，scheduleId: {}", scheduleId);
+                return false;
+            }
+
+            // 检查是否已存在相同的任务
+            String jobName = "WORKFLOW_SCHEDULE_" + scheduleId;
+            SysJob existingJob = sysJobService.selectJobByName(jobName);
+            if (existingJob != null) {
+                log.warn("调度任务已存在，跳过创建。jobName: {}, scheduleId: {}", jobName, scheduleId);
+                // 更新调度状态为运行中
+                schedule.setStatus("1");
+                schedule.setUpdateTime(new Date());
+                boolean updated = updateById(schedule);
+                long duration = System.currentTimeMillis() - startTime;
+                log.info("调度任务状态更新完成，scheduleId: {}, 耗时: {}ms", scheduleId, duration);
+                return updated;
             }
 
             // 创建Quartz任务
             SysJob job = createQuartzJob(schedule);
             sysJobService.insertJob(job);
             
-            // 实际创建Quartz调度任务
-            sysJobService.createScheduleJob(job);
-
-            // 更新调度状态
-            schedule.setStatus("0"); // 正常
-            schedule.setEnabled("Y"); // 启用
-            updateNextExecutionTime(scheduleId);
-            updateById(schedule);
-
-            log.info("启动工作流调度任务成功，调度ID：{}", scheduleId);
-            return true;
+            Long jobId = job.getJobId();
+            if (jobId != null && jobId > 0) {
+                // 更新调度状态
+                schedule.setStatus("1");
+                schedule.setUpdateTime(new Date());
+                boolean result = updateById(schedule);
+                
+                long duration = System.currentTimeMillis() - startTime;
+                log.info("调度任务启动成功，scheduleId: {}, jobId: {}, jobName: {}, 耗时: {}ms", 
+                        scheduleId, jobId, jobName, duration);
+                return result;
+            } else {
+                log.error("调度任务启动失败：Quartz任务创建失败，scheduleId: {}", scheduleId);
+                return false;
+            }
         } catch (Exception e) {
-            log.error("启动工作流调度任务失败，调度ID：{}", scheduleId, e);
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("调度任务启动异常，scheduleId: {}, 耗时: {}ms", scheduleId, duration, e);
             return false;
         }
     }
@@ -102,36 +125,42 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
     @Override
     @Transactional
     public boolean pauseSchedule(Long scheduleId) {
+        long startTime = System.currentTimeMillis();
+        log.info("开始暂停调度任务，scheduleId: {}", scheduleId);
+        
         try {
             AiWorkflowSchedule schedule = getById(scheduleId);
             if (schedule == null) {
-                throw new ServiceException("调度配置不存在");
+                log.warn("暂停调度失败：未找到调度记录，scheduleId: {}", scheduleId);
+                return false;
             }
 
-            // 查询已存在的Quartz任务
             String jobName = "WORKFLOW_SCHEDULE_" + scheduleId;
-            String jobGroup = "WORKFLOW_SCHEDULE";
             
-            QueryWrapper jobQuery = QueryWrapper.create()
-                .from("sys_job")
-                .where(new QueryColumn("job_name").eq(jobName))
-                .and(new QueryColumn("job_group").eq(jobGroup));
-            
-            SysJob existingJob = sysJobService.getOne(jobQuery);
-            
-            if (existingJob != null) {
-                // 暂停Quartz任务
-                sysJobService.pauseJob(existingJob);
+            try {
+                // 根据任务名称查找 SysJob 对象
+                SysJob job = sysJobService.selectJobByName(jobName);
+                if (job == null) {
+                    log.warn("暂停调度失败：未找到对应的Quartz任务，jobName: {}, scheduleId: {}", jobName, scheduleId);
+                    return false;
+                }
+                
+                sysJobService.pauseJob(job);
+                schedule.setStatus("0");
+                schedule.setUpdateTime(new Date());
+                boolean result = updateById(schedule);
+                
+                long duration = System.currentTimeMillis() - startTime;
+                log.info("调度任务暂停成功，scheduleId: {}, jobName: {}, 耗时: {}ms", 
+                        scheduleId, jobName, duration);
+                return result;
+            } catch (Exception e) {
+                log.error("暂停Quartz任务失败，jobName: {}, scheduleId: {}", jobName, scheduleId, e);
+                return false;
             }
-
-            // 更新调度状态
-            schedule.setStatus("1"); // 暂停
-            updateById(schedule);
-
-            log.info("暂停工作流调度任务成功，调度ID：{}", scheduleId);
-            return true;
         } catch (Exception e) {
-            log.error("暂停工作流调度任务失败，调度ID：{}", scheduleId, e);
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("调度任务暂停异常，scheduleId: {}, 耗时: {}ms", scheduleId, duration, e);
             return false;
         }
     }
@@ -139,37 +168,42 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
     @Override
     @Transactional
     public boolean resumeSchedule(Long scheduleId) {
+        long startTime = System.currentTimeMillis();
+        log.info("开始恢复调度任务，scheduleId: {}", scheduleId);
+        
         try {
             AiWorkflowSchedule schedule = getById(scheduleId);
             if (schedule == null) {
-                throw new ServiceException("调度配置不存在");
+                log.warn("恢复调度失败：未找到调度记录，scheduleId: {}", scheduleId);
+                return false;
             }
 
-            // 查询已存在的Quartz任务
             String jobName = "WORKFLOW_SCHEDULE_" + scheduleId;
-            String jobGroup = "WORKFLOW_SCHEDULE";
             
-            QueryWrapper jobQuery = QueryWrapper.create()
-                .from("sys_job")
-                .where(new QueryColumn("job_name").eq(jobName))
-                .and(new QueryColumn("job_group").eq(jobGroup));
-            
-            SysJob existingJob = sysJobService.getOne(jobQuery);
-            
-            if (existingJob != null) {
-                // 恢复Quartz任务
-                sysJobService.resumeJob(existingJob);
+            try {
+                // 根据任务名称查找 SysJob 对象
+                SysJob job = sysJobService.selectJobByName(jobName);
+                if (job == null) {
+                    log.warn("恢复调度失败：未找到对应的Quartz任务，jobName: {}, scheduleId: {}", jobName, scheduleId);
+                    return false;
+                }
+                
+                sysJobService.resumeJob(job);
+                schedule.setStatus("1");
+                schedule.setUpdateTime(new Date());
+                boolean result = updateById(schedule);
+                
+                long duration = System.currentTimeMillis() - startTime;
+                log.info("调度任务恢复成功，scheduleId: {}, jobName: {}, 耗时: {}ms", 
+                        scheduleId, jobName, duration);
+                return result;
+            } catch (Exception e) {
+                log.error("恢复Quartz任务失败，jobName: {}, scheduleId: {}", jobName, scheduleId, e);
+                return false;
             }
-
-            // 更新调度状态
-            schedule.setStatus("0"); // 正常
-            updateNextExecutionTime(scheduleId);
-            updateById(schedule);
-
-            log.info("恢复工作流调度任务成功，调度ID：{}", scheduleId);
-            return true;
         } catch (Exception e) {
-            log.error("恢复工作流调度任务失败，调度ID：{}", scheduleId, e);
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("调度任务恢复异常，scheduleId: {}, 耗时: {}ms", scheduleId, duration, e);
             return false;
         }
     }

@@ -39,6 +39,27 @@ public class RedisConfig implements CachingConfigurer
         return template;
     }
 
+    /**
+     * 专门用于RedisLock的RedisTemplate
+     */
+    @Bean("redisLockTemplate")
+    public RedisTemplate<String, Object> redisLockTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+        
+        // 使用String序列化器作为key的序列化器
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setHashKeySerializer(new StringRedisSerializer());
+        
+        // 使用FastJson2JsonRedisSerializer作为value的序列化器
+        FastJson2JsonRedisSerializer<Object> serializer = new FastJson2JsonRedisSerializer<>(Object.class);
+        template.setValueSerializer(serializer);
+        template.setHashValueSerializer(serializer);
+        
+        template.afterPropertiesSet();
+        return template;
+    }
+
     @Bean
     public DefaultRedisScript<Long> limitScript()
     {

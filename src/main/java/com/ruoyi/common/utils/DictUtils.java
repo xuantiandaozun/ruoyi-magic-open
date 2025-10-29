@@ -41,10 +41,35 @@ public class DictUtils
      */
     public static List<SysDictData> getDictCache(String key)
     {
-        JSONArray arrayCache = SpringUtils.getBean(RedisCache.class).getCacheObject(getCacheKey(key));
-        if (arrayCache != null)
+        Object cacheObject = SpringUtils.getBean(RedisCache.class).getCacheObject(getCacheKey(key));
+        if (cacheObject != null)
         {
-            return arrayCache.toList(SysDictData.class);
+            try {
+                // 如果缓存对象是JSONArray类型，直接转换
+                if (cacheObject instanceof JSONArray) {
+                    JSONArray arrayCache = (JSONArray) cacheObject;
+                    return arrayCache.toList(SysDictData.class);
+                }
+                // 如果缓存对象是List类型，直接返回
+                else if (cacheObject instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<SysDictData> listCache = (List<SysDictData>) cacheObject;
+                    return listCache;
+                }
+                // 如果是其他类型，尝试通过JSON转换
+                else {
+                    String jsonStr = com.alibaba.fastjson2.JSON.toJSONString(cacheObject);
+                    return com.alibaba.fastjson2.JSON.parseArray(jsonStr, SysDictData.class);
+                }
+            } catch (Exception e) {
+                // 如果转换失败，记录警告并返回null，让调用方从数据库重新加载
+                org.slf4j.LoggerFactory.getLogger(DictUtils.class)
+                    .warn("字典缓存类型转换失败，key: {}, cacheType: {}, 将从数据库重新加载", 
+                          key, cacheObject.getClass().getSimpleName(), e);
+                // 删除有问题的缓存
+                removeDictCache(key);
+                return null;
+            }
         }
         return null;
     }

@@ -1,11 +1,14 @@
 package com.ruoyi.framework.service;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
+
+import cn.hutool.core.collection.CollUtil;
 
 import org.quartz.Scheduler;
 import org.slf4j.Logger;
@@ -239,182 +242,276 @@ public class BatchInitializationService {
     
     /**
      * 应用启动完成后的初始化处理
-     * 监听ApplicationReadyEvent事件，确保在Spring应用完全启动后再执行
      */
     @EventListener(ApplicationReadyEvent.class)
     @Async("threadPoolTaskExecutor")
     public void onApplicationReady(ApplicationReadyEvent event) {
+        long overallStartTime = System.currentTimeMillis();
         log.info("应用启动完成，开始执行批量初始化...");
         
         try {
-            // 批量加载初始化数据（只执行一次）
-            InitializationData data = loadAllInitializationData();
+            // 1. 异步加载所有初始化数据
+            long dataLoadStart = System.currentTimeMillis();
+            CompletableFuture<InitializationData> dataFuture = loadAllInitializationDataAsync();
+            InitializationData data = dataFuture.get();
+            long dataLoadDuration = System.currentTimeMillis() - dataLoadStart;
             
-            // 并行执行各种初始化任务，直接传递数据避免重复查询
-            CompletableFuture<Void> configCacheInitFuture = CompletableFuture.runAsync(() -> {
-                initializeConfigCacheWithData(data.getConfigs());
-            }, executor);
+            log.info("初始化数据加载完成，耗时: {}ms，数据统计: 配置{}个，字典类型{}个，数据源{}个，定时任务{}个", 
+                    dataLoadDuration, 
+                    data.getConfigs().size(), 
+                    data.getDictTypes().size(), 
+                    data.getDataSources().size(), 
+                    data.getJobs().size());
             
-            CompletableFuture<Void> dictCacheInitFuture = CompletableFuture.runAsync(() -> {
-                initializeDictCacheWithData(data.getDictTypes());
-            }, executor);
-            
-            CompletableFuture<Void> jobInitFuture = CompletableFuture.runAsync(() -> {
-                initializeJobsWithData(data.getJobs());
-            }, executor);
-            
+            // 2. 并行初始化缓存和数据源
+            long parallelInitStart = System.currentTimeMillis();
+            CompletableFuture<Void> cacheInitFuture = initializeCaches(data);
             CompletableFuture<Void> dataSourceInitFuture = batchInitializeDataSources(data.getDataSources());
             
-            // 等待所有初始化任务完成
-            CompletableFuture.allOf(configCacheInitFuture, dictCacheInitFuture, jobInitFuture, dataSourceInitFuture)
-                .thenRun(() -> {
-                    log.info("所有批量初始化任务完成");
-                })
-                .exceptionally(throwable -> {
-                    log.error("批量初始化过程中发生错误", throwable);
-                    return null;
-                });
-                
+            // 等待缓存和数据源初始化完成
+            CompletableFuture.allOf(cacheInitFuture, dataSourceInitFuture).get();
+            long parallelInitDuration = System.currentTimeMillis() - parallelInitStart;
+            
+            log.info("并行初始化（缓存+数据源）完成，耗时: {}ms", parallelInitDuration);
+            
+            // 3. 初始化定时任务（需要在数据源初始化后进行）
+            long jobInitStart = System.currentTimeMillis();
+            initializeJobsWithData(data.getJobs());
+            long jobInitDuration = System.currentTimeMillis() - jobInitStart;
+            
+            log.info("定时任务初始化完成，耗时: {}ms", jobInitDuration);
+            
+            // 4. 记录总体性能指标
+            long overallDuration = System.currentTimeMillis() - overallStartTime;
+            log.info("批量初始化全部完成！总耗时: {}ms，详细耗时: 数据加载{}ms，并行初始化{}ms，任务初始化{}ms", 
+                    overallDuration, dataLoadDuration, parallelInitDuration, jobInitDuration);
+                    
         } catch (Exception e) {
-            log.error("应用启动后初始化失败", e);
+            long overallDuration = System.currentTimeMillis() - overallStartTime;
+            log.error("批量初始化过程中发生错误，已耗时: {}ms", overallDuration, e);
         }
     }
-    
+
     /**
-     * 初始化缓存数据
+     * 异步初始化缓存
      */
     @Async("threadPoolTaskExecutor")
     public CompletableFuture<Void> initializeCaches(InitializationData data) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                log.info("开始初始化缓存数据...");
-                
-                // 批量加载配置缓存
-                if (!data.getConfigs().isEmpty()) {
-                    optimizedRedisCache.batchLoadConfigCache(data.getConfigs());
-                }
-                
-                // 批量加载字典缓存
-                if (!data.getDictTypes().isEmpty()) {
-                    optimizedRedisCache.batchLoadDictCache(data.getDictTypes());
-                }
-                
-                log.info("缓存数据初始化完成");
-                
-            } catch (Exception e) {
-                log.error("缓存数据初始化失败", e);
-                throw new RuntimeException("缓存数据初始化失败", e);
-            }
-        }, executor);
-    }
-    
-    /**
-     * 使用已有数据初始化配置缓存（避免重复查询数据库）
-     */
-    private void initializeConfigCacheWithData(List<SysConfig> configs) {
+        long startTime = System.currentTimeMillis();
+        log.info("开始初始化缓存...");
+        
         try {
-            log.info("开始初始化系统配置缓存...");
-            long startTime = System.currentTimeMillis();
+            // 并行初始化各种缓存
+            long configCacheStart = System.currentTimeMillis();
+            initializeConfigCacheWithData(data.getConfigs());
+            long configCacheDuration = System.currentTimeMillis() - configCacheStart;
             
-            // 使用优化的Redis缓存批量加载
-            optimizedRedisCache.batchLoadConfigCache(configs);
+            long dictCacheStart = System.currentTimeMillis();
+            initializeDictCacheWithData(data.getDictTypes());
+            long dictCacheDuration = System.currentTimeMillis() - dictCacheStart;
             
-            long endTime = System.currentTimeMillis();
-            log.info("系统配置缓存初始化完成，加载 {} 个配置项，耗时: {}ms", 
-                    configs.size(), endTime - startTime);
+            long totalDuration = System.currentTimeMillis() - startTime;
+            log.info("缓存初始化完成，总耗时: {}ms，详细耗时: 配置缓存{}ms，字典缓存{}ms", 
+                    totalDuration, configCacheDuration, dictCacheDuration);
                     
         } catch (Exception e) {
-            log.error("初始化系统配置缓存失败", e);
-            // 降级到Service层的原有方案
-            configService.loadingConfigCache();
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("缓存初始化失败，耗时: {}ms", duration, e);
+        }
+        
+        return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * 使用已有数据初始化系统配置缓存（避免重复查询数据库）
+     */
+    private void initializeConfigCacheWithData(List<SysConfig> configs) {
+        long startTime = System.currentTimeMillis();
+        log.info("开始初始化系统配置缓存，配置数量: {}", configs.size());
+        
+        try {
+            int successCount = 0;
+            int errorCount = 0;
+            
+            // 准备批量缓存数据
+            Map<String, Object> cacheData = new HashMap<>();
+            
+            for (SysConfig config : configs) {
+                try {
+                    String cacheKey = "sys_config:" + config.getConfigKey();
+                    cacheData.put(cacheKey, config.getConfigValue());
+                    successCount++;
+                } catch (Exception e) {
+                    errorCount++;
+                    log.warn("配置缓存准备失败，key: {}, value: {}", config.getConfigKey(), config.getConfigValue(), e);
+                }
+            }
+            
+            // 批量设置缓存
+            if (!cacheData.isEmpty()) {
+                optimizedRedisCache.batchSetCache(cacheData, null);
+            }
+            
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("系统配置缓存初始化完成，成功: {}, 失败: {}, 耗时: {}ms", 
+                    successCount, errorCount, duration);
+                    
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("系统配置缓存初始化失败，耗时: {}ms", duration, e);
         }
     }
-    
+
     /**
      * 使用已有数据初始化字典缓存（避免重复查询数据库）
      */
     private void initializeDictCacheWithData(List<SysDictType> dictTypes) {
+        long startTime = System.currentTimeMillis();
+        log.info("开始初始化字典缓存，字典类型数量: {}", dictTypes.size());
+        
         try {
-            log.info("开始初始化字典缓存...");
-            long startTime = System.currentTimeMillis();
+            int typeSuccessCount = 0;
+            int typeErrorCount = 0;
+            int dataSuccessCount = 0;
+            int dataErrorCount = 0;
             
-            // 处理字典数据，为每个字典类型关联对应的字典数据
-            List<SysDictType> dictTypesWithData = processDictTypesWithData(dictTypes);
+            // 处理字典类型数据 - 为每个类型关联对应的字典数据
+            List<SysDictType> processedDictTypes = processDictTypesWithData(dictTypes);
             
-            // 使用优化的Redis缓存批量加载
-            optimizedRedisCache.batchLoadDictCache(dictTypesWithData);
+            // 准备批量缓存数据
+            Map<String, Object> typeCacheData = new HashMap<>();
+            Map<String, Object> dataCacheData = new HashMap<>();
             
-            long endTime = System.currentTimeMillis();
-            log.info("字典缓存初始化完成，加载 {} 个字典类型，耗时: {}ms", 
-                    dictTypesWithData.size(), endTime - startTime);
+            for (SysDictType dictType : processedDictTypes) {
+                try {
+                    // 使用不同的缓存键来存储 SysDictType 对象，避免与 DictUtils 的键冲突
+                    String typeCacheKey = "sys_dict_type:" + dictType.getDictType();
+                    typeCacheData.put(typeCacheKey, dictType);
+                    typeSuccessCount++;
+                    
+                    // 同时为 DictUtils 准备字典数据缓存（List<SysDictData>）
+                    if (dictType.getDictDataList() != null && !dictType.getDictDataList().isEmpty()) {
+                        String dictDataCacheKey = "sys_dict:" + dictType.getDictType();
+                        dataCacheData.put(dictDataCacheKey, dictType.getDictDataList());
+                        
+                        // 准备单个字典数据缓存
+                        for (SysDictData dictData : dictType.getDictDataList()) {
+                            try {
+                                String dataCacheKey = "sys_dict_data:" + dictType.getDictType() + ":" + dictData.getDictValue();
+                                dataCacheData.put(dataCacheKey, dictData);
+                                dataSuccessCount++;
+                            } catch (Exception e) {
+                                dataErrorCount++;
+                                log.warn("字典数据缓存准备失败，type: {}, value: {}", 
+                                        dictType.getDictType(), dictData.getDictValue(), e);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    typeErrorCount++;
+                    log.warn("字典类型缓存准备失败，type: {}", dictType.getDictType(), e);
+                }
+            }
+            
+            // 批量设置缓存
+            if (!typeCacheData.isEmpty()) {
+                optimizedRedisCache.batchSetCache(typeCacheData, null);
+            }
+            if (!dataCacheData.isEmpty()) {
+                optimizedRedisCache.batchSetCache(dataCacheData, null);
+            }
+            
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("字典缓存初始化完成，字典类型: 成功{}/失败{}, 字典数据: 成功{}/失败{}, 耗时: {}ms", 
+                    typeSuccessCount, typeErrorCount, dataSuccessCount, dataErrorCount, duration);
                     
         } catch (Exception e) {
-            log.error("初始化字典缓存失败", e);
-            // 降级到Service层的原有方案
-            dictTypeService.loadingDictCache();
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("字典缓存初始化失败，耗时: {}ms", duration, e);
         }
     }
-    
+
     /**
      * 处理字典类型，为每个类型关联对应的字典数据
      */
     private List<SysDictType> processDictTypesWithData(List<SysDictType> dictTypes) {
         // 查询所有字典数据
         QueryWrapper queryWrapper = QueryWrapper.create()
-            .from("sys_dict_data")
-            .where(new QueryColumn("status").eq("0"))
-            .orderBy(new QueryColumn("dict_sort").asc());
-               
-        List<SysDictData> allDictData = dictDataMapper.selectListByQuery(queryWrapper);
-        
-        // 按字典类型分组
-        Map<String, List<SysDictData>> dictDataMap = allDictData.stream()
-                .collect(Collectors.groupingBy(SysDictData::getDictType));
-        
+                .from("sys_dict_data")
+                .where(new QueryColumn("status").eq("0"))
+                .orderBy(new QueryColumn("dict_sort").asc());
+
+        Map<String, List<SysDictData>> dictDataMap = dictDataMapper.selectListByQuery(queryWrapper)
+                .stream().collect(Collectors.groupingBy(SysDictData::getDictType));
+
         // 为每个字典类型设置对应的字典数据
         for (SysDictType dictType : dictTypes) {
             List<SysDictData> dictDataList = dictDataMap.get(dictType.getDictType());
-            if (dictDataList != null && !dictDataList.isEmpty()) {
+            if (CollUtil.isNotEmpty(dictDataList)) {
                 dictType.setDictDataList(dictDataList.stream()
-                    .sorted(Comparator.comparing(SysDictData::getDictSort))
-                    .collect(Collectors.toList()));
+                        .sorted(Comparator.comparing(SysDictData::getDictSort))
+                        .collect(Collectors.toList()));
             }
         }
-        
+
         return dictTypes;
     }
-    
+
     /**
      * 使用已有数据初始化定时任务（避免重复查询数据库）
+     * 排除AI工作流调度任务，由WorkflowScheduleInitService专门处理
      */
     private void initializeJobsWithData(List<SysJob> jobs) {
+        long startTime = System.currentTimeMillis();
+        log.info("开始初始化定时任务，任务总数: {}", jobs.size());
+        
         try {
-            log.info("开始初始化定时任务...");
-            long startTime = System.currentTimeMillis();
-            
             // 清空调度器
+            long schedulerClearStart = System.currentTimeMillis();
             Scheduler scheduler = SpringUtils.getBean(Scheduler.class);
             scheduler.clear();
+            long schedulerClearDuration = System.currentTimeMillis() - schedulerClearStart;
             
-            log.info("检测到 {} 个定时任务需要初始化", jobs.size());
+            log.info("调度器清空完成，耗时: {}ms", schedulerClearDuration);
             
+            // 过滤掉AI工作流调度任务，避免与WorkflowScheduleInitService重复初始化
+            long filterStart = System.currentTimeMillis();
+            List<SysJob> filteredJobs = jobs.stream()
+                .filter(job -> !"AI_WORKFLOW".equals(job.getJobGroup()) && 
+                              !job.getJobName().startsWith("WORKFLOW_SCHEDULE_"))
+                .collect(Collectors.toList());
+            long filterDuration = System.currentTimeMillis() - filterStart;
+            
+            int excludedCount = jobs.size() - filteredJobs.size();
+            log.info("任务过滤完成，排除{}个AI工作流调度任务，剩余{}个任务需要初始化，耗时: {}ms", 
+                    excludedCount, filteredJobs.size(), filterDuration);
+            
+            // 初始化定时任务
+            long jobCreateStart = System.currentTimeMillis();
             int successCount = 0;
-            for (SysJob job : jobs) {
+            int errorCount = 0;
+            
+            for (SysJob job : filteredJobs) {
                 try {
                     ScheduleUtils.createScheduleJob(scheduler, job);
                     successCount++;
                     log.debug("定时任务 [{}] 初始化成功", job.getJobName());
                 } catch (Exception e) {
+                    errorCount++;
                     log.error("定时任务 [{}] 初始化失败: {}", job.getJobName(), e.getMessage());
                 }
             }
             
-            long endTime = System.currentTimeMillis();
-            log.info("定时任务初始化完成，成功: {}/{}, 耗时: {}ms", 
-                    successCount, jobs.size(), endTime - startTime);
+            long jobCreateDuration = System.currentTimeMillis() - jobCreateStart;
+            long totalDuration = System.currentTimeMillis() - startTime;
+            
+            log.info("定时任务初始化完成，成功: {}, 失败: {}, 总耗时: {}ms，详细耗时: 调度器清空{}ms，任务过滤{}ms，任务创建{}ms", 
+                    successCount, errorCount, totalDuration, 
+                    schedulerClearDuration, filterDuration, jobCreateDuration);
                     
         } catch (Exception e) {
-            log.error("初始化定时任务时发生错误", e);
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("初始化定时任务时发生错误，耗时: {}ms", duration, e);
         }
     }
 }
