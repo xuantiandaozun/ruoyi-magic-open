@@ -824,7 +824,7 @@ public class AiChatController extends BaseController {
         try {
             Long userId = StpUtil.getLoginIdAsLong();
             Long sessionId = Long.valueOf(request.get("sessionId").toString());
-            String content = request.get("content").toString();
+            String content = request.get("messageContent").toString();
             Long modelConfigId = request.get("modelConfigId") != null ? 
                 Long.valueOf(request.get("modelConfigId").toString()) : null;
             

@@ -212,18 +212,19 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加聊天历史
             if (chatHistory != null && !chatHistory.isEmpty()) {
                 for (com.ruoyi.project.ai.domain.AiChatMessage historyMessage : chatHistory) {
-                    switch (historyMessage.getMessageRole().toLowerCase()) {
+                    String role = safeGetMessageRole(historyMessage);
+                    switch (role) {
                         case "user":
-                            messages.add(new UserMessage(historyMessage.getMessageContent()));
+                            messages.add(safeCreateUserMessage(historyMessage.getMessageContent()));
                             break;
                         case "assistant":
-                            messages.add(new AiMessage(historyMessage.getMessageContent()));
+                            messages.add(safeCreateAiMessage(historyMessage.getMessageContent()));
                             break;
                         case "system":
-                            messages.add(new SystemMessage(historyMessage.getMessageContent()));
+                            messages.add(safeCreateSystemMessage(historyMessage.getMessageContent()));
                             break;
                         default:
-                            log.warn("未知的消息角色: {}", historyMessage.getMessageRole());
+                            log.warn("未知的消息角色: {}", role);
                             break;
                     }
                 }
@@ -356,6 +357,65 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             str = str.replaceAll("0+$", "").replaceAll("\\.$", "");
         }
         return str;
+    }
+
+    /**
+     * 安全获取消息角色，防止空指针异常
+     * @param message 聊天消息
+     * @return 消息角色（小写），如果为空则返回 "user"
+     */
+    private String safeGetMessageRole(AiChatMessage message) {
+        if (message == null) {
+            log.warn("AiChatMessage 为 null，使用默认角色 'user'");
+            return "user";
+        }
+        
+        String role = message.getMessageRole();
+        if (StrUtil.isBlank(role)) {
+            log.warn("消息角色为空，消息ID: {}, 使用默认角色 'user'", message.getId());
+            return "user";
+        }
+        
+        return role.toLowerCase();
+    }
+
+    /**
+     * 安全创建用户消息，防止 text null 异常
+     * @param text 消息文本
+     * @return UserMessage 对象
+     */
+    private UserMessage safeCreateUserMessage(String text) {
+        if (StrUtil.isBlank(text)) {
+            log.warn("用户消息内容为空，使用默认内容");
+            return new UserMessage("用户消息内容为空");
+        }
+        return new UserMessage(text);
+    }
+
+    /**
+     * 安全创建AI消息，防止 text null 异常
+     * @param text 消息文本
+     * @return AiMessage 对象
+     */
+    private AiMessage safeCreateAiMessage(String text) {
+        if (StrUtil.isBlank(text)) {
+            log.warn("AI消息内容为空，使用默认内容");
+            return new AiMessage("AI消息内容为空");
+        }
+        return new AiMessage(text);
+    }
+
+    /**
+     * 安全创建系统消息，防止 text null 异常
+     * @param text 消息文本
+     * @return SystemMessage 对象
+     */
+    private SystemMessage safeCreateSystemMessage(String text) {
+        if (StrUtil.isBlank(text)) {
+            log.warn("系统消息内容为空，使用默认内容");
+            return new SystemMessage("系统消息内容为空");
+        }
+        return new SystemMessage(text);
     }
 
     @Override
@@ -1721,18 +1781,19 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加聊天历史
             if (chatHistory != null && !chatHistory.isEmpty()) {
                 for (AiChatMessage historyMessage : chatHistory) {
-                    switch (historyMessage.getMessageRole().toLowerCase()) {
+                    String role = safeGetMessageRole(historyMessage);
+                    switch (role) {
                         case "user":
-                            messages.add(new UserMessage(historyMessage.getMessageContent()));
+                            messages.add(safeCreateUserMessage(historyMessage.getMessageContent()));
                             break;
                         case "assistant":
-                            messages.add(new AiMessage(historyMessage.getMessageContent()));
+                            messages.add(safeCreateAiMessage(historyMessage.getMessageContent()));
                             break;
                         case "system":
-                            messages.add(new SystemMessage(historyMessage.getMessageContent()));
+                            messages.add(safeCreateSystemMessage(historyMessage.getMessageContent()));
                             break;
                         default:
-                            log.warn("未知的消息角色: {}", historyMessage.getMessageRole());
+                            log.warn("未知的消息角色: {}", role);
                             break;
                     }
                 }
@@ -1800,18 +1861,19 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加聊天历史
             if (chatHistory != null && !chatHistory.isEmpty()) {
                 for (AiChatMessage historyMessage : chatHistory) {
-                    switch (historyMessage.getMessageRole().toLowerCase()) {
+                    String role = safeGetMessageRole(historyMessage);
+                    switch (role) {
                         case "user":
-                            messages.add(new UserMessage(historyMessage.getMessageContent()));
+                            messages.add(safeCreateUserMessage(historyMessage.getMessageContent()));
                             break;
                         case "assistant":
-                            messages.add(new AiMessage(historyMessage.getMessageContent()));
+                            messages.add(safeCreateAiMessage(historyMessage.getMessageContent()));
                             break;
                         case "system":
-                            messages.add(new SystemMessage(historyMessage.getMessageContent()));
+                            messages.add(safeCreateSystemMessage(historyMessage.getMessageContent()));
                             break;
                         default:
-                            log.warn("未知的消息角色: {}", historyMessage.getMessageRole());
+                            log.warn("未知的消息角色: {}", role);
                             break;
                     }
                 }
