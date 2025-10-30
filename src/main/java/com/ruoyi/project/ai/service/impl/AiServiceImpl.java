@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import com.ruoyi.project.ai.dto.AiChatMessage;
+import com.ruoyi.project.ai.domain.AiChatMessage;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -236,6 +236,31 @@ public class AiServiceImpl implements IAiService {
         } catch (Exception e) {
             log.error("多轮对话请求失败: {}", e.getMessage(), e);
             throw new RuntimeException("多轮对话请求失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String chatWithHistory(String message, String systemPrompt, List<com.ruoyi.project.ai.domain.AiChatMessage> chatHistory, Long modelConfigId) {
+        try {
+            // 根据模型配置ID获取配置
+            AiModelConfig config = aiModelConfigService.getById(modelConfigId);
+            if (config == null) {
+                throw new RuntimeException("模型配置不存在: " + modelConfigId);
+            }
+            
+            if (!"Y".equals(config.getEnabled())) {
+                throw new RuntimeException("模型配置已禁用: " + modelConfigId);
+            }
+
+            // 使用AiClientFactory.fromConfig创建临时策略
+            AiClientStrategy tempStrategy = AiClientFactory.fromConfig(config);
+            
+            // 使用临时策略进行带历史的聊天
+            return tempStrategy.chatWithHistory(message, systemPrompt, chatHistory);
+            
+        } catch (Exception e) {
+            log.error("使用聊天历史的对话失败: {}", e.getMessage(), e);
+            throw new RuntimeException("使用聊天历史的对话失败: " + e.getMessage());
         }
     }
 

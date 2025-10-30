@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import com.ruoyi.project.ai.dto.AiChatMessage;
+import com.ruoyi.project.ai.domain.AiChatMessage;
 
 /**
  * AI服务接口
@@ -68,6 +68,17 @@ public interface IAiService {
      * @return AI回复
      */
     String chatWithHistory(List<String> messages);
+    
+    /**
+     * 使用指定模型配置的聊天对话（支持聊天历史）
+     * 
+     * @param message 用户消息
+     * @param systemPrompt 系统提示
+     * @param chatHistory 聊天历史
+     * @param modelConfigId 模型配置ID
+     * @return AI回复
+     */
+    String chatWithHistory(String message, String systemPrompt, List<com.ruoyi.project.ai.domain.AiChatMessage> chatHistory, Long modelConfigId);
     
     /**
      * 图文理解（视觉对话）

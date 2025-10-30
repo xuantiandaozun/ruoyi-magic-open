@@ -18,9 +18,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.row.Db;
 import com.mybatisflex.core.row.Row;
 import com.ruoyi.common.utils.spring.SpringUtils;
+import com.ruoyi.project.ai.domain.AiChatMessage;
 import com.ruoyi.project.ai.domain.AiWorkflow;
 import com.ruoyi.project.ai.domain.AiWorkflowStep;
-import com.ruoyi.project.ai.dto.AiChatMessage;
 import com.ruoyi.project.ai.service.IAiWorkflowService;
 import com.ruoyi.project.ai.service.IAiWorkflowStepService;
 import com.ruoyi.project.ai.strategy.AiClientStrategy;
@@ -199,6 +199,63 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
         return model;
     }
 
+    @Override
+    public String chatWithHistory(String message, String systemPrompt, List<com.ruoyi.project.ai.domain.AiChatMessage> chatHistory) {
+        try {
+            // 构建消息列表
+            List<dev.langchain4j.data.message.ChatMessage> messages = new ArrayList<>();
+            
+            // 添加系统消息（总是构建增强系统消息）
+            String enhancedSystemPrompt = buildEnhancedSystemPrompt(StrUtil.isNotBlank(systemPrompt) ? systemPrompt : "");
+            messages.add(new SystemMessage(enhancedSystemPrompt));
+            
+            // 添加聊天历史
+            if (chatHistory != null && !chatHistory.isEmpty()) {
+                for (com.ruoyi.project.ai.domain.AiChatMessage historyMessage : chatHistory) {
+                    switch (historyMessage.getMessageRole().toLowerCase()) {
+                        case "user":
+                            messages.add(new UserMessage(historyMessage.getMessageContent()));
+                            break;
+                        case "assistant":
+                            messages.add(new AiMessage(historyMessage.getMessageContent()));
+                            break;
+                        case "system":
+                            messages.add(new SystemMessage(historyMessage.getMessageContent()));
+                            break;
+                        default:
+                            log.warn("未知的消息角色: {}", historyMessage.getMessageRole());
+                            break;
+                    }
+                }
+            }
+            
+            // 添加当前用户消息
+            messages.add(new UserMessage(message));
+            
+            // 构建工具规范列表
+            List<ToolSpecification> toolSpecs = buildToolSpecifications();
+            
+            // 构建聊天请求
+            dev.langchain4j.model.chat.request.ChatRequest chatRequest = dev.langchain4j.model.chat.request.ChatRequest.builder()
+                .messages(messages)
+                .toolSpecifications(toolSpecs)
+                .build();
+            
+            // 执行同步聊天
+            ChatModel chatModel = buildChatModel();
+            if (chatModel == null) {
+                throw new RuntimeException("无法构建聊天模型");
+            }
+            
+            dev.langchain4j.model.chat.response.ChatResponse response = chatModel.chat(chatRequest);
+            return response.aiMessage().text();
+            
+        } catch (Exception e) {
+            log.error("同步聊天失败: {}", e.getMessage(), e);
+            throw new RuntimeException("同步聊天失败: " + e.getMessage());
+        }
+    }
+
     private ChatModel buildChatModel() {
         try {
             // 统一走 OpenAI 兼容接口；若 endpoint 非空，则使用自定义 baseUrl
@@ -230,7 +287,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                         .baseUrl(endpoint)
                         .timeout(Duration.ofMinutes(5))
                         .logRequests(false)
-                        .logResponses(true)
+                        .logResponses(false)
                         .customHeaders(Collections.singletonMap("Accept-Charset", "utf-8"))
                         .build();
             } else {
@@ -580,7 +637,9 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("你可以使用以下工具来管理工作流：\n");
             enhancedPrompt.append("1. **getWorkflowList**：获取系统中配置的工作流列表，包括名称和步骤信息\n");
             enhancedPrompt.append("2. **addWorkflow**：新增工作流，包括工作流基本信息和步骤配置\n");
-            enhancedPrompt.append("3. **updateWorkflow**：修改现有工作流，可以更新工作流信息和步骤配置\n\n");
+            enhancedPrompt.append("3. **updateWorkflow**：修改现有工作流，可以更新工作流信息和步骤配置\n");
+            enhancedPrompt.append("4. **updateWorkflowStep**：修改工作流中的单个步骤，无需重新配置整个工作流，支持更新步骤名称、描述、顺序、提示词、变量配置、工具配置等\n");
+            enhancedPrompt.append("5. **getWorkflowStep**：获取工作流中特定步骤的详细信息，用于查看步骤的当前配置，便于进行精确修改\n\n");
             
             enhancedPrompt.append("## 工作流使用场景示例\n");
             enhancedPrompt.append("- **内容创作流程**：文案生成 → 内容优化 → 格式调整 → 质量检查\n");
@@ -1168,6 +1227,147 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
     }
 
     /**
+     * 修改单个工作流步骤
+     */
+    private static String updateWorkflowStep(Long stepId, String stepName, String description, Integer stepOrder,
+                                           String systemPrompt, String userPrompt, String inputVariable, 
+                                           String outputVariable, String toolType, String toolEnabled, String enabled) {
+        try {
+            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
+            
+            // 获取现有步骤
+            AiWorkflowStep step = stepService.getById(stepId);
+            if (step == null) {
+                throw new RuntimeException("工作流步骤不存在");
+            }
+            
+            // 更新步骤信息（只更新非空字段）
+            if (StrUtil.isNotBlank(stepName)) {
+                step.setStepName(stepName);
+            }
+            if (StrUtil.isNotBlank(description)) {
+                step.setDescription(description);
+            }
+            if (stepOrder != null) {
+                step.setStepOrder(stepOrder);
+            }
+            if (StrUtil.isNotBlank(systemPrompt)) {
+                step.setSystemPrompt(systemPrompt);
+            }
+            if (StrUtil.isNotBlank(userPrompt)) {
+                step.setUserPrompt(userPrompt);
+            }
+            if (inputVariable != null) { // 允许设置为空字符串
+                step.setInputVariable(inputVariable);
+            }
+            if (StrUtil.isNotBlank(outputVariable)) {
+                step.setOutputVariable(outputVariable);
+            }
+            if (toolType != null) { // 允许设置为空字符串
+                step.setToolTypes(toolType);
+            }
+            if (StrUtil.isNotBlank(toolEnabled)) {
+                step.setToolEnabled(toolEnabled);
+            }
+            if (StrUtil.isNotBlank(enabled)) {
+                step.setEnabled(enabled);
+            }
+            
+            // 如果配置了工具类型，确保工具启用状态正确设置
+            if (StrUtil.isNotBlank(step.getToolTypes()) && StrUtil.isBlank(step.getToolEnabled())) {
+                step.setToolEnabled("Y"); // 默认启用工具
+            }
+            
+            // 验证步骤配置的合理性
+            if (StrUtil.isBlank(step.getOutputVariable())) {
+                throw new RuntimeException("输出变量名不能为空");
+            }
+            
+            // 更新步骤
+            boolean updated = stepService.updateById(step);
+            if (!updated) {
+                throw new RuntimeException("更新工作流步骤失败");
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("stepId", stepId);
+            result.put("message", "工作流步骤更新成功");
+            result.put("stepInfo", Map.of(
+                "stepName", step.getStepName(),
+                "description", step.getDescription(),
+                "stepOrder", step.getStepOrder(),
+                "inputVariable", step.getInputVariable(),
+                "outputVariable", step.getOutputVariable(),
+                "toolType", step.getToolTypes(),
+                "toolEnabled", step.getToolEnabled(),
+                "enabled", step.getEnabled()
+            ));
+            
+            return JSONUtil.toJsonStr(result);
+            
+        } catch (Exception e) {
+            log.error("修改工作流步骤失败: {}", e.getMessage(), e);
+            Map<String, Object> errorResult = new HashMap<>();
+            errorResult.put("success", false);
+            errorResult.put("error", "修改工作流步骤失败: " + e.getMessage());
+            return JSONUtil.toJsonStr(errorResult);
+        }
+    }
+
+    /**
+     * 获取单个工作流步骤详情
+     */
+    private static String getWorkflowStep(Long stepId) {
+        try {
+            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
+            IAiWorkflowService workflowService = SpringUtils.getBean(IAiWorkflowService.class);
+            
+            // 获取步骤信息
+            AiWorkflowStep step = stepService.getById(stepId);
+            if (step == null) {
+                throw new RuntimeException("工作流步骤不存在");
+            }
+            
+            // 获取所属工作流信息
+            AiWorkflow workflow = workflowService.getById(step.getWorkflowId());
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            
+            Map<String, Object> stepInfo = new HashMap<>();
+            stepInfo.put("stepId", step.getId());
+            stepInfo.put("workflowId", step.getWorkflowId());
+            stepInfo.put("workflowName", workflow.getName());
+            stepInfo.put("stepName", step.getStepName());
+            stepInfo.put("description", step.getDescription());
+            stepInfo.put("stepOrder", step.getStepOrder());
+            stepInfo.put("modelConfigId", step.getModelConfigId());
+            stepInfo.put("systemPrompt", step.getSystemPrompt());
+            stepInfo.put("userPrompt", step.getUserPrompt());
+            stepInfo.put("inputVariable", step.getInputVariable());
+            stepInfo.put("outputVariable", step.getOutputVariable());
+            stepInfo.put("toolType", step.getToolTypes());
+            stepInfo.put("toolEnabled", step.getToolEnabled());
+            stepInfo.put("enabled", step.getEnabled());
+            stepInfo.put("status", step.getStatus());
+            stepInfo.put("createTime", step.getCreateTime());
+            stepInfo.put("updateTime", step.getUpdateTime());
+            
+            result.put("stepInfo", stepInfo);
+            
+            return JSONUtil.toJsonStr(result);
+            
+        } catch (Exception e) {
+            log.error("获取工作流步骤详情失败: {}", e.getMessage(), e);
+            Map<String, Object> errorResult = new HashMap<>();
+            errorResult.put("success", false);
+            errorResult.put("error", "获取工作流步骤详情失败: " + e.getMessage());
+            return JSONUtil.toJsonStr(errorResult);
+        }
+    }
+
+    /**
      * 处理工具调用
      */
     private void handleToolCalls(AiMessage aiMessage, List<ChatMessage> messages, 
@@ -1243,9 +1443,50 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                             result = updateWorkflow(workflowId, updateName, updateDescription, updateType, updateSteps);
                             log.debug("更新工作流结果: {}", result);
                             break;
+                        case "update_workflow_step":
+                            Object stepIdObj = args.get("stepId");
+                            if (stepIdObj == null) {
+                                throw new IllegalArgumentException("步骤ID不能为空");
+                            }
+                            
+                            Long stepId = Long.valueOf(stepIdObj.toString());
+                            String stepName = (String) args.get("stepName");
+                            String stepDescription = (String) args.get("description");
+                            Object stepOrderObj = args.get("stepOrder");
+                            String systemPrompt = (String) args.get("systemPrompt");
+                            String userPrompt = (String) args.get("userPrompt");
+                            String inputVariable = (String) args.get("inputVariable");
+                            String outputVariable = (String) args.get("outputVariable");
+                            String toolType = (String) args.get("toolType");
+                            String toolEnabled = (String) args.get("toolEnabled");
+                            String enabled = (String) args.get("enabled");
+                            
+                            Integer stepOrder = null;
+                            if (stepOrderObj != null) {
+                                stepOrder = Integer.valueOf(stepOrderObj.toString());
+                            }
+                            
+                            log.debug("更新工作流步骤 - ID: {}, 名称: {}, 顺序: {}", stepId, stepName, stepOrder);
+                            result = updateWorkflowStep(stepId, stepName, stepDescription, stepOrder, 
+                                                      systemPrompt, userPrompt, inputVariable, outputVariable, 
+                                                      toolType, toolEnabled, enabled);
+                            log.debug("更新工作流步骤结果: {}", result);
+                            break;
+                        case "get_workflow_step":
+                            Object getStepIdObj = args.get("stepId");
+                            if (getStepIdObj == null) {
+                                throw new IllegalArgumentException("步骤ID不能为空");
+                            }
+                            
+                            Long getStepId = Long.valueOf(getStepIdObj.toString());
+                            
+                            log.debug("获取工作流步骤详情 - ID: {}", getStepId);
+                            result = getWorkflowStep(getStepId);
+                            log.debug("获取工作流步骤详情结果: {}", result);
+                            break;
                         default:
                             log.warn("未知的工具名称: {}", toolName);
-                            result = "错误: 未知的工具 '" + toolName + "'。可用工具: database_query, get_workflow_list, add_workflow, update_workflow";
+                            result = "错误: 未知的工具 '" + toolName + "'。可用工具: database_query, get_workflow_list, add_workflow, update_workflow, update_workflow_step, get_workflow_step";
                     }
                     
                     // 添加工具执行结果到对话历史
@@ -1401,6 +1642,38 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             .build();
         toolSpecs.add(updateWorkflowToolSpec);
         
+        // 修改单个工作流步骤工具
+        ToolSpecification updateWorkflowStepToolSpec = ToolSpecification.builder()
+            .name("update_workflow_step")
+            .description("修改工作流中的单个步骤配置。用于更新已存在工作流中的特定步骤，而不需要重新配置整个工作流。")
+            .parameters(JsonObjectSchema.builder()
+                .addNumberProperty("stepId", "要修改的步骤ID")
+                .addStringProperty("stepName", "步骤名称")
+                .addStringProperty("description", "步骤描述")
+                .addNumberProperty("stepOrder", "步骤顺序，从1开始")
+                .addStringProperty("systemPrompt", "系统提示词")
+                .addStringProperty("userPrompt", "用户提示词，支持变量占位符如{{input_variable}}")
+                .addStringProperty("inputVariable", "输入变量名，第一步可为空")
+                .addStringProperty("outputVariable", "输出变量名，不能为空")
+                .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
+                .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
+                .addStringProperty("enabled", "步骤启用状态，1=启用，0=禁用")
+                .required("stepId")
+                .build())
+            .build();
+        toolSpecs.add(updateWorkflowStepToolSpec);
+        
+        // 获取工作流步骤详情工具
+        ToolSpecification getWorkflowStepToolSpec = ToolSpecification.builder()
+            .name("get_workflow_step")
+            .description("获取工作流中特定步骤的详细信息。用于查看步骤的当前配置，便于进行精确修改。")
+            .parameters(JsonObjectSchema.builder()
+                .addNumberProperty("stepId", "要查询的步骤ID")
+                .required("stepId")
+                .build())
+            .build();
+        toolSpecs.add(getWorkflowStepToolSpec);
+        
         return toolSpecs;
     }
     
@@ -1448,18 +1721,18 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加聊天历史
             if (chatHistory != null && !chatHistory.isEmpty()) {
                 for (AiChatMessage historyMessage : chatHistory) {
-                    switch (historyMessage.getRole().toLowerCase()) {
+                    switch (historyMessage.getMessageRole().toLowerCase()) {
                         case "user":
-                            messages.add(new UserMessage(historyMessage.getContent()));
+                            messages.add(new UserMessage(historyMessage.getMessageContent()));
                             break;
                         case "assistant":
-                            messages.add(new AiMessage(historyMessage.getContent()));
+                            messages.add(new AiMessage(historyMessage.getMessageContent()));
                             break;
                         case "system":
-                            messages.add(new SystemMessage(historyMessage.getContent()));
+                            messages.add(new SystemMessage(historyMessage.getMessageContent()));
                             break;
                         default:
-                            log.warn("未知的消息角色: {}", historyMessage.getRole());
+                            log.warn("未知的消息角色: {}", historyMessage.getMessageRole());
                             break;
                     }
                 }
@@ -1527,18 +1800,18 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             // 添加聊天历史
             if (chatHistory != null && !chatHistory.isEmpty()) {
                 for (AiChatMessage historyMessage : chatHistory) {
-                    switch (historyMessage.getRole().toLowerCase()) {
+                    switch (historyMessage.getMessageRole().toLowerCase()) {
                         case "user":
-                            messages.add(new UserMessage(historyMessage.getContent()));
+                            messages.add(new UserMessage(historyMessage.getMessageContent()));
                             break;
                         case "assistant":
-                            messages.add(new AiMessage(historyMessage.getContent()));
+                            messages.add(new AiMessage(historyMessage.getMessageContent()));
                             break;
                         case "system":
-                            messages.add(new SystemMessage(historyMessage.getContent()));
+                            messages.add(new SystemMessage(historyMessage.getMessageContent()));
                             break;
                         default:
-                            log.warn("未知的消息角色: {}", historyMessage.getRole());
+                            log.warn("未知的消息角色: {}", historyMessage.getMessageRole());
                             break;
                     }
                 }
@@ -1686,6 +1959,43 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                             
                             log.debug("更新工作流 - ID: {}, 名称: {}", workflowId, updateName);
                             result = updateWorkflow(workflowId, updateName, updateDescription, updateType, updateSteps);
+                            break;
+                            
+                        case "update_workflow_step":
+                            Object stepIdObj = args.get("stepId");
+                            if (stepIdObj == null) {
+                                throw new IllegalArgumentException("缺少必要参数: stepId");
+                            }
+                            Long stepId = Long.valueOf(stepIdObj.toString());
+                            String stepName = (String) args.get("stepName");
+                            String stepDescription = (String) args.get("description");
+                            Object stepOrderObj = args.get("stepOrder");
+                            Integer stepOrder = stepOrderObj != null ? Integer.valueOf(stepOrderObj.toString()) : null;
+                            String systemPrompt = (String) args.get("systemPrompt");
+                            String userPrompt = (String) args.get("userPrompt");
+                            String inputVariable = (String) args.get("inputVariable");
+                            String outputVariable = (String) args.get("outputVariable");
+                            String toolType = (String) args.get("toolType");
+                            Object toolEnabledObj = args.get("toolEnabled");
+                            String toolEnabled = toolEnabledObj != null ? toolEnabledObj.toString() : null;
+                            Object enabledObj = args.get("enabled");
+                            String enabled = enabledObj != null ? enabledObj.toString() : null;
+                            
+                            log.debug("更新工作流步骤 - 步骤ID: {}, 步骤名称: {}", stepId, stepName);
+                            result = updateWorkflowStep(stepId, stepName, stepDescription, stepOrder, 
+                                systemPrompt, userPrompt, inputVariable, outputVariable, 
+                                toolType, toolEnabled, enabled);
+                            break;
+                            
+                        case "get_workflow_step":
+                            Object getStepIdObj = args.get("stepId");
+                            if (getStepIdObj == null) {
+                                throw new IllegalArgumentException("缺少必要参数: stepId");
+                            }
+                            Long getStepId = Long.valueOf(getStepIdObj.toString());
+                            
+                            log.debug("获取工作流步骤详情 - 步骤ID: {}", getStepId);
+                            result = getWorkflowStep(getStepId);
                             break;
                             
                         default:

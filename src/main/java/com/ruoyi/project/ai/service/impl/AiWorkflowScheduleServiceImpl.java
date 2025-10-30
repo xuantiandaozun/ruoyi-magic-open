@@ -87,8 +87,8 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
             SysJob existingJob = sysJobService.selectJobByName(jobName);
             if (existingJob != null) {
                 log.warn("调度任务已存在，跳过创建。jobName: {}, scheduleId: {}", jobName, scheduleId);
-                // 更新调度状态为运行中
-                schedule.setStatus("1");
+                // 更新调度状态为正常（运行中）
+                schedule.setStatus("0");
                 schedule.setUpdateTime(new Date());
                 boolean updated = updateById(schedule);
                 long duration = System.currentTimeMillis() - startTime;
@@ -102,8 +102,8 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
             
             Long jobId = job.getJobId();
             if (jobId != null && jobId > 0) {
-                // 更新调度状态
-                schedule.setStatus("1");
+                // 更新调度状态为正常（运行中）
+                schedule.setStatus("0");
                 schedule.setUpdateTime(new Date());
                 boolean result = updateById(schedule);
                 
@@ -146,7 +146,7 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
                 }
                 
                 sysJobService.pauseJob(job);
-                schedule.setStatus("0");
+                schedule.setStatus("1"); // 设置为暂停状态
                 schedule.setUpdateTime(new Date());
                 boolean result = updateById(schedule);
                 
@@ -189,7 +189,7 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
                 }
                 
                 sysJobService.resumeJob(job);
-                schedule.setStatus("1");
+                schedule.setStatus("0"); // 设置为正常（运行中）状态
                 schedule.setUpdateTime(new Date());
                 boolean result = updateById(schedule);
                 

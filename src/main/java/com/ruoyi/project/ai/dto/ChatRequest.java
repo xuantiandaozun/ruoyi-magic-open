@@ -1,5 +1,6 @@
 package com.ruoyi.project.ai.dto;
 
+import com.ruoyi.project.ai.domain.AiChatMessage;
 import java.util.List;
 
 /**
@@ -9,6 +10,11 @@ public class ChatRequest {
     private String message;
     private String systemPrompt;
     private Long modelConfigId;
+    
+    /**
+     * 会话ID，用于关联聊天会话
+     */
+    private Long sessionId;
     
     /**
      * 聊天历史记录，用于多轮对话
@@ -45,5 +51,13 @@ public class ChatRequest {
 
     public void setChatHistory(List<AiChatMessage> chatHistory) {
         this.chatHistory = chatHistory;
+    }
+
+    public Long getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(Long sessionId) {
+        this.sessionId = sessionId;
     }
 }

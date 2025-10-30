@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import com.ruoyi.project.ai.dto.AiChatMessage;
+import com.ruoyi.project.ai.domain.AiChatMessage;
 
 /**
  * AI客户端策略接口
@@ -25,6 +25,9 @@ public interface AiClientStrategy {
     String createContext(List<String> messages);
     String chatWithContext(String message, String contextId);
     String getModelName();
+    
+    // 同步聊天方法（带历史）
+    String chatWithHistory(String message, String systemPrompt, List<com.ruoyi.project.ai.domain.AiChatMessage> chatHistory);
     
     // 流式聊天方法
     void streamChat(String message, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
