@@ -45,6 +45,10 @@ public class AiModelConfig extends BaseEntity {
     /** 额外参数（JSON） */
     private String extraParams;
 
+    /** 工具调用后延时（毫秒），防止频率限制 */
+    @Excel(name = "工具调用延时")
+    private Integer toolCallDelay;
+
     /** 是否启用 */
     @Excel(name = "是否启用", readConverterExp = "Y=是,N=否")
     private String enabled;

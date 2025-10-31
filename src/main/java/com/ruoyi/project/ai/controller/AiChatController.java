@@ -823,6 +823,15 @@ public class AiChatController extends BaseController {
     public AjaxResult saveAiMessage(@RequestBody Map<String, Object> request) {
         try {
             Long userId = StpUtil.getLoginIdAsLong();
+            
+            // 验证必需参数
+            if (request.get("sessionId") == null) {
+                return error("会话ID不能为空");
+            }
+            if (request.get("messageContent") == null) {
+                return error("消息内容不能为空");
+            }
+            
             Long sessionId = Long.valueOf(request.get("sessionId").toString());
             String content = request.get("messageContent").toString();
             Long modelConfigId = request.get("modelConfigId") != null ? 

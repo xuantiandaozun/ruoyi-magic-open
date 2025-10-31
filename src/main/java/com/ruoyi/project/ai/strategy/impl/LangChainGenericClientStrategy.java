@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -19,6 +21,7 @@ import com.mybatisflex.core.row.Db;
 import com.mybatisflex.core.row.Row;
 import com.ruoyi.common.utils.spring.SpringUtils;
 import com.ruoyi.project.ai.domain.AiChatMessage;
+import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.domain.AiWorkflow;
 import com.ruoyi.project.ai.domain.AiWorkflowStep;
 import com.ruoyi.project.ai.service.IAiWorkflowService;
@@ -57,9 +60,16 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
     private final String model;
     private final String endpoint;
     private final String apiKey;
+    private final Integer toolCallDelay; // 工具调用后延时（毫秒）
     private final ChatModel chatModel;
     private final StreamingChatModel streamingChatModel;
     private final EmbeddingModel embeddingModel;
+
+    // 速率限制重试配置
+    private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final long INITIAL_RETRY_DELAY_MS = 3000; // 3秒
+    private static final double RETRY_MULTIPLIER = 2.0;
+    private static final long MAX_RETRY_DELAY_MS = 60000; // 60秒
 
     // SQL安全检查的正则表达式
     // 使用单词边界\b确保只匹配完整的SQL关键词，避免误判字段名或表名中包含这些词的情况
@@ -74,9 +84,192 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
         this.model = model;
         this.endpoint = endpoint;
         this.apiKey = apiKey;
+        this.toolCallDelay = null; // 不设置默认延时
         this.chatModel = buildChatModel();
         this.streamingChatModel = buildStreamingChatModel();
         this.embeddingModel = buildEmbeddingModel();
+    }
+
+    public LangChainGenericClientStrategy(AiModelConfig config) {
+        this.provider = config.getProvider();
+        this.model = config.getModel();
+        this.endpoint = config.getEndpoint();
+        this.apiKey = config.getApiKey();
+        this.toolCallDelay = config.getToolCallDelay(); // 直接使用配置值，可能为空
+        this.chatModel = buildChatModel();
+        this.streamingChatModel = buildStreamingChatModel();
+        this.embeddingModel = buildEmbeddingModel();
+    }
+
+    /**
+     * 检查是否为速率限制错误
+     */
+    private boolean isRateLimitError(Throwable error) {
+        if (error == null) return false;
+        String message = error.getMessage();
+        if (message == null) return false;
+        
+        return message.toLowerCase().contains("rate limit") ||
+               message.toLowerCase().contains("rate_limit") ||
+               message.toLowerCase().contains("too many requests") ||
+               message.toLowerCase().contains("quota exceeded") ||
+               message.toLowerCase().contains("rpm") ||
+               message.toLowerCase().contains("tpm");
+    }
+
+    /**
+     * 计算重试延迟时间（指数退避 + 随机抖动）
+     */
+    private long calculateRetryDelay(int attemptNumber) {
+        long baseDelay = (long) (INITIAL_RETRY_DELAY_MS * Math.pow(RETRY_MULTIPLIER, attemptNumber - 1));
+        // 添加随机抖动，避免多个请求同时重试
+        long jitter = ThreadLocalRandom.current().nextLong(0, Math.min(1000, baseDelay / 4));
+        long totalDelay = Math.min(baseDelay + jitter, MAX_RETRY_DELAY_MS);
+        
+        log.info("[LC4J-{}] Rate limit retry attempt {}, delay: {}ms", provider, attemptNumber, totalDelay);
+        return totalDelay;
+    }
+
+    /**
+     * 带重试的流式聊天执行器
+     */
+    private void executeStreamChatWithRetry(ChatRequest chatRequest, 
+                                          Consumer<String> onToken, 
+                                          Runnable onComplete, 
+                                          Consumer<Throwable> onError,
+                                          int attemptNumber) {
+        
+        if (attemptNumber > MAX_RETRY_ATTEMPTS) {
+            onError.accept(new RuntimeException("达到最大重试次数，请求失败"));
+            return;
+        }
+
+        streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
+            @Override
+            public void onPartialResponse(String partialResponse) {
+                if (partialResponse != null) {
+                    onToken.accept(partialResponse);
+                }
+            }
+            
+            @Override
+            public void onCompleteResponse(ChatResponse completeResponse) {
+                // 检查是否有工具调用需要处理
+                if (completeResponse != null && completeResponse.aiMessage() != null) {
+                    AiMessage aiMessage = completeResponse.aiMessage();
+                    if (aiMessage.hasToolExecutionRequests()) {
+                        // 处理工具调用
+                        handleToolCallsWithRetry(aiMessage, chatRequest.messages(), onToken, onComplete, onError, 1);
+                        return;
+                    }
+                }
+                onComplete.run();
+            }
+            
+            @Override
+            public void onError(Throwable error) {
+                if (isRateLimitError(error) && attemptNumber <= MAX_RETRY_ATTEMPTS) {
+                    log.warn("[LC4J-{}] Rate limit error on attempt {}: {}", provider, attemptNumber, error.getMessage());
+                    
+                    // 异步延迟重试
+                    long delay = calculateRetryDelay(attemptNumber);
+                    CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS)
+                        .execute(() -> {
+                            executeStreamChatWithRetry(chatRequest, onToken, onComplete, onError, attemptNumber + 1);
+                        });
+                } else {
+                    onError.accept(error);
+                }
+            }
+        });
+    }
+
+    /**
+     * 带重试的工具调用处理器
+     */
+    private void handleToolCallsWithRetry(AiMessage aiMessage, List<ChatMessage> messages, 
+                                        Consumer<String> onToken, Runnable onComplete, 
+                                        Consumer<Throwable> onError, int attemptNumber) {
+        try {
+            handleToolCalls(aiMessage, messages, onToken, onComplete, onError);
+        } catch (Exception e) {
+            if (isRateLimitError(e) && attemptNumber <= MAX_RETRY_ATTEMPTS) {
+                log.warn("[LC4J-{}] Rate limit error in tool call on attempt {}: {}", provider, attemptNumber, e.getMessage());
+                
+                long delay = calculateRetryDelay(attemptNumber);
+                CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .execute(() -> {
+                        handleToolCallsWithRetry(aiMessage, messages, onToken, onComplete, onError, attemptNumber + 1);
+                    });
+            } else {
+                onError.accept(e);
+            }
+        }
+    }
+
+    /**
+     * 执行带工具调用回调的流式聊天重试
+     */
+    private void executeStreamChatWithCallbacksRetry(ChatRequest chatRequest, 
+                                                   List<dev.langchain4j.data.message.ChatMessage> messages,
+                                                   Consumer<String> onToken, 
+                                                   BiConsumer<String, String> onToolCall,
+                                                   BiConsumer<String, String> onToolResult,
+                                                   Runnable onComplete, 
+                                                   Consumer<Throwable> onError,
+                                                   int attemptNumber) {
+        if (attemptNumber >= MAX_RETRY_ATTEMPTS) {
+            onError.accept(new RuntimeException("流式聊天重试次数已达上限"));
+            return;
+        }
+
+        try {
+            streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
+                @Override
+                public void onPartialResponse(String partialResponse) {
+                    if (partialResponse != null) {
+                        onToken.accept(partialResponse);
+                    }
+                }
+                
+                @Override
+                public void onCompleteResponse(ChatResponse completeResponse) {
+                    // 检查是否有工具调用请求
+                    if (completeResponse != null && completeResponse.aiMessage() != null) {
+                        AiMessage aiMessage = completeResponse.aiMessage();
+                        if (aiMessage.hasToolExecutionRequests()) {
+                            // 处理工具调用（带回调）
+                            handleToolCallsWithCallbacks(aiMessage, messages, onToken, onToolCall, onToolResult, onComplete, onError);
+                            return;
+                        }
+                    }
+                    onComplete.run();
+                }
+                
+                @Override
+                public void onError(Throwable error) {
+                    if (isRateLimitError(error)) {
+                        long delay = calculateRetryDelay(attemptNumber);
+                        log.warn("[LC4J-provider] Rate limit retry attempt {}, delay: {}ms", attemptNumber + 1, delay);
+                        log.warn("[LC4J-provider] Rate limit error on attempt {}: {}", attemptNumber + 1, error.getMessage());
+                        CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS)
+                            .execute(() -> executeStreamChatWithCallbacksRetry(chatRequest, messages, onToken, onToolCall, onToolResult, onComplete, onError, attemptNumber + 1));
+                    } else {
+                        onError.accept(error);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            if (isRateLimitError(e)) {
+                long delay = calculateRetryDelay(attemptNumber);
+                log.warn("[LC4J-provider] Rate limit retry attempt {}, delay: {}ms", attemptNumber + 1, delay);
+                log.warn("[LC4J-provider] Rate limit error on attempt {}: {}", attemptNumber + 1, e.getMessage());
+                CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS)
+                        .execute(() -> executeStreamChatWithCallbacksRetry(chatRequest, messages, onToken, onToolCall, onToolResult, onComplete, onError, attemptNumber + 1));
+            } else {
+                onError.accept(e);
+            }
+        }
     }
 
     @Override
@@ -443,35 +636,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                 .toolSpecifications(buildToolSpecifications())
                 .build();
             
-            // 执行流式聊天
-            streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
-                @Override
-                public void onPartialResponse(String partialResponse) {
-                    // 直接处理响应内容
-                    if (partialResponse != null) {
-                        onToken.accept(partialResponse);
-                    }
-                }
-                
-                @Override
-                public void onCompleteResponse(ChatResponse completeResponse) {
-                    // 检查是否有工具调用需要处理
-                    if (completeResponse != null && completeResponse.aiMessage() != null) {
-                        AiMessage aiMessage = completeResponse.aiMessage();
-                        if (aiMessage.hasToolExecutionRequests()) {
-                            // 处理工具调用
-                            handleToolCalls(aiMessage, messages, onToken, onComplete, onError);
-                            return;
-                        }
-                    }
-                    onComplete.run();
-                }
-                
-                @Override
-                public void onError(Throwable error) {
-                    onError.accept(error);
-                }
-            });
+            // 使用带重试的执行器
+            executeStreamChatWithRetry(chatRequest, onToken, onComplete, onError, 1);
                     
         } catch (Exception e) {
             log.error("[LC4J-{}] streamChat error: {}", provider, e.getMessage(), e);
@@ -504,35 +670,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                 .toolSpecifications(buildToolSpecifications())
                 .build();
             
-            // 执行流式聊天
-            streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
-                @Override
-                public void onPartialResponse(String partialResponse) {
-                    // 直接处理响应内容
-                    if (partialResponse != null) {
-                        onToken.accept(partialResponse);
-                    }
-                }
-                
-                @Override
-                public void onCompleteResponse(ChatResponse completeResponse) {
-                    // 检查是否有工具调用需要处理
-                    if (completeResponse != null && completeResponse.aiMessage() != null) {
-                        AiMessage aiMessage = completeResponse.aiMessage();
-                        if (aiMessage.hasToolExecutionRequests()) {
-                            // 处理工具调用
-                            handleToolCalls(aiMessage, messages, onToken, onComplete, onError);
-                            return;
-                        }
-                    }
-                    onComplete.run();
-                }
-                
-                @Override
-                public void onError(Throwable error) {
-                    onError.accept(error);
-                }
-            });
+            // 使用带重试的执行器
+            executeStreamChatWithRetry(chatRequest, onToken, onComplete, onError, 1);
                     
         } catch (Exception e) {
             log.error("[LC4J-{}] streamChatWithSystem error: {}", provider, e.getMessage(), e);
@@ -1577,6 +1716,19 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                 .toolSpecifications(toolSpecs)
                 .build();
             
+            // 工具调用成功后添加延时，避免触发API速率限制
+            if (toolCallDelay != null && toolCallDelay > 0) {
+                try {
+                    Thread.sleep(toolCallDelay); // 使用配置的延时
+                    log.debug("工具调用完成后延时{}毫秒，避免API速率限制", toolCallDelay);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.warn("延时被中断: {}", e.getMessage());
+                }
+            } else {
+                log.debug("工具调用延时未配置或为0，跳过延时");
+            }
+            
             // 继续对话，让AI基于工具结果生成最终回复
             streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
                 @Override
@@ -1891,34 +2043,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                 .toolSpecifications(toolSpecs)
                 .build();
             
-            // 执行流式聊天
-            streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
-                @Override
-                public void onPartialResponse(String partialResponse) {
-                    if (partialResponse != null) {
-                        onToken.accept(partialResponse);
-                    }
-                }
-                
-                @Override
-                public void onCompleteResponse(ChatResponse completeResponse) {
-                    // 检查是否有工具调用请求
-                    if (completeResponse != null && completeResponse.aiMessage() != null) {
-                        AiMessage aiMessage = completeResponse.aiMessage();
-                        if (aiMessage.hasToolExecutionRequests()) {
-                            // 处理工具调用（带回调）
-                            handleToolCallsWithCallbacks(aiMessage, messages, onToken, onToolCall, onToolResult, onComplete, onError);
-                            return;
-                        }
-                    }
-                    onComplete.run();
-                }
-                
-                @Override
-                public void onError(Throwable error) {
-                    onError.accept(error);
-                }
-            });
+            // 执行流式聊天（带重试）
+            executeStreamChatWithCallbacksRetry(chatRequest, messages, onToken, onToolCall, onToolResult, onComplete, onError, 1);
             
         } catch (Exception e) {
             log.error("带历史的流式聊天失败: {}", e.getMessage(), e);
@@ -2092,6 +2218,19 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                 .messages(messages)
                 .toolSpecifications(toolSpecs)
                 .build();
+            
+            // 工具调用成功后添加延时，避免触发API速率限制
+            if (toolCallDelay != null && toolCallDelay > 0) {
+                try {
+                    Thread.sleep(toolCallDelay); // 使用配置的延时
+                    log.debug("工具调用完成后延时{}毫秒，避免API速率限制", toolCallDelay);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.warn("延时被中断: {}", e.getMessage());
+                }
+            } else {
+                log.debug("工具调用延时未配置或为0，跳过延时");
+            }
             
             // 继续对话，让AI基于工具结果生成最终回复
             streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {

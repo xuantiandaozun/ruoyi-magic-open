@@ -9,13 +9,7 @@ import com.ruoyi.project.ai.strategy.impl.LangChainGenericClientStrategy;
 public class AiClientFactory {
 
     public static AiClientStrategy fromConfig(AiModelConfig cfg) {
-        String provider = cfg.getProvider();
-        String capability = cfg.getCapability();
-        String model = cfg.getModel();
-        String apiKey = cfg.getApiKey();
-        String endpoint = cfg.getEndpoint();
-
-        // 其他统一走 LangChain4j 通用策略
-        return new LangChainGenericClientStrategy(provider, model, endpoint, apiKey);
+        // 统一走 LangChain4j 通用策略，传递完整的配置对象
+        return new LangChainGenericClientStrategy(cfg);
     }
 }

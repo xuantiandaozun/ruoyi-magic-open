@@ -27,6 +27,7 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.PartialToolCall;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.extern.slf4j.Slf4j;
@@ -148,6 +149,14 @@ public class LangChain4jAgentService {
         }
         messages.add(UserMessage.from(message));
         
+        return executeChatWithMessages(streamingChatModel, messages, availableTools);
+    }
+    
+    /**
+     * 使用消息列表执行聊天，支持递归工具调用
+     */
+    private String executeChatWithMessages(StreamingChatModel streamingChatModel, List<ChatMessage> messages, 
+                                         List<String> availableTools) throws Exception {
         // 构建聊天请求
         ChatRequest.Builder requestBuilder = ChatRequest.builder().messages(messages);
         
@@ -172,15 +181,41 @@ public class LangChain4jAgentService {
             }
             
             @Override
+            public void onPartialToolCall(PartialToolCall partialToolCall) {
+                // 记录部分工具调用信息
+                log.debug("部分工具调用: {}", partialToolCall);
+            }
+            
+            @Override
             public void onCompleteResponse(ChatResponse completeResponse) {
                 try {
-                    // 检查是否有工具调用需要处理
+                    // 检查是否有工具调用请求
                     if (completeResponse != null && completeResponse.aiMessage() != null) {
                         AiMessage aiMessage = completeResponse.aiMessage();
                         if (aiMessage.hasToolExecutionRequests()) {
-                            // 处理工具调用
-                            String toolResult = handleToolCallsSync(streamingChatModel, messages, aiMessage);
-                            future.complete(toolResult);
+                            // 添加AI消息到对话历史
+                            messages.add(aiMessage);
+                            
+                            // 执行所有工具调用
+                             aiMessage.toolExecutionRequests().forEach(toolRequest -> {
+                                 try {
+                                     String result = toolRegistry.executeTool(toolRequest.name(), toolRequest.arguments());
+                                     // 创建工具执行结果消息
+                                     messages.add(ToolExecutionResultMessage.from(toolRequest, result));
+                                     log.debug("工具调用成功: {} -> {}", toolRequest.name(), result);
+                                 } catch (Exception e) {
+                                     log.error("工具调用失败: {}", e.getMessage(), e);
+                                     messages.add(ToolExecutionResultMessage.from(toolRequest, "工具调用失败: " + e.getMessage()));
+                                 }
+                             });
+                            
+                            // 递归继续对话
+                            try {
+                                String finalResult = executeChatWithMessages(streamingChatModel, messages, availableTools);
+                                future.complete(finalResult);
+                            } catch (Exception e) {
+                                future.completeExceptionally(e);
+                            }
                             return;
                         }
                     }
@@ -322,14 +357,30 @@ public class LangChain4jAgentService {
             }
             messages.add(UserMessage.from(message));
             
-            // 获取工具规范
-            List<ToolSpecification> toolSpecs = toolRegistry.getToolSpecifications(availableTools);
-            
+            streamChatWithMessages(streamingChatModel, messages, availableTools, onToken, onComplete, onError);
+        } catch (Exception e) {
+            log.error("带工具的流式聊天失败: {}", e.getMessage(), e);
+            onError.accept(new ServiceException("带工具的流式聊天失败: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * 使用消息列表执行流式聊天，支持递归工具调用
+     */
+    private void streamChatWithMessages(StreamingChatModel streamingChatModel, List<ChatMessage> messages, 
+                                       List<String> availableTools, Consumer<String> onToken, 
+                                       Runnable onComplete, Consumer<Throwable> onError) {
+        try {
             // 构建聊天请求
-            ChatRequest chatRequest = ChatRequest.builder()
-                    .messages(messages)
-                    .toolSpecifications(toolSpecs)
-                    .build();
+            ChatRequest.Builder requestBuilder = ChatRequest.builder().messages(messages);
+            
+            // 如果有工具，添加工具规范
+            if (availableTools != null && !availableTools.isEmpty()) {
+                List<ToolSpecification> toolSpecs = toolRegistry.getToolSpecifications(availableTools);
+                requestBuilder.toolSpecifications(toolSpecs);
+            }
+            
+            ChatRequest chatRequest = requestBuilder.build();
             
             streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
                 @Override
@@ -340,17 +391,45 @@ public class LangChain4jAgentService {
                 }
                 
                 @Override
+                public void onPartialToolCall(PartialToolCall partialToolCall) {
+                    // 记录部分工具调用信息
+                    log.debug("部分工具调用: {}", partialToolCall);
+                }
+                
+                @Override
                 public void onCompleteResponse(ChatResponse completeResponse) {
-                    // 检查是否有工具调用需要处理
-                    if (completeResponse != null && completeResponse.aiMessage() != null) {
-                        AiMessage aiMessage = completeResponse.aiMessage();
-                        if (aiMessage.hasToolExecutionRequests()) {
-                            // 异步处理工具调用
-                            handleToolCallsAsync(streamingChatModel, messages, aiMessage, onToken, onComplete, onError);
-                            return;
+                    try {
+                        // 检查是否有工具调用请求
+                        if (completeResponse != null && completeResponse.aiMessage() != null) {
+                            AiMessage aiMessage = completeResponse.aiMessage();
+                            if (aiMessage.hasToolExecutionRequests()) {
+                                // 添加AI消息到对话历史
+                                messages.add(aiMessage);
+                                
+                                // 执行所有工具调用
+                                aiMessage.toolExecutionRequests().forEach(toolRequest -> {
+                                    try {
+                                        String result = toolRegistry.executeTool(toolRequest.name(), toolRequest.arguments());
+                                        // 创建工具执行结果消息
+                                        messages.add(ToolExecutionResultMessage.from(toolRequest, result));
+                                        log.debug("工具调用成功: {} -> {}", toolRequest.name(), result);
+                                    } catch (Exception e) {
+                                        log.error("工具调用失败: {}", e.getMessage(), e);
+                                        messages.add(ToolExecutionResultMessage.from(toolRequest, "工具调用失败: " + e.getMessage()));
+                                    }
+                                });
+                                
+                                // 递归调用，继续对话
+                                streamChatWithMessages(streamingChatModel, messages, availableTools, onToken, onComplete, onError);
+                                return;
+                            }
                         }
+                        
+                        // 没有工具调用，完成对话
+                        onComplete.run();
+                    } catch (Exception e) {
+                        onError.accept(e);
                     }
-                    onComplete.run();
                 }
                 
                 @Override
@@ -359,115 +438,14 @@ public class LangChain4jAgentService {
                 }
             });
         } catch (Exception e) {
-            log.error("带工具的流式聊天失败: {}", e.getMessage(), e);
-            onError.accept(new ServiceException("带工具的流式聊天失败: " + e.getMessage()));
+            log.error("流式聊天失败: {}", e.getMessage(), e);
+            onError.accept(new ServiceException("流式聊天失败: " + e.getMessage()));
         }
     }
 
-    /**
-     * 同步处理工具调用
-     */
-    private String handleToolCallsSync(StreamingChatModel streamingChatModel, List<ChatMessage> messages, 
-                                     AiMessage aiMessage) {
-        try {
-            // 添加AI消息到对话历史
-            messages.add(aiMessage);
-            
-            // 执行工具调用
-            aiMessage.toolExecutionRequests().forEach(request -> {
-                try {
-                    String result = toolRegistry.executeTool(request.name(), request.arguments());
-                    messages.add(ToolExecutionResultMessage.from(request, result));
-                } catch (Exception e) {
-                    log.error("工具调用失败: {}", e.getMessage(), e);
-                    messages.add(ToolExecutionResultMessage.from(request, "工具调用失败: " + e.getMessage()));
-                }
-            });
-            
-            // 继续对话获取最终回复
-            ChatRequest followUpRequest = ChatRequest.builder().messages(messages).build();
-            
-            // 使用CompletableFuture同步等待响应
-            CompletableFuture<String> future = new CompletableFuture<>();
-            StringBuilder responseBuilder = new StringBuilder();
-            
-            streamingChatModel.chat(followUpRequest, new StreamingChatResponseHandler() {
-                @Override
-                public void onPartialResponse(String partialResponse) {
-                    if (partialResponse != null) {
-                        responseBuilder.append(partialResponse);
-                    }
-                }
-                
-                @Override
-                public void onCompleteResponse(ChatResponse completeResponse) {
-                    String response = responseBuilder.toString();
-                    if (StrUtil.isBlank(response) && completeResponse != null && completeResponse.aiMessage() != null) {
-                        response = completeResponse.aiMessage().text();
-                    }
-                    future.complete(response);
-                }
-                
-                @Override
-                public void onError(Throwable error) {
-                    future.completeExceptionally(error);
-                }
-            });
-            
-            return future.get(3, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            log.error("处理工具调用失败: {}", e.getMessage(), e);
-            return "处理工具调用时发生错误: " + e.getMessage();
-        }
-    }
 
-    /**
-     * 异步处理工具调用
-     */
-    private void handleToolCallsAsync(StreamingChatModel streamingChatModel, List<ChatMessage> messages, 
-                                    AiMessage aiMessage, Consumer<String> onToken, 
-                                    Runnable onComplete, Consumer<Throwable> onError) {
-        try {
-            // 添加AI消息到对话历史
-            messages.add(aiMessage);
-            
-            // 执行工具调用
-            aiMessage.toolExecutionRequests().forEach(request -> {
-                try {
-                    String result = toolRegistry.executeTool(request.name(), request.arguments());
-                    messages.add(ToolExecutionResultMessage.from(request, result));
-                } catch (Exception e) {
-                    log.error("工具调用失败: {}", e.getMessage(), e);
-                    messages.add(ToolExecutionResultMessage.from(request, "工具调用失败: " + e.getMessage()));
-                }
-            });
-            
-            // 继续对话获取最终回复
-            ChatRequest followUpRequest = ChatRequest.builder().messages(messages).build();
-            
-            streamingChatModel.chat(followUpRequest, new StreamingChatResponseHandler() {
-                @Override
-                public void onPartialResponse(String partialResponse) {
-                    if (partialResponse != null) {
-                        onToken.accept(partialResponse);
-                    }
-                }
-                
-                @Override
-                public void onCompleteResponse(ChatResponse completeResponse) {
-                    onComplete.run();
-                }
-                
-                @Override
-                public void onError(Throwable error) {
-                    onError.accept(error);
-                }
-            });
-        } catch (Exception e) {
-            log.error("异步处理工具调用失败: {}", e.getMessage(), e);
-            onError.accept(new ServiceException("处理工具调用时发生错误: " + e.getMessage()));
-        }
-    }
+
+
     
     /**
      * 根据模型配置ID获取StreamingChatModel
