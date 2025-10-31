@@ -815,6 +815,40 @@ public class AiChatController extends BaseController {
     }
     
     /**
+     * 清空指定会话的历史消息
+     */
+    @Operation(summary = "清空指定会话的历史消息")
+    @SaCheckPermission("ai:chat:history")
+    @DeleteMapping("/sessions/{sessionId}/messages")
+    public AjaxResult clearSessionHistory(@PathVariable Long sessionId) {
+        try {
+            Long userId = StpUtil.getLoginIdAsLong();
+            
+            // 验证会话权限
+            AiChatSession session = aiChatSessionService.getById(sessionId);
+            if (session == null || !session.getUserId().equals(userId)) {
+                return error("会话不存在或无权限访问");
+            }
+            
+            // 删除会话的所有消息
+            boolean result = aiChatMessageService.deleteMessagesBySessionId(sessionId);
+            if (result) {
+                // 更新会话的消息数量和最后消息时间
+                session.setMessageCount(0);
+                session.setLastMessageTime(null);
+                aiChatSessionService.updateById(session);
+                
+                return success("已清空当前会话的历史消息");
+            } else {
+                return error("清空会话历史失败");
+            }
+        } catch (Exception e) {
+            logger.error("清空会话历史失败: {}", e.getMessage(), e);
+            return error("清空会话历史失败: " + e.getMessage());
+        }
+    }
+    
+    /**
      * 保存AI消息
      */
     @Operation(summary = "保存AI消息")
@@ -836,6 +870,8 @@ public class AiChatController extends BaseController {
             String content = request.get("messageContent").toString();
             Long modelConfigId = request.get("modelConfigId") != null ? 
                 Long.valueOf(request.get("modelConfigId").toString()) : null;
+            String toolCalls = request.get("toolCalls") != null ? 
+                request.get("toolCalls").toString() : null;
             
             // 验证会话权限
             AiChatSession session = aiChatSessionService.getById(sessionId);
@@ -850,6 +886,7 @@ public class AiChatController extends BaseController {
             aiMessage.setMessageContent(content);
             aiMessage.setMessageType("text");
             aiMessage.setModelConfigId(modelConfigId);
+            aiMessage.setToolCalls(toolCalls);
             aiMessage.setCreateBy(String.valueOf(userId));
             
             boolean result = aiChatMessageService.save(aiMessage);

@@ -226,13 +226,184 @@ public class UserDao {
 - 合理使用索引
 - 复杂查询优先考虑性能
 
-## 9. 开发流程规范
+## 9. 管理端接口调用规范
 
-### 9.1 代码提交
+### 9.1 前端API调用规范
+
+#### 9.1.1 request.js 响应处理机制
+- **理解自动数据提取**：`request.js` 会自动提取 `res.data.data` 作为返回值
+- **后端响应结构**：后端统一返回格式为 `{code, msg, data}`
+- **前端接收数据**：前端API函数直接返回 `data` 部分，无需再次访问 `.data` 属性
+
+```javascript
+// ❌ 错误：重复访问 .data
+const result = await generateImage(params);
+const images = result.data.images; // 错误！result 已经是 data 部分
+
+// ✅ 正确：直接使用返回的数据
+const result = await generateImage(params);
+const images = result.images; // 正确！
+```
+
+#### 9.1.2 响应数据验证规范
+- **必须验证数据存在性**：调用API后必须验证返回数据的结构
+- **类型检查**：验证关键字段的数据类型
+- **容错处理**：对可能缺失的字段提供默认值
+
+```javascript
+// ✅ 推荐的响应处理方式
+try {
+  const response = await apiFunction(params);
+  
+  // 验证响应数据结构
+  if (!response) {
+    throw new Error('接口返回数据为空');
+  }
+  
+  // 验证关键字段
+  if (!response.images || !Array.isArray(response.images)) {
+    throw new Error('返回数据格式错误：images字段缺失或非数组');
+  }
+  
+  // 处理业务逻辑
+  processData(response.images);
+  
+} catch (error) {
+  console.error('API调用失败:', error);
+  // 用户友好的错误提示
+  ElMessage.error('操作失败，请稍后重试');
+}
+```
+
+#### 9.1.3 API函数定义规范
+- **统一使用 request 工具**：所有API调用必须使用项目的 `request.js`
+- **明确请求方法**：GET、POST、PUT、DELETE 方法要与后端接口保持一致
+- **参数传递规范**：POST请求使用 `data`，GET请求使用 `params`
+
+```javascript
+// ✅ 标准API函数定义
+import request from '@/utils/request'
+
+// GET请求示例
+export function getSupportedModels() {
+  return request({
+    url: '/ai/image/models',
+    method: 'get'
+  })
+}
+
+// POST请求示例
+export function generateImage(data) {
+  return request({
+    url: '/ai/image/generate',
+    method: 'post',
+    data
+  })
+}
+```
+
+### 9.2 Vue组件接口调用规范
+
+#### 9.2.1 异步操作处理
+- **使用 async/await**：优先使用 async/await 处理异步操作
+- **加载状态管理**：长时间操作必须显示加载状态
+- **防重复提交**：避免用户重复点击导致的多次请求
+
+```javascript
+// ✅ 推荐的异步处理方式
+const loading = ref(false);
+
+const handleSubmit = async () => {
+  if (loading.value) return; // 防重复提交
+  
+  loading.value = true;
+  try {
+    const result = await apiFunction(formData.value);
+    // 处理成功结果
+    ElMessage.success('操作成功');
+  } catch (error) {
+    console.error('操作失败:', error);
+    ElMessage.error('操作失败，请稍后重试');
+  } finally {
+    loading.value = false;
+  }
+};
+```
+
+#### 9.2.2 数据响应式处理
+- **合理使用 ref/reactive**：根据数据结构选择合适的响应式API
+- **数据初始化**：为响应式数据提供合理的初始值
+- **数据更新时机**：在合适的生命周期钩子中调用API
+
+```javascript
+// ✅ 推荐的响应式数据管理
+const formData = reactive({
+  prompt: '',
+  model: '',
+  size: ''
+});
+
+const images = ref([]);
+const supportedModels = ref([]);
+
+// 组件挂载时加载基础数据
+onMounted(async () => {
+  try {
+    const models = await getSupportedModels();
+    supportedModels.value = models || [];
+  } catch (error) {
+    console.error('加载模型列表失败:', error);
+  }
+});
+```
+
+### 9.3 错误处理规范
+
+#### 9.3.1 分层错误处理
+- **API层错误**：在API函数中处理网络错误和HTTP状态码错误
+- **业务层错误**：在组件中处理业务逻辑错误和数据格式错误
+- **用户界面错误**：向用户显示友好的错误信息
+
+#### 9.3.2 错误信息规范
+- **开发环境**：详细的错误信息用于调试
+- **生产环境**：用户友好的错误提示
+- **错误日志**：重要错误必须记录到控制台
+
+```javascript
+// ✅ 推荐的错误处理方式
+const handleError = (error, userMessage = '操作失败') => {
+  // 开发环境显示详细错误
+  if (process.env.NODE_ENV === 'development') {
+    console.error('详细错误信息:', error);
+  }
+  
+  // 生产环境显示用户友好信息
+  ElMessage.error(userMessage);
+  
+  // 记录错误日志
+  console.error(`${userMessage}:`, error.message || error);
+};
+```
+
+### 9.4 性能优化规范
+
+#### 9.4.1 请求优化
+- **避免重复请求**：相同参数的请求应该缓存结果
+- **请求合并**：多个相关请求可以考虑合并
+- **分页加载**：大数据量使用分页或虚拟滚动
+
+#### 9.4.2 数据缓存
+- **基础数据缓存**：字典数据、配置数据等可以缓存
+- **用户数据缓存**：用户相关数据合理缓存
+- **缓存失效策略**：设置合理的缓存过期时间
+
+## 10. 开发流程规范
+
+### 10.1 代码提交
 - 提交信息要清晰描述修改内容
 - 重大重构需要详细的提交说明
 
-### 9.2 版本管理
+### 10.2 版本管理
 - 遵循语义化版本规范
 - 重要功能变更需要更新版本号
 - 保持 CHANGELOG 更新
