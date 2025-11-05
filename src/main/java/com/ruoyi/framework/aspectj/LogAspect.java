@@ -1,9 +1,9 @@
 package com.ruoyi.framework.aspectj;
 
 import java.util.Collection;
+import java.util.Date;
 import java.util.Map;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+
 import org.apache.commons.lang3.ArrayUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
@@ -16,14 +16,12 @@ import org.springframework.core.NamedThreadLocal;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.multipart.MultipartFile;
+
 import com.alibaba.fastjson2.JSON;
 import com.ruoyi.common.enums.HttpMethod;
 import com.ruoyi.common.filter.PropertyPreExcludeFilter;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.ServletUtils;
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.map.MapUtil;
 import com.ruoyi.common.utils.ip.IpUtils;
 import com.ruoyi.framework.aspectj.lang.annotation.Log;
 import com.ruoyi.framework.aspectj.lang.enums.BusinessStatus;
@@ -32,6 +30,12 @@ import com.ruoyi.framework.manager.factory.AsyncFactory;
 import com.ruoyi.framework.security.LoginUser;
 import com.ruoyi.project.monitor.domain.SysOperLog;
 import com.ruoyi.project.system.domain.SysUser;
+
+import cn.hutool.core.map.MapUtil;
+import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * 操作日志记录处理
@@ -117,6 +121,8 @@ public class LogAspect
             operLog.setMethod(className + "." + methodName + "()");
             // 设置请求方式
             operLog.setRequestMethod(ServletUtils.getRequest().getMethod());
+            // 设置操作时间
+            operLog.setOperTime(new Date());
             // 处理设置注解上的参数
             getControllerMethodDescription(joinPoint, controllerLog, operLog, jsonResult);
             // 设置消耗时间
