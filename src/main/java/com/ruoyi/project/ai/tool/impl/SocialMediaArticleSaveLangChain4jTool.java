@@ -39,10 +39,10 @@ public class SocialMediaArticleSaveLangChain4jTool implements LangChain4jTool {
     @Override
     public ToolSpecification getToolSpecification() {
         JsonObjectSchema parametersSchema = JsonObjectSchema.builder()
-            .addStringProperty("titleZh", "中文标题，必填")
+            .addStringProperty("titleZh", "中文标题，30个字以内，符合今日头条的标题习惯（吸引眼球、包含关键词），必填")
             .addStringProperty("titleEn", "英文标题，可选")
-            .addStringProperty("summaryZh", "中文摘要/微头条内容，可选")
-            .addStringProperty("summaryEn", "英文摘要/Twitter内容，可选")
+            .addStringProperty("summaryZh", "中文微头条，基于文章内容提炼的核心观点或热点评论（100字以内），需具有话题性、引发讨论的特点，可选")
+            .addStringProperty("summaryEn", "英文微头条/Twitter，基于文章内容的核心观点或热点评论（280字以内），可选")
             .addStringProperty("contentZh", "中文完整内容，可选")
             .addStringProperty("contentEn", "英文完整内容，可选")
             .addStringProperty("keywordsZh", "中文关键词，多个用逗号分隔，可选")

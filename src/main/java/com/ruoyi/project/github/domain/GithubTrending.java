@@ -105,4 +105,5 @@ public class GithubTrending extends BaseEntity
     /** 仓库推广文章 */
     private String promotionArticle;
 
+
 }

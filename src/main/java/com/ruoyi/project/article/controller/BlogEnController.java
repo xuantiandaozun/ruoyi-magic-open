@@ -125,4 +125,19 @@ public class BlogEnController extends BaseController
     {
         return toAjax(blogEnService.removeByIds(Arrays.asList(blogIds)) ? blogIds.length : 0);
     }
+
+    /**
+     * 根据中文博客ID查询对应的英文博客
+     */
+    @Operation(summary = "根据中文博客ID查询对应的英文博客")
+    @SaCheckPermission("article:enBlog:query")
+    @GetMapping("/byZhBlogId/{zhBlogId}")
+    public AjaxResult getByZhBlogId(@PathVariable("zhBlogId") String zhBlogId)
+    {
+        QueryWrapper queryWrapper = QueryWrapper.create()
+            .eq("zh_blog_id", zhBlogId)
+            .eq("del_flag", "0");
+        BlogEn blogEn = blogEnService.getOne(queryWrapper);
+        return success(blogEn);
+    }
 }

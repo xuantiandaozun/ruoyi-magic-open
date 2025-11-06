@@ -93,11 +93,9 @@ public class AiChatController extends BaseController {
             userMessage.setCreateBy(String.valueOf(userId));
             aiChatMessageService.save(userMessage);
             
-            // 获取聊天历史（如果没有提供）
-            List<AiChatMessage> chatHistory = request.getChatHistory();
-            if (chatHistory == null || chatHistory.isEmpty()) {
-                chatHistory = aiChatMessageService.buildMessageHistory(session.getId(), false); // 获取聊天历史，不包含系统消息
-            }
+            // 获取聊天历史：始终从数据库获取完整历史，确保AI能看到完整上下文
+            // 不依赖前端发送的chatHistory，避免前端数据不同步导致的问题
+            List<AiChatMessage> chatHistory = aiChatMessageService.buildMessageHistory(session.getId(), false);
             
             String response;
             if (chatHistory != null && !chatHistory.isEmpty() && request.getModelConfigId() != null) {
@@ -234,11 +232,9 @@ public class AiChatController extends BaseController {
             aiChatMessageService.save(userMessage);
             userMessageHolder[0] = userMessage;
             
-            // 获取聊天历史（如果没有提供）
-            List<AiChatMessage> chatHistory = request.getChatHistory();
-            if (chatHistory == null || chatHistory.isEmpty()) {
-                chatHistory = aiChatMessageService.buildMessageHistory(session.getId(), false); // 获取聊天历史，不包含系统消息
-            }
+            // 获取聊天历史：始终从数据库获取完整历史，确保AI能看到完整上下文
+            // 不依赖前端发送的chatHistory，避免前端数据不同步导致的问题
+            List<AiChatMessage> chatHistory = aiChatMessageService.buildMessageHistory(session.getId(), false);
             request.setChatHistory(chatHistory);
             
             // 使用真正的流式接口，实时发送token

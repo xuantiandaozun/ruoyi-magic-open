@@ -6,11 +6,14 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.ruoyi.project.ai.domain.AiBlogProductionRecord;
+import com.ruoyi.project.ai.service.IAiBlogProductionRecordService;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
 import com.ruoyi.project.article.domain.Blog;
 import com.ruoyi.project.article.service.IBlogService;
 
 import cn.hutool.core.util.StrUtil;
+import java.util.Date;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 
@@ -25,6 +28,9 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
     
     @Autowired
     private IBlogService blogService;
+    
+    @Autowired
+    private IAiBlogProductionRecordService aiBlogProductionRecordService;
     
     @Override
     public String getToolName() {
@@ -134,6 +140,17 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
             boolean success = blogService.save(blog);
             
             if (success) {
+                // 保存生产记录
+                AiBlogProductionRecord productionRecord = new AiBlogProductionRecord();
+                if (StrUtil.isNotBlank(blog.getBlogId())) {
+                    productionRecord.setBlogId(Long.parseLong(blog.getBlogId()));
+                }
+                productionRecord.setProductionType("blog_generation");
+                productionRecord.setStatus("1"); // 成功
+                productionRecord.setProductionTime(new Date());
+                productionRecord.setCompletionTime(new Date());
+                aiBlogProductionRecordService.save(productionRecord);
+                
                 return String.format("博客文章保存成功！\n" +
                     "文章ID: %s\n" +
                     "标题: %s\n" +

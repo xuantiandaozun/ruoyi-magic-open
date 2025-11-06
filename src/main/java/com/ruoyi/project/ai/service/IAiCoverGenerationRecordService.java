@@ -64,4 +64,12 @@ public interface IAiCoverGenerationRecordService extends IService<AiCoverGenerat
      * @return 可复用的通用封面列表
      */
     List<AiCoverGenerationRecord> listReusableGenericCovers(String category);
+
+    /**
+     * 根据提示词查询成功且未使用的记录
+     * 
+     * @param prompt 提示词
+     * @return 成功且未使用的生成记录列表
+     */
+    List<AiCoverGenerationRecord> listByPrompt(String prompt);
 }

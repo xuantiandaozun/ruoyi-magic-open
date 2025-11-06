@@ -104,7 +104,7 @@ public class GithubTrendingController extends BaseController
      */
     @SaCheckPermission("github:trending:edit")
     @Log(title = "github流行榜单", businessType = BusinessType.UPDATE)
-    @PutMapping
+    @PutMapping(value = "")
     public AjaxResult edit(@RequestBody GithubTrending githubTrending)
     {
         return toAjax(githubTrendingService.updateById(githubTrending) ? 1 : 0);

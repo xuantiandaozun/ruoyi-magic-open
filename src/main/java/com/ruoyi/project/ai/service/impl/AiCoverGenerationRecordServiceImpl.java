@@ -96,4 +96,16 @@ public class AiCoverGenerationRecordServiceImpl extends ServiceImpl<AiCoverGener
             .orderBy("generation_time", false);
         return list(qw);
     }
+
+    @Override
+    public List<AiCoverGenerationRecord> listByPrompt(String prompt) {
+        QueryWrapper qw = QueryWrapper.create()
+            .from("ai_cover_generation_record")
+            .where(new QueryColumn("prompt").like(prompt))
+            .and(new QueryColumn("generation_status").eq("1"))
+            .and(new QueryColumn("is_used").eq("0"))
+            .and(new QueryColumn("del_flag").eq("0"))
+            .orderBy("generation_time", false);
+        return list(qw);
+    }
 }

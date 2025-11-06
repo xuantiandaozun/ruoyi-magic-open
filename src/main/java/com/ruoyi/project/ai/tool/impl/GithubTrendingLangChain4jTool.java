@@ -78,10 +78,14 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
             if (limit > 150) limit = 150;
             if (limit < 1) limit = 10;
             
-            // 构建查询条件 - 改为查询今天首次上榜的项目
+            // 构建查询条件 - 查询今天首次上榜的项目，使用左连接排除已生成过文章的仓库
             QueryWrapper qw = QueryWrapper.create()
-                .from("github_trending")
-                .where(new QueryColumn("first_trending_date").eq(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))))
+                .select("gt.*")
+                .from("github_trending").as("gt")
+                .leftJoin("ai_blog_production_record").as("abpr")
+                .on(new QueryColumn("gt.url").eq(new QueryColumn("abpr.repo_url")))
+                .where(new QueryColumn("gt.first_trending_date").eq(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))))
+                .and(new QueryColumn("abpr.id").isNull()) // 左连接后，如果没有匹配记录则为NULL，表示未生成过
                 .limit(limit);
             
             // 添加各种筛选条件
