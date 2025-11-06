@@ -7,7 +7,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimerTask;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,23 +28,19 @@ import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.framework.aspectj.lang.annotation.Log;
 import com.ruoyi.framework.aspectj.lang.enums.BusinessType;
-import com.ruoyi.framework.manager.AsyncManager;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.framework.web.page.PageDomain;
 import com.ruoyi.framework.web.page.TableDataInfo;
 import com.ruoyi.framework.web.page.TableSupport;
-import com.ruoyi.project.gen.domain.AsyncTaskInfo;
 import com.ruoyi.project.gen.domain.GenTable;
 import com.ruoyi.project.gen.domain.GenTableColumn;
 import com.ruoyi.project.gen.domain.request.BatchGenCodeRequest;
 import com.ruoyi.project.gen.domain.vo.AiCreateTableResponse;
-import com.ruoyi.project.gen.domain.vo.AiDirectTableRequest;
 import com.ruoyi.project.gen.domain.vo.CreateImportTableRequest;
 import com.ruoyi.project.gen.service.IAsyncTaskService;
 import com.ruoyi.project.gen.service.IGenTableColumnService;
 import com.ruoyi.project.gen.service.IGenTableService;
-import com.ruoyi.project.gen.tools.ai.AiDatabaseTableTool;
 import com.ruoyi.project.gen.tools.request.BatchUpdateGenTableRequest;
 import com.ruoyi.project.gen.util.GenUtils;
 import com.ruoyi.project.gen.util.VelocityUtils;
@@ -56,7 +51,6 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
-import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -89,8 +83,6 @@ public class GenController extends BaseController {
     @Autowired
     private ISysDataSourceService sysDataSourceService;
 
-    @Autowired
-    private AiDatabaseTableTool databaseTableTool;
 
     @Autowired
     private ObservationRegistry observationRegistry;
@@ -295,7 +287,8 @@ public class GenController extends BaseController {
     @GetMapping("/download/{tableName}")
     public void download(HttpServletResponse response, @PathVariable("tableName") String tableName) throws IOException {
         byte[] data = genTableService.downloadCode(tableName);
-        genCode(response, data);
+        String fileName = tableName + "_code.zip";
+        genCode(response, data, fileName);
     }
 
     /**
@@ -307,7 +300,10 @@ public class GenController extends BaseController {
     @PostMapping("/batchDownload")
     public void batchDownload(HttpServletResponse response, @Validated @RequestBody BatchGenCodeRequest request) throws IOException {
         byte[] data = genTableService.downloadCodeByIds(request.getTableIds(), request.getGenType());
-        genCode(response, data);
+        
+        // 动态生成文件名
+        String fileName = generateZipFileName(request.getTableIds());
+        genCode(response, data, fileName);
     }
 
     /**
@@ -498,7 +494,8 @@ public class GenController extends BaseController {
     public void batchGenCode(HttpServletResponse response, String tables) throws IOException {
         String[] tableNames = StrUtil.splitToArray(tables, ',');
         byte[] data = genTableService.downloadCode(tableNames);
-        genCode(response, data);
+        String fileName = "batch_code.zip";
+        genCode(response, data, fileName);
     }
 
     /**
@@ -514,259 +511,59 @@ public class GenController extends BaseController {
     }
 
     /**
-     * 智能直接建表
-     */
-    @Operation(summary = "智能直接建表")
-    @SaCheckPermission("tool:gen:create")
-    @Log(title = "智能直接建表", businessType = BusinessType.INSERT)
-    @PostMapping("/aiDirectTable")
-    public AjaxResult aiDirectTable(@Validated @RequestBody AiDirectTableRequest request) {
-        try {
-            logger.info("开始智能建表，请求参数: {}", objectMapper.writeValueAsString(request));
-
-            String prompt = String.format("""
-                    你是一个专业的数据库建模专家，请根据以下用户需求设计并创建数据库表结构，可能包含多个表及外键关联。
-
-                    ---
-
-                    ### 用户需求
-                    %s
-
-                    ---
-
-                    ### 设计要求
-
-                    1. 每张表需归属于模块：%s，包名：%s，数据源：%s
-                    2. 请你根据用户需求分析需要创建哪些表，并进行合理的命名
-                    3. 每张表都需要设置功能名称（functionName），功能名称应该简洁明了地描述该表的业务用途
-                    4. 表字段必须包括用户业务字段 + 系统基础字段：
-                       - 系统基础字段：id（主键，自动生成）、create_by、create_time、update_by、update_time、remark
-                       - 对于非关联表，还需添加 del_flag（删除标志，0代表存在，2代表删除）
-                       - 关联表（多对多关系的中间表）不需要添加 del_flag 字段
-                       - 这些基础字段请在字段定义中 **完整添加**（例如类型、注释等）
-                    5. 每张表的字段请包含字段名、类型、是否主键、是否必填、备注、是否自增等必要信息
-                    6. 可设计表之间的外键关联（如一对多、多对多）
-
-                    ---
-
-                    ### 可用工具
-
-                    - saveGenTable(table, dataSource)：用于保存表定义（不包含字段），返回包含 tableId 的表对象
-                      注意：调用时请确保设置table的以下必要属性：
-                      * tableName: 表名（如：sys_user）
-                      * tableComment: 表注释（如：用户信息表）
-                      * className: 实体类名称，首字母大写（如：SysUser）
-                      * functionName: 功能名称（重要！如"用户管理"、"订单管理"等）
-                      * functionAuthor: 作者（如：ruoyi）
-                      * moduleName: 模块名称（如：%s）
-                      * packageName: 包名（如：%s）
-                      * businessName: 业务名称，通常是表名去掉前缀（如：user）
-                      * tplCategory: 模板类型，默认使用"crud"
-                      * genType: 生成方式，默认使用"0"（zip压缩包）
-                      * dataSource: 数据源名称（如：%s）
-
-                    - saveGenTableColumns(tableId, columns, tableName)：用于保存字段并创建数据库表，请确保字段中包含系统基础字段
-
-                    ---
-
-                    ### 你的任务
-
-                    1. 解析用户需求，决定需要创建几张表
-                    2. 对于每一张表，执行以下操作：
-                       - 根据表的业务用途确定合适的功能名称（functionName）
-                       - 设计合适的实体类名（className）和业务名（businessName）
-                       - 使用 saveGenTable 保存表定义信息（包含所有必要字段），获取 tableId
-                       - 设计字段（业务字段 + 系统字段）
-                       - 使用 saveGenTableColumns 创建表并保存字段信息
-
-                    ### 字段命名规范和设置示例
-                    - 表名：使用下划线命名（如：sys_user、order_info）
-                    - 实体类名：使用大驼峰命名（如：SysUser、OrderInfo）
-                    - 业务名：通常是表名去掉模块前缀（如：user、orderInfo）
-                    - 功能名：简洁的中文描述（如：用户管理、订单管理）
-                    - 作者：统一使用"ruoyi"
-
-                    ### 功能名称示例
-                    - 用户表 -> "用户管理"
-                    - 订单表 -> "订单管理"
-                    - 商品表 -> "商品管理"
-                    - 分类表 -> "分类管理"
-                    - 角色表 -> "角色管理"
-                    - 权限表 -> "权限管理"
-
-                    请你只调用工具完成上述流程，无需返回表结构、字段定义或解释说明，仅返回执行结果。
-                    """,
-                    request.getRequirement(), request.getModuleName(), request.getPackageName(),
-                    request.getDataSource());
-
-            // 创建观察
-            Observation observation = Observation.start("ai.table.creation", observationRegistry);
-
-            // 使用AI工具调用直接创建表并同步到数据库
-            String result = observation.observe(() -> {
-                logger.info("开始调用 AI...");
-                String aiResult = chatClient.prompt()
-                        .user(prompt)
-                        .tools(databaseTableTool)
-                        .call()
-                        .content();
-                logger.info("AI 返回结果: {}", aiResult);
-                return aiResult;
-            });
-
-            return success("智能建表结果：" + result);
-        } catch (Exception e) {
-            logger.error("智能直接建表过程中发生错误", e);
-            throw new ServiceException("智能直接建表失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 异步智能直接建表
-     */
-    @Operation(summary = "异步智能直接建表")
-    @SaCheckPermission("tool:gen:create")
-    @Log(title = "异步智能直接建表", businessType = BusinessType.INSERT)
-    @PostMapping("/aiDirectTableAsync")
-    public AjaxResult aiDirectTableAsync(@Validated @RequestBody AiDirectTableRequest request) {
-        try {
-            // 生成任务ID
-            String taskId = IdUtil.fastSimpleUUID();
-            String username = SecurityUtils.getUsername();
-            String description = "智能建表: " + request.getRequirement();
-
-            // 创建并保存任务信息
-            AsyncTaskInfo taskInfo = AsyncTaskInfo.createPendingTask(taskId, "AI_DIRECT_TABLE", description, username);
-            asyncTaskService.saveTask(taskInfo);
-
-            // 异步执行任务
-            AsyncManager.me().execute(new TimerTask() {
-                @Override
-                public void run() {
-                    try {
-                        // 更新任务状态为执行中
-                        asyncTaskService.updateTaskStatus(taskId, "RUNNING");
-
-                        String prompt = String.format(
-                                """
-                                        你是一个专业的数据库建模专家，请根据以下用户需求设计并创建数据库表结构，可能包含多个表及外键关联。
-
-                                        ---
-
-                                        ### 用户需求
-                                        %s
-
-                                        ---
-
-                                        ### 设计要求
-
-                                        1. 每张表需归属于模块：%s，包名：%s，数据源：%s
-                                        2. 请你根据用户需求分析需要创建哪些表，并进行合理的命名
-                                        3. 每张表都需要设置功能名称（functionName），功能名称应该简洁明了地描述该表的业务用途
-                                        4. 表字段必须包括用户业务字段 + 系统基础字段：
-                                           - 系统基础字段：id（主键，自动生成）、create_by、create_time、update_by、update_time、remark
-                                           - 对于非关联表，还需添加 del_flag（删除标志，0代表存在，2代表删除）
-                                           - 关联表（多对多关系的中间表）不需要添加 del_flag 字段
-                                           - 这些基础字段请在字段定义中 **完整添加**（例如类型、注释等）
-                                        5. 每张表的字段请包含字段名、类型、是否主键、是否必填、备注、是否自增等必要信息
-                                        6. 可设计表之间的外键关联（如一对多、多对多）
-
-                                        ---
-
-                                        ### 可用工具
-
-                                        - saveGenTable(table, dataSource, taskId)：用于保存表定义（不包含字段），返回包含 tableId 的表对象
-                                          注意：调用时请确保设置table的以下必要属性：
-                                          * tableName: 表名（如：sys_user）
-                                          * tableComment: 表注释（如：用户信息表）
-                                          * className: 实体类名称，首字母大写（如：SysUser）
-                                          * functionName: 功能名称（重要！如"用户管理"、"订单管理"等）
-                                          * functionAuthor: 作者（如：ruoyi）
-                                          * moduleName: 模块名称（如：%s）
-                                          * packageName: 包名（如：%s）
-                                          * businessName: 业务名称，通常是表名去掉前缀（如：user）
-                                          * tplCategory: 模板类型，默认使用"crud"
-                                          * genType: 生成方式，默认使用"0"（zip压缩包）
-                                          * dataSource: 数据源名称（如：%s）
-                                          * taskId: 任务ID，请传入 "%s" 用于记录任务进度和当前操作的表信息
-
-                                        - saveGenTableColumns(tableId, columns, tableName, taskId)：用于保存字段并创建数据库表，请确保字段中包含系统基础字段，taskId请传入 "%s" 用于记录任务进度和当前操作的字段信息
-
-                                        ---
-
-                                        ### 你的任务
-
-                                        1. 解析用户需求，决定需要创建几张表
-                                        2. 对于每一张表，执行以下操作：
-                                           - 根据表的业务用途确定合适的功能名称（functionName）
-                                           - 设计合适的实体类名（className）和业务名（businessName）
-                                           - 使用 saveGenTable 保存表定义信息（包含所有必要字段），获取 tableId
-                                           - 设计字段（业务字段 + 系统字段）
-                                           - 使用 saveGenTableColumns 创建表并保存字段信息
-
-                                        ### 字段命名规范和设置示例
-                                        - 表名：使用下划线命名（如：sys_user、order_info）
-                                        - 实体类名：使用大驼峰命名（如：SysUser、OrderInfo）
-                                        - 业务名：通常是表名去掉模块前缀（如：user、orderInfo）
-                                        - 功能名：简洁的中文描述（如：用户管理、订单管理）
-                                        - 作者：统一使用"ruoyi"
-
-                                        ### 功能名称示例
-                                        - 用户表 -> "用户管理"
-                                        - 订单表 -> "订单管理"
-                                        - 商品表 -> "商品管理"
-                                        - 分类表 -> "分类管理"
-                                        - 角色表 -> "角色管理"
-                                        - 权限表 -> "权限管理"
-
-                                        请你只调用工具完成上述流程，无需返回表结构、字段定义或解释说明，仅返回执行结果。
-                                        """,
-                                request.getRequirement(), request.getModuleName(), request.getPackageName(),
-                                request.getDataSource(), request.getModuleName(), request.getPackageName(),
-                                request.getDataSource(), taskId, taskId);
-
-                        // 创建观察
-                        Observation observation = Observation.start("ai.table.creation.async", observationRegistry);
-
-                        // 使用AI工具调用直接创建表并同步到数据库
-                        String result = observation.observe(() -> {
-                            logger.info("开始异步调用 AI...");
-                            String aiResult = chatClient.prompt()
-                                    .user(prompt)
-                                    .tools(databaseTableTool)
-                                    .call()
-                                    .content();
-                            logger.info("AI 返回结果: {}", aiResult);
-                            return aiResult;
-                        });
-
-                        // 更新任务结果
-                        asyncTaskService.updateTaskResult(taskId, result);
-                    } catch (Exception e) {
-                        logger.error("异步智能直接建表过程中发生错误", e);
-                        asyncTaskService.updateTaskError(taskId, e.getMessage());
-                    }
-                }
-            });
-
-            return success("任务已提交", taskId);
-        } catch (Exception e) {
-            logger.error("提交异步智能直接建表任务失败", e);
-            throw new ServiceException("提交异步智能直接建表任务失败：" + e.getMessage());
-        }
-    }
-
-    /**
      * 生成zip文件
      */
-    private void genCode(HttpServletResponse response, byte[] data) throws IOException {
+    private void genCode(HttpServletResponse response, byte[] data, String fileName) throws IOException {
         response.reset();
         response.addHeader("Access-Control-Allow-Origin", "*");
         response.addHeader("Access-Control-Expose-Headers", "Content-Disposition");
-        response.setHeader("Content-Disposition", "attachment; filename=\"ruoyi.zip\"");
+        
+        // 支持中文文件名，使用RFC 5987标准编码
+        String encodedFileName = java.net.URLEncoder.encode(fileName, "UTF-8");
+        response.setHeader("Content-Disposition", 
+            "attachment; filename=\"" + fileName + "\"; filename*=UTF-8''" + encodedFileName);
+        
         response.addHeader("Content-Length", "" + data.length);
         response.setContentType("application/octet-stream; charset=UTF-8");
         IoUtil.write(response.getOutputStream(), true, data);
+    }
+
+    /**
+     * 根据表ID生成动态zip文件名
+     */
+    private String generateZipFileName(List<Long> tableIds) {
+        if (tableIds == null || tableIds.isEmpty()) {
+            return "ruoyi_code.zip";
+        }
+        
+        if (tableIds.size() == 1) {
+            // 单个表，使用表名
+            GenTable table = genTableService.getById(tableIds.get(0));
+            if (table != null && StrUtil.isNotEmpty(table.getTableName())) {
+                return table.getTableName() + "_code.zip";
+            }
+        } else {
+            // 多个表，使用表名组合
+            List<String> tableNames = new ArrayList<>();
+            for (Long tableId : tableIds) {
+                GenTable table = genTableService.getById(tableId);
+                if (table != null && StrUtil.isNotEmpty(table.getTableName())) {
+                    tableNames.add(table.getTableName());
+                }
+            }
+            
+            if (!tableNames.isEmpty()) {
+                if (tableNames.size() <= 3) {
+                    // 3个或更少的表，组合表名
+                    return String.join("_", tableNames) + "_code.zip";
+                } else {
+                    // 超过3个表，使用数量标识
+                    return "batch_" + tableNames.size() + "_tables_code.zip";
+                }
+            }
+        }
+        
+        return "ruoyi_code.zip";
     }
 
     /**
@@ -1081,266 +878,6 @@ public class GenController extends BaseController {
             logger.error("验证路径失败", e);
             return error("验证路径失败: " + e.getMessage());
         }
-    }
-
-    /**
-     * AI优化表字段
-     */
-    @Operation(summary = "AI优化表字段")
-    @SaCheckPermission("tool:gen:edit")
-    @Log(title = "AI优化表字段", businessType = BusinessType.UPDATE)
-    @PostMapping("/aiOptimizeColumns/{tableId}")
-    public AjaxResult aiOptimizeColumns(@PathVariable Long tableId) {
-        try {
-            // 获取表信息
-            GenTable table = genTableService.selectGenTableById(tableId);
-            if (table == null) {
-                return error("表信息不存在");
-            }
-
-            // 获取表字段列表
-            List<GenTableColumn> columns = genTableColumnService.selectGenTableColumnListByTableId(tableId);
-            if (columns == null || columns.isEmpty()) {
-                return error("表字段不存在");
-            }
-
-            // 创建观察
-            Observation observation = Observation.start("ai.column.optimization", observationRegistry);
-
-            // 使用AI工具优化表字段
-            String result = observation.observe(() -> {
-                logger.info("开始调用AI优化表字段...");
-
-                String prompt = String.format(
-                        """
-                                你是一个专业的数据库设计专家，请根据以下表结构信息，优化表字段的配置。
-
-                                表名: %s
-                                表注释: %s
-
-                                请分析每个字段的名称和注释，然后优化以下配置：
-                                1. isPk: 是否为主键（1是，0否）
-                                2. isIncrement: 是否自增（1是，0否）
-                                3. isRequired: 是否必填（1是，0否）
-                                4. isInsert: 是否为插入字段（1是，0否）
-                                5. isEdit: 是否为编辑字段（1是，0否）
-                                6. isList: 是否为列表字段（1是，0否）
-                                7. isQuery: 是否为查询字段（1是，0否）
-                                8. queryType: 查询方式（等于、不等于、大于、小于、范围等）
-                                9. htmlType: 显示类型（文本框、文本域、下拉框、单选框、复选框、日期控件等）
-                                10. dictType: 字典类型
-
-                                优化原则：
-                                - 主键字段(通常是id)应设置isPk=1，如果是自增主键还应设置isIncrement=1
-                                - 必要的业务字段应设置isRequired=1
-                                - 系统维护字段（如create_time创建时间、update_time修改时间、create_by创建人、update_by修改人等）通常不需要手动插入和编辑(isInsert=0, isEdit=0)
-                                - 查询字段(isQuery=1)总数不应超过4个，优先选择最常用的筛选条件
-                                - 列表显示字段(isList=1)总数不应超过5个，优先显示最重要的业务字段
-                                - 如果表的业务字段较少，可以将系统字段（如创建时间等）设为列表显示字段进行填充
-                                - 如果表的业务字段较多，则系统字段（如创建时间等）不应显示在列表中
-                                - 查询方式(queryType)应根据字段类型选择合适的方式：
-                                  * 精确匹配字段用EQ(等于)
-                                  * 模糊查询字段用LIKE(包含)
-                                  * 数值范围用BETWEEN(范围)
-                                  * 时间字段可用GT(大于)、LT(小于)或BETWEEN(范围)
-                                - 显示类型(htmlType)应根据字段用途选择：
-                                  * 短文本用input
-                                  * 长文本用textarea
-                                  * 日期时间用datetime
-                                  * 数字用input
-                                  * 状态或类型等固定选项用select、radio或checkbox
-                                - 对于有数据字典的字段，应设置正确的dictType
-
-                                字段列表：
-                                %s
-
-                                请你只调用updateGenTableColumn工具来更新每个字段的配置，无需返回表结构或解释说明，仅返回执行结果。
-                                注意：
-                                1. 必须使用提供的字段ID(columnId)作为参数，不要使用虚构的ID
-                                2. 只能修改isPk、isIncrement、isRequired、isInsert、isEdit、isList、isQuery、queryType、htmlType、dictType这几个字段，其他字段不能改
-                                3. 每次调用updateGenTableColumn时，必须包含columnId字段
-                                4. 必须严格遵循优化原则中的查询字段和列表字段数量限制
-                                """,
-                        table.getTableName(),
-                        table.getTableComment(),
-                        formatColumnsInfo(columns));
-
-                String aiResult = chatClient.prompt()
-                        .user(prompt)
-                        .tools(databaseTableTool)
-                        .call()
-                        .content();
-
-                logger.info("AI优化表字段返回结果: {}", aiResult);
-                return aiResult;
-            });
-
-            return success("AI优化表字段成功", result);
-        } catch (Exception e) {
-            logger.error("AI优化表字段过程中发生错误", e);
-            throw new ServiceException("AI优化表字段失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 异步AI优化表字段
-     */
-    @Operation(summary = "异步AI优化表字段")
-    @SaCheckPermission("tool:gen:edit")
-    @Log(title = "异步AI优化表字段", businessType = BusinessType.UPDATE)
-    @PostMapping("/aiOptimizeColumnsAsync/{tableId}")
-    public AjaxResult aiOptimizeColumnsAsync(@PathVariable Long tableId) {
-        try {
-            // 获取表信息
-            GenTable table = genTableService.selectGenTableById(tableId);
-            if (table == null) {
-                return error("表信息不存在");
-            }
-
-            // 获取表字段列表
-            List<GenTableColumn> columns = genTableColumnService.selectGenTableColumnListByTableId(tableId);
-            if (columns == null || columns.isEmpty()) {
-                return error("表字段不存在");
-            }
-
-            // 生成任务ID
-            String taskId = IdUtil.fastSimpleUUID();
-            String username = SecurityUtils.getUsername();
-            String description = "AI优化表字段: " + table.getTableName();
-
-            // 创建并保存任务信息
-            AsyncTaskInfo taskInfo = AsyncTaskInfo.createPendingTask(taskId, "AI_OPTIMIZE_COLUMNS", description,
-                    username);
-            asyncTaskService.saveTask(taskInfo);
-
-            // 异步执行任务
-            AsyncManager.me().execute(new TimerTask() {
-                @Override
-                public void run() {
-                    try {
-                        // 更新任务状态为执行中
-                        asyncTaskService.updateTaskStatus(taskId, "RUNNING");
-
-                        // 创建观察
-                        Observation observation = Observation.start("ai.column.optimization.async",
-                                observationRegistry);
-
-                        // 使用AI工具优化表字段
-                        String result = observation.observe(() -> {
-                            logger.info("开始异步调用AI优化表字段...");
-
-                            String prompt = String.format(
-                                    """
-                                            你是一个专业的数据库设计专家，请根据以下表结构信息，优化表字段的配置。
-
-                                            表名: %s
-                                            表注释: %s
-
-                                            请分析每个字段的名称和注释，然后优化以下配置：
-                                            1. isPk: 是否为主键（1是，0否）
-                                            2. isIncrement: 是否自增（1是，0否）
-                                            3. isRequired: 是否必填（1是，0否）
-                                            4. isInsert: 是否为插入字段（1是，0否）
-                                            5. isEdit: 是否为编辑字段（1是，0否）
-                                            6. isList: 是否为列表字段（1是，0否）
-                                            7. isQuery: 是否为查询字段（1是，0否）
-                                            8. queryType: 查询方式（等于、不等于、大于、小于、范围等）
-                                            9. htmlType: 显示类型（文本框、文本域、下拉框、单选框、复选框、日期控件等）
-                                            10. dictType: 字典类型
-
-                                            优化原则：
-                                            - 主键字段(通常是id)应设置isPk=1，如果是自增主键还应设置isIncrement=1
-                                            - 必要的业务字段应设置isRequired=1
-                                            - 系统维护字段（如create_time创建时间、update_time修改时间、create_by创建人、update_by修改人等）通常不需要手动插入和编辑(isInsert=0, isEdit=0)
-                                            - 查询字段(isQuery=1)总数不应超过4个，优先选择最常用的筛选条件
-                                            - 列表显示字段(isList=1)总数不应超过5个，优先显示最重要的业务字段
-                                            - 如果表的业务字段较少，可以将系统字段（如创建时间等）设为列表显示字段进行填充
-                                            - 如果表的业务字段较多，则系统字段（如创建时间等）不应显示在列表中
-                                            - 查询方式(queryType)应根据字段类型选择合适的方式：
-                                              * 精确匹配字段用EQ(等于)
-                                              * 模糊查询字段用LIKE(包含)
-                                              * 数值范围用BETWEEN(范围)
-                                              * 时间字段可用GT(大于)、LT(小于)或BETWEEN(范围)
-                                            - 显示类型(htmlType)应根据字段用途选择：
-                                              * 短文本用input
-                                              * 长文本用textarea
-                                              * 日期时间用datetime
-                                              * 数字用input
-                                              * 状态或类型等固定选项用select、radio或checkbox
-                                            - 对于有数据字典的字段，应设置正确的dictType
-
-                                            字段列表：
-                                            %s
-
-                                            请你只调用updateGenTableColumn工具来更新每个字段的配置，无需返回表结构或解释说明，仅返回执行结果。
-                                            注意：
-                                            1. 必须使用提供的字段ID(columnId)作为参数，不要使用虚构的ID
-                                            2. 只能修改isPk、isIncrement、isRequired、isInsert、isEdit、isList、isQuery、queryType、htmlType、dictType这几个字段，其他字段不能改
-                                            3. 每次调用updateGenTableColumn时，必须包含columnId字段
-                                            4. 必须严格遵循优化原则中的查询字段和列表字段数量限制
-                                            5. 在每次调用updateGenTableColumn之前，请先更新任务的extraInfo，将当前正在处理的字段信息添加到任务中
-                                            """,
-                                    table.getTableName(),
-                                    table.getTableComment(),
-                                    formatColumnsInfo(columns));
-
-                            // 不再需要拦截器，直接使用修改后的updateGenTableColumn方法
-                            // 该方法已经添加了taskId和tableName参数，会自动更新任务的extraInfo
-
-                            try {
-                                String aiResult = chatClient.prompt()
-                                        .user(prompt)
-                                        .tools(databaseTableTool)
-                                        .call()
-                                        .content();
-
-                                logger.info("AI优化表字段返回结果: {}", aiResult);
-                                return aiResult;
-                            } finally {
-                                // 不再需要移除拦截器
-                            }
-                        });
-
-                        // 更新任务结果
-                        asyncTaskService.updateTaskResult(taskId, result);
-                    } catch (Exception e) {
-                        logger.error("异步AI优化表字段过程中发生错误", e);
-                        asyncTaskService.updateTaskError(taskId, e.getMessage());
-                    }
-                }
-            });
-
-            return success("任务已提交", taskId);
-        } catch (Exception e) {
-            logger.error("提交异步AI优化表字段任务失败", e);
-            throw new ServiceException("提交异步AI优化表字段任务失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 格式化字段信息用于AI提示
-     */
-    private String formatColumnsInfo(List<GenTableColumn> columns) {
-        StringBuilder sb = new StringBuilder();
-        for (GenTableColumn column : columns) {
-            sb.append(String.format(
-                    "字段ID: %s, 字段名: %s, 注释: %s, 类型: %s, isPk: %s, isIncrement: %s, isRequired: %s, isInsert: %s, isEdit: %s, isList: %s, isQuery: %s, queryType: %s, htmlType: %s, dictType: %s\n",
-                    column.getColumnId(),
-                    column.getColumnName(),
-                    column.getColumnComment(),
-                    column.getColumnType(),
-                    column.getIsPk(),
-                    column.getIsIncrement(),
-                    column.getIsRequired(),
-                    column.getIsInsert(),
-                    column.getIsEdit(),
-                    column.getIsList(),
-                    column.getIsQuery(),
-                    column.getQueryType(),
-                    column.getHtmlType(),
-                    column.getDictType()));
-        }
-        return sb.toString();
     }
 
     /**
