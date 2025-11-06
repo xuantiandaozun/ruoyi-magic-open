@@ -10,6 +10,7 @@ import com.ruoyi.project.ai.tool.LangChain4jTool;
 import com.ruoyi.project.article.domain.BlogEn;
 import com.ruoyi.project.article.service.IBlogEnService;
 
+import cn.hutool.core.convert.Convert;
 import cn.hutool.core.util.StrUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
@@ -64,8 +65,8 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
     public String execute(Map<String, Object> parameters) {
         try {
             // Get required parameters
-            String title = (String) parameters.get("title");
-            String content = (String) parameters.get("content");
+            String title = getStringParameter(parameters, "title");
+            String content = getStringParameter(parameters, "content");
             
             if (StrUtil.isBlank(title)) {
                 return "Error: Blog title cannot be empty";
@@ -81,46 +82,46 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
             blogEn.setContent(content);
             
             // Set optional parameters
-            String summary = (String) parameters.get("summary");
+            String summary = getStringParameter(parameters, "summary");
             if (StrUtil.isNotBlank(summary)) {
                 blogEn.setSummary(summary);
             }
             
-            String coverImage = (String) parameters.get("coverImage");
+            String coverImage = getStringParameter(parameters, "coverImage");
             if (StrUtil.isNotBlank(coverImage)) {
                 blogEn.setCoverImage(coverImage);
             }
             
-            String category = (String) parameters.get("category");
+            String category = getStringParameter(parameters, "category");
             if (StrUtil.isNotBlank(category)) {
                 blogEn.setCategory(category);
             }
             
-            String tags = (String) parameters.get("tags");
+            String tags = getStringParameter(parameters, "tags");
             if (StrUtil.isNotBlank(tags)) {
                 blogEn.setTags(tags);
             }
             
-            String status = (String) parameters.get("status");
+            String status = getStringParameter(parameters, "status");
             blogEn.setStatus(StrUtil.isNotBlank(status) ? status : "0"); // Default draft
             
-            String isTop = (String) parameters.get("isTop");
+            String isTop = getStringParameter(parameters, "isTop");
             blogEn.setIsTop(StrUtil.isNotBlank(isTop) ? isTop : "0"); // Default not top
             
-            String isOriginal = (String) parameters.get("isOriginal");
+            String isOriginal = getStringParameter(parameters, "isOriginal");
             blogEn.setIsOriginal(StrUtil.isNotBlank(isOriginal) ? isOriginal : "1"); // Default original
             
-            String zhBlogId = (String) parameters.get("zhBlogId");
+            String zhBlogId = getStringParameter(parameters, "zhBlogId");
             if (StrUtil.isNotBlank(zhBlogId)) {
                 blogEn.setZhBlogId(zhBlogId);
             }
             
-            String feishuDocToken = (String) parameters.get("feishuDocToken");
+            String feishuDocToken = getStringParameter(parameters, "feishuDocToken");
             if (StrUtil.isNotBlank(feishuDocToken)) {
                 blogEn.setFeishuDocToken(feishuDocToken);
             }
             
-            String feishuDocName = (String) parameters.get("feishuDocName");
+            String feishuDocName = getStringParameter(parameters, "feishuDocName");
             if (StrUtil.isNotBlank(feishuDocName)) {
                 blogEn.setFeishuDocName(feishuDocName);
             }
@@ -169,8 +170,8 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
         }
         
         // Validate required parameters
-        String title = (String) parameters.get("title");
-        String content = (String) parameters.get("content");
+        String title = getStringParameter(parameters, "title");
+        String content = getStringParameter(parameters, "content");
         
         if (StrUtil.isBlank(title) || StrUtil.isBlank(content)) {
             return false;
@@ -178,8 +179,8 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
         
         // Validate status parameter
         if (parameters.containsKey("status")) {
-            String status = (String) parameters.get("status");
-            if (StrUtil.isNotBlank(status) && 
+            String status = getStringParameter(parameters, "status");
+            if (StrUtil.isNotBlank(status) &&
                 !status.equals("0") && !status.equals("1") && !status.equals("2")) {
                 return false;
             }
@@ -187,8 +188,8 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
         
         // Validate isTop parameter
         if (parameters.containsKey("isTop")) {
-            String isTop = (String) parameters.get("isTop");
-            if (StrUtil.isNotBlank(isTop) && 
+            String isTop = getStringParameter(parameters, "isTop");
+            if (StrUtil.isNotBlank(isTop) &&
                 !isTop.equals("0") && !isTop.equals("1")) {
                 return false;
             }
@@ -196,8 +197,8 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
         
         // Validate isOriginal parameter
         if (parameters.containsKey("isOriginal")) {
-            String isOriginal = (String) parameters.get("isOriginal");
-            if (StrUtil.isNotBlank(isOriginal) && 
+            String isOriginal = getStringParameter(parameters, "isOriginal");
+            if (StrUtil.isNotBlank(isOriginal) &&
                 !isOriginal.equals("0") && !isOriginal.equals("1")) {
                 return false;
             }
@@ -237,5 +238,10 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
             case "2": return "Offline";
             default: return "Unknown Status";
         }
+    }
+
+    private String getStringParameter(Map<String, Object> parameters, String key) {
+        Object value = parameters.get(key);
+        return value == null ? null : StrUtil.trimToNull(Convert.toStr(value));
     }
 }

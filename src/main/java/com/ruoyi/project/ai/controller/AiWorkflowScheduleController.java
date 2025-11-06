@@ -132,13 +132,15 @@ public class AiWorkflowScheduleController extends BaseController {
     @PutMapping
     public AjaxResult edit(@Validated @RequestBody AiWorkflowSchedule schedule) {
         boolean result = scheduleService.updateById(schedule);
-        
-        // 如果调度正在运行，需要重新启动以应用新配置
-        if (result && "Y".equals(schedule.getEnabled()) && "0".equals(schedule.getStatus())) {
-            scheduleService.pauseSchedule(schedule.getId());
-            scheduleService.startSchedule(schedule.getId());
+
+        // 更新后无条件触发Quartz同步（内部按enabled/status确定任务状态）
+        if (result) {
+            AiWorkflowSchedule latest = scheduleService.getById(schedule.getId());
+            if (latest != null) {
+                scheduleService.startSchedule(latest.getId());
+            }
         }
-        
+
         return toAjax(result);
     }
 

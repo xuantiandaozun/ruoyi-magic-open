@@ -34,6 +34,11 @@ public class AiCoverGenerationRecord extends BaseEntity {
     @Excel(name = "博客ID")
     private Long blogId;
 
+    /** 博客名称（冗余字段，用于列表显示） */
+    @Excel(name = "博客名称")
+    @Column(ignore = true)
+    private String blogName;
+
     /** 封面类型（0-通用封面 1-个性化封面） */
     @Excel(name = "封面类型", readConverterExp = "0=通用封面,1=个性化封面")
     private String coverType;

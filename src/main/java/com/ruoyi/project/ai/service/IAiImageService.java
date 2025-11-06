@@ -1,5 +1,7 @@
 package com.ruoyi.project.ai.service;
 
+import com.ruoyi.project.ai.dto.ImageGenerationRequest;
+
 /**
  * AI图片处理服务接口
  * 
@@ -36,4 +38,12 @@ public interface IAiImageService {
      * @return OSS中的图片URL数组
      */
     String[] batchDownloadAndUpload(String[] tempUrls, String baseFileName);
+    
+    /**
+     * 保存AI图片生成记录
+     * 
+     * @param imageUrls 生成的图片URL数组
+     * @param request 图片生成请求参数
+     */
+    void saveImageGenerationRecords(String[] imageUrls, ImageGenerationRequest request);
 }

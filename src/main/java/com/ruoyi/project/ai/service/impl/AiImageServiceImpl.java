@@ -1,24 +1,28 @@
 package com.ruoyi.project.ai.service.impl;
 
-import cn.hutool.core.date.DateUtil;
-import cn.hutool.core.io.IoUtil;
-import cn.hutool.core.util.IdUtil;
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.http.HttpUtil;
-import com.ruoyi.common.utils.file.ByteArrayMultipartFile;
-import com.ruoyi.common.utils.file.FileUploadUtils;
-import com.ruoyi.project.ai.service.IAiImageService;
-import com.ruoyi.project.ai.tool.impl.AliImageGenerationLangChain4jTool;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.ruoyi.common.utils.file.ByteArrayMultipartFile;
+import com.ruoyi.common.utils.file.FileUploadUtils;
+import com.ruoyi.project.ai.domain.AiCoverGenerationRecord;
+import com.ruoyi.project.ai.dto.ImageGenerationRequest;
+import com.ruoyi.project.ai.service.IAiCoverGenerationRecordService;
+import com.ruoyi.project.ai.service.IAiImageService;
+import com.ruoyi.project.ai.tool.impl.AliImageGenerationLangChain4jTool;
+
+import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.http.HttpUtil;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * AI图片处理服务实现类
@@ -32,6 +36,9 @@ public class AiImageServiceImpl implements IAiImageService {
     
     @Autowired
     private AliImageGenerationLangChain4jTool aliImageGenerationTool;
+    
+    @Autowired
+    private IAiCoverGenerationRecordService aiCoverGenerationRecordService;
     
     @Override
     public String[] generateImage(String prompt, String model, String size, Integer n) {
@@ -157,6 +164,29 @@ public class AiImageServiceImpl implements IAiImageService {
         }
         
         return ossUrls.toArray(new String[0]);
+    }
+    
+    @Override
+    public void saveImageGenerationRecords(String[] imageUrls, ImageGenerationRequest request) {
+        try {
+            for (int i = 0; i < imageUrls.length; i++) {
+                AiCoverGenerationRecord record = new AiCoverGenerationRecord();
+                record.setPrompt(request.getPrompt());
+                record.setImageUrl(imageUrls[i]);
+                record.setAiModel(request.getModel());
+                record.setCoverType("0");  // 0-通用封面
+                record.setGenerationStatus("1");  // 1-成功
+                record.setIsUsed("0");  // 0-未使用
+                record.setDelFlag("0");
+                record.setGenerationTime(new Date());
+                // 保存记录，通用字段由MyBatis-Flex自动填充
+                aiCoverGenerationRecordService.save(record);
+                log.info("AI生图记录保存成功，图片URL: {}", imageUrls[i]);
+            }
+        } catch (Exception e) {
+            log.error("保存AI生图记录失败", e);
+            // 不中断业务流程，仅记录日志
+        }
     }
     
     /**

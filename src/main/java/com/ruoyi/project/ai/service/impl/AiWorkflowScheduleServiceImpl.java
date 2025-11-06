@@ -21,6 +21,8 @@ import com.ruoyi.project.ai.service.IAiWorkflowScheduleService;
 import com.ruoyi.project.monitor.domain.SysJob;
 import com.ruoyi.project.monitor.service.ISysJobService;
 
+import org.quartz.SchedulerException;
+import com.ruoyi.common.exception.job.TaskException;
 import cn.hutool.core.util.StrUtil;
 
 /**
@@ -86,19 +88,49 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
             String jobName = "WORKFLOW_SCHEDULE_" + scheduleId;
             SysJob existingJob = sysJobService.selectJobByName(jobName);
             if (existingJob != null) {
-                log.warn("调度任务已存在，跳过创建。jobName: {}, scheduleId: {}", jobName, scheduleId);
-                // 更新调度状态为正常（运行中）
-                schedule.setStatus("0");
+                log.info("调度任务已存在，开始同步Quartz任务配置。jobName: {}, scheduleId: {}", jobName, scheduleId);
+                try {
+                    existingJob.setCronExpression(schedule.getCronExpression());
+                    if (StrUtil.isNotBlank(schedule.getMisfirePolicy())) {
+                        existingJob.setMisfirePolicy(schedule.getMisfirePolicy());
+                    }
+                    if (StrUtil.isNotBlank(schedule.getConcurrent())) {
+                        String concurrentFlag = "Y".equals(schedule.getConcurrent()) ? "0" : "1";
+                        existingJob.setConcurrent(concurrentFlag);
+                    }
+                    existingJob.setInvokeTarget("workflowScheduleTask.execute(" + scheduleId + ")");
+                    String desiredStatus = ("Y".equals(schedule.getEnabled()) && "0".equals(schedule.getStatus())) ? "0" : "1";
+                    existingJob.setStatus(desiredStatus);
+                    existingJob.setUpdateTime(new Date());
+
+                    sysJobService.updateJob(existingJob);
+                    sysJobService.createScheduleJob(existingJob);
+                } catch (SchedulerException | TaskException e) {
+                    log.error("同步Quartz任务配置失败，jobName: {}, scheduleId: {}", jobName, scheduleId, e);
+                    return false;
+                }
+
+                // 与任务状态保持一致
+                schedule.setStatus(existingJob.getStatus());
                 schedule.setUpdateTime(new Date());
                 boolean updated = updateById(schedule);
+                updateNextExecutionTime(scheduleId);
+
                 long duration = System.currentTimeMillis() - startTime;
-                log.info("调度任务状态更新完成，scheduleId: {}, 耗时: {}ms", scheduleId, duration);
+                log.info("调度任务配置同步完成并重新创建Quartz任务，scheduleId: {}, 耗时: {}ms", scheduleId, duration);
                 return updated;
             }
 
             // 创建Quartz任务
             SysJob job = createQuartzJob(schedule);
-            sysJobService.insertJob(job);
+            try {
+                // 插入任务到数据库并注册到Quartz调度器
+                sysJobService.insertJob(job);
+                sysJobService.createScheduleJob(job);
+            } catch (SchedulerException | TaskException e) {
+                log.error("调度任务启动失败：创建Quartz调度异常，scheduleId: {}", scheduleId, e);
+                return false;
+            }
             
             Long jobId = job.getJobId();
             if (jobId != null && jobId > 0) {
@@ -106,6 +138,8 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
                 schedule.setStatus("0");
                 schedule.setUpdateTime(new Date());
                 boolean result = updateById(schedule);
+                // 计算并更新下次执行时间
+                updateNextExecutionTime(scheduleId);
                 
                 long duration = System.currentTimeMillis() - startTime;
                 log.info("调度任务启动成功，scheduleId: {}, jobId: {}, jobName: {}, 耗时: {}ms", 
@@ -323,8 +357,10 @@ public class AiWorkflowScheduleServiceImpl extends ServiceImpl<AiWorkflowSchedul
         job.setInvokeTarget("workflowScheduleTask.execute(" + schedule.getId() + ")");
         job.setCronExpression(schedule.getCronExpression());
         job.setMisfirePolicy(schedule.getMisfirePolicy());
-        job.setConcurrent(schedule.getConcurrent());
-        job.setStatus("0"); // 正常状态
+        String concurrentFlag = "Y".equals(schedule.getConcurrent()) ? "0" : "1";
+        job.setConcurrent(concurrentFlag);
+        String desiredStatus = ("Y".equals(schedule.getEnabled()) && "0".equals(schedule.getStatus())) ? "0" : "1";
+        job.setStatus(desiredStatus);
         return job;
     }
 }

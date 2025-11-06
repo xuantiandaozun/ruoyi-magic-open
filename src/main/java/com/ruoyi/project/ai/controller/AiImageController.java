@@ -1,20 +1,26 @@
 package com.ruoyi.project.ai.controller;
 
-import cn.dev33.satoken.annotation.SaCheckPermission;
-import cn.dev33.satoken.stp.StpUtil;
-import cn.hutool.core.util.StrUtil;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.project.ai.dto.ImageGenerationRequest;
 import com.ruoyi.project.ai.service.IAiImageService;
+
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.core.util.StrUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * AI图片生成控制器
@@ -74,6 +80,9 @@ public class AiImageController extends BaseController {
             result.put("timestamp", System.currentTimeMillis());
             
             log.info("AI图片生成成功，共生成 {} 张图片", imageUrls.length);
+            
+            // 保存生图记录
+            aiImageService.saveImageGenerationRecords(imageUrls, request);
             
             return success("AI图片生成成功", result);
             

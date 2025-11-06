@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -183,7 +182,7 @@ public class LangChain4jAgentService {
             @Override
             public void onPartialToolCall(PartialToolCall partialToolCall) {
                 // 记录部分工具调用信息
-                log.debug("部分工具调用: {}", partialToolCall);
+                //log.debug("部分工具调用: {}", partialToolCall);
             }
             
             @Override

@@ -54,7 +54,13 @@ public class AiCoverGenerationRecordController extends BaseController {
         Integer pageNum = pageDomain.getPageNum();
         Integer pageSize = pageDomain.getPageSize();
 
+        // 使用连表查询获取博客名称
         QueryWrapper qw = buildFlexQueryWrapper(aiCoverGenerationRecord);
+        qw.select("u.*", "b.title as blogName")
+          .from("ai_cover_generation_record").as("u")
+          .leftJoin("blog").as("b").on("u.blog_id = b.blog_id")
+          .where("u.del_flag = 0");
+        
         Page<AiCoverGenerationRecord> page = aiCoverGenerationRecordService.page(new Page<>(pageNum, pageSize), qw);
         return getDataTable(page);
     }
