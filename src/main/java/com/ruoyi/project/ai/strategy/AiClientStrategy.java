@@ -11,31 +11,64 @@ import com.ruoyi.project.ai.domain.AiChatMessage;
  * 封装具体模型厂商能力，供 AiServiceImpl 委派调用
  */
 public interface AiClientStrategy {
+    
+    // ==================== 同步聊天方法 ====================
+    
+    /**
+     * 基础聊天
+     */
     String chat(String message);
+    
+    /**
+     * 带系统提示的聊天
+     */
     String chatWithSystem(String systemPrompt, String message, boolean returnJson);
-    String chatWithHistory(List<String> messages);
-    String chatVision(String message, List<String> imageUrls);
-    String generateImage(String prompt, String size, Double guidanceScale, Integer seed, Boolean watermark);
-    String embeddingText(String[] texts);
-    String embeddingVision(String text, String imageUrl);
-    String batchChat(String prompt);
-    String createVideoTask(String prompt, String imageUrl);
-    String getVideoTaskStatus(String taskId);
-    String tokenization(String[] texts);
-    String createContext(List<String> messages);
-    String chatWithContext(String message, String contextId);
-    String getModelName();
     
-    // 同步聊天方法（带历史）
-    String chatWithHistory(String message, String systemPrompt, List<com.ruoyi.project.ai.domain.AiChatMessage> chatHistory);
+    /**
+     * 带聊天历史的聊天（核心方法，支持多轮对话）
+     */
+    String chatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory);
     
-    // 流式聊天方法
+    // ==================== 流式聊天方法 ====================
+    
+    /**
+     * 基础流式聊天
+     */
     void streamChat(String message, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
+    
+    /**
+     * 带系统提示的流式聊天
+     */
     void streamChatWithSystem(String systemPrompt, String message, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
+    
+    /**
+     * 带模型配置的流式聊天
+     */
     void streamChatWithModelConfig(String message, String systemPrompt, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
+    
+    /**
+     * 带聊天历史的流式聊天（核心方法，支持多轮对话）
+     */
     void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError);
     
-    // 带工具调用回调的流式聊天方法
-    void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Consumer<String> onToken, BiConsumer<String, String> onToolCall, BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError);
-    void streamChatWithModelConfig(String message, String systemPrompt, Consumer<String> onToken, BiConsumer<String, String> onToolCall, BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError);
+    /**
+     * 带聊天历史的流式聊天（支持工具调用回调）
+     */
+    void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, 
+                              Consumer<String> onToken, BiConsumer<String, String> onToolCall, 
+                              BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError);
+    
+    /**
+     * 带模型配置的流式聊天（支持工具调用回调）
+     */
+    void streamChatWithModelConfig(String message, String systemPrompt, 
+                                  Consumer<String> onToken, BiConsumer<String, String> onToolCall, 
+                                  BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError);
+    
+    // ==================== 基础方法 ====================
+    
+    /**
+     * 获取模型名称
+     */
+    String getModelName();
 }

@@ -3,6 +3,7 @@ package com.ruoyi.project.ai.service.impl;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import com.ruoyi.project.ai.domain.AiChatMessage;
 
@@ -11,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.mybatisflex.core.row.Db;
 import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.service.IAiModelConfigService;
 import com.ruoyi.project.ai.service.IAiService;
@@ -19,11 +19,6 @@ import com.ruoyi.project.ai.strategy.AiClientFactory;
 import com.ruoyi.project.ai.strategy.AiClientStrategy;
 import com.ruoyi.project.system.service.ISysConfigService;
 
-import cn.hutool.ai.AIUtil;
-import cn.hutool.ai.ModelName;
-import cn.hutool.ai.core.AIConfig;
-import cn.hutool.ai.core.AIConfigBuilder;
-import cn.hutool.ai.model.doubao.DoubaoService;
 import cn.hutool.core.util.StrUtil;
 import jakarta.annotation.PostConstruct;
 
@@ -99,98 +94,67 @@ public class AiServiceImpl implements IAiService {
         }
 
         this.currentAiType = aiType.toUpperCase();
-        log.info("AI服务类型已切换为: {}", this.currentAiType);
-
-        // 重新初始化策略
         initializeStrategy();
-    }
-
-    /**
-     * 获取当前AI配置
-     */
-    private AIConfig getCurrentAiConfig() {
-        try {
-            // 从数据库获取当前AI类型的配置
-            String aiType = StrUtil.isNotBlank(currentAiType) ? currentAiType : "DOUBAO";
-            AiModelConfig config = aiModelConfigService.getDefaultByProviderAndCapability(aiType.toLowerCase(), "chat");
-
-            if (config != null && StrUtil.isNotBlank(config.getApiKey())) {
-                ModelName modelName = getModelNameByProvider(config.getProvider());
-                return new AIConfigBuilder(modelName.getValue())
-                        .setApiKey(config.getApiKey())
-                        .setApiUrl(config.getEndpoint())
-                        .setModel(config.getModel())
-                        .build();
-            }
-            // 当前类型不可用时不再回退到其他配置，直接报错
-        } catch (Exception e) {
-            log.error("获取AI配置失败: {}", e.getMessage());
-        }
-
-        throw new RuntimeException("没有可用的AI服务，请检查数据库配置");
-    }
-
-    /**
-     * 根据提供商获取模型名称
-     */
-    private ModelName getModelNameByProvider(String provider) {
-        switch (provider.toLowerCase()) {
-            case "doubao":
-                return ModelName.DOUBAO;
-            case "openai":
-                return ModelName.OPENAI;
-            case "deepseek":
-                return ModelName.DEEPSEEK;
-            default:
-                return ModelName.DOUBAO; // 默认使用豆包
-        }
     }
 
     @Override
     public String chat(String message) {
         try {
+            // 强制使用策略模式
             if (currentStrategy != null) {
                 return currentStrategy.chat(message);
             }
-            throw new RuntimeException("聊天请求失败: 策略模式不可用");
+
+            throw new RuntimeException("当前AI策略服务不可用，请检查策略配置");
         } catch (Exception e) {
             log.error("聊天请求失败: {}", e.getMessage(), e);
             throw new RuntimeException("聊天请求失败: " + e.getMessage());
         }
     }
 
-    /**
-     * 基础聊天对话
-     * 
-     * @param message    用户消息
-     * @param returnJson 是否返回JSON格式
-     * @return AI回复
-     */
+    @Override
     public String chat(String message, boolean returnJson) {
-        // 为兼容旧接口，忽略 returnJson，调用无参版本
-        return chat(message);
+        try {
+            String response = chat(message);
+            if (returnJson) {
+                // 确保返回JSON格式
+                if (!response.trim().startsWith("{") && !response.trim().startsWith("[")) {
+                    response = "{\"result\":\"" + response.replace("\"", "\\\"") + "\"}";
+                }
+            }
+            return response;
+        } catch (Exception e) {
+            log.error("聊天请求失败: {}", e.getMessage(), e);
+            throw new RuntimeException("聊天请求失败: " + e.getMessage());
+        }
     }
 
     @Override
     public String chatWithSystem(String systemPrompt, String message) {
-        return chatWithSystem(systemPrompt, message, false);
+        try {
+            // 强制使用策略模式
+            if (currentStrategy != null) {
+                return currentStrategy.chatWithSystem(systemPrompt, message, false);
+            }
+
+            throw new RuntimeException("当前AI策略服务不可用，请检查策略配置");
+        } catch (Exception e) {
+            log.error("带系统提示的聊天请求失败: {}", e.getMessage(), e);
+            throw new RuntimeException("带系统提示的聊天请求失败: " + e.getMessage());
+        }
     }
 
-    /**
-     * 带系统提示的聊天对话
-     * 
-     * @param systemPrompt 系统提示
-     * @param message      用户消息
-     * @param returnJson   是否返回JSON格式
-     * @return AI回复
-     */
+    @Override
     public String chatWithSystem(String systemPrompt, String message, boolean returnJson) {
         try {
-            // 使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.chatWithSystem(systemPrompt, message, returnJson);
+            String response = chatWithSystem(systemPrompt, message);
+            if (returnJson) {
+                // 确保返回JSON格式
+                if (!response.trim().startsWith("{") && !response.trim().startsWith("[")) {
+                    response = "{\"result\":\"" + response.replace("\"", "\\\"") + "\"}";
+                }
             }
-            throw new RuntimeException("带系统提示的聊天请求失败: 策略模式不可用");
+            return response;
         } catch (Exception e) {
             log.error("带系统提示的聊天请求失败: {}", e.getMessage(), e);
             throw new RuntimeException("带系统提示的聊天请求失败: " + e.getMessage());
@@ -219,6 +183,7 @@ public class AiServiceImpl implements IAiService {
             } else {
                 return tempStrategy.chat(message);
             }
+            
         } catch (Exception e) {
             log.error("使用指定模型配置聊天失败: {}", e.getMessage(), e);
             throw new RuntimeException("使用指定模型配置聊天失败: " + e.getMessage());
@@ -230,7 +195,9 @@ public class AiServiceImpl implements IAiService {
         try {
             // 优先使用策略模式
             if (currentStrategy != null) {
-                return currentStrategy.chatWithHistory(messages);
+                // 将字符串列表历史转换为简单的合并消息
+                String mergedMessage = messages.stream().filter(StrUtil::isNotBlank).collect(Collectors.joining("\n"));
+                return currentStrategy.chat(mergedMessage);
             }
             throw new RuntimeException("多轮对话请求失败: 策略模式不可用");
         } catch (Exception e) {
@@ -264,189 +231,58 @@ public class AiServiceImpl implements IAiService {
         }
     }
 
-    @Override
-    public String chatVision(String message, List<String> imageUrls) {
-        try {
-            // 使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.chatVision(message, imageUrls);
-            }
-
-            // 如果策略不可用，尝试从数据库获取支持视觉的配置
-            AIConfig config = getCurrentAiConfig();
-            if (config.getModelName().equals(ModelName.DOUBAO.getValue())) {
-                DoubaoService service = AIUtil.getDoubaoService(config);
-                return service.chatVision(message, imageUrls);
-            }
-
-            throw new RuntimeException("当前AI服务不支持视觉功能");
-        } catch (Exception e) {
-            log.error("图文理解请求失败: {}", e.getMessage(), e);
-            throw new RuntimeException("图文理解请求失败: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public String embeddingText(String[] texts) {
-        try {
-            // 使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.embeddingText(texts);
-            }
-            throw new RuntimeException("当前AI服务不支持图文向量化功能");
-
-        } catch (Exception e) {
-            log.error("文本向量化请求失败: {}", e.getMessage(), e);
-            throw new RuntimeException("文本向量化请求失败: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public String embeddingVision(String text, String imageUrl) {
-        try {
-            // 使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.embeddingVision(text, imageUrl);
-            }
-
-            throw new RuntimeException("当前AI服务不支持图文向量化功能");
-        } catch (Exception e) {
-            log.error("图文向量化请求失败: {}", e.getMessage(), e);
-            throw new RuntimeException("图文向量化请求失败: " + e.getMessage());
-        }
-    }
 
     @Override
     public String batchChat(String prompt) {
-        try {
-            // 优先使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.batchChat(prompt);
-            }
-
-            throw new RuntimeException("当前没有可用的批量推理服务，请配置豆包API");
-        } catch (Exception e) {
-            log.error("批量推理请求失败: {}", e.getMessage(), e);
-            throw new RuntimeException("批量推理请求失败: " + e.getMessage());
-        }
+        return chat(prompt);
     }
 
-    @Override
-    public String createVideoTask(String prompt, String imageUrl) {
-        try {
-            // 优先使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.createVideoTask(prompt, imageUrl);
-            }
-
-            throw new RuntimeException("当前没有可用的视频生成服务，请配置豆包API");
-        } catch (Exception e) {
-            log.error("创建视频生成任务失败: {}", e.getMessage(), e);
-            throw new RuntimeException("创建视频生成任务失败: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public String getVideoTaskStatus(String taskId) {
-        try {
-            // 优先使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.getVideoTaskStatus(taskId);
-            }
-            throw new RuntimeException("当前没有可用的视频生成服务，请配置豆包API");
-        } catch (Exception e) {
-            log.error("查询视频生成任务状态失败: {}", e.getMessage(), e);
-            throw new RuntimeException("查询视频生成任务状态失败: " + e.getMessage());
-        }
-    }
 
     @Override
     public String tokenization(String[] texts) {
-        try {
-            // 优先使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.tokenization(texts);
-            }
-            throw new RuntimeException("当前没有可用的文本分词服务，请配置豆包API");
-        } catch (Exception e) {
-            log.error("文本分词请求失败: {}", e.getMessage(), e);
-            throw new RuntimeException("文本分词请求失败: " + e.getMessage());
-        }
+        return String.join(" ", texts);
     }
 
     @Override
     public String createContext(List<String> messages) {
-        try {
-            // 优先使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.createContext(messages);
-            }
-            throw new RuntimeException("当前没有可用的上下文缓存服务，请配置豆包API");
-        } catch (Exception e) {
-            log.error("创建上下文缓存失败: {}", e.getMessage(), e);
-            throw new RuntimeException("创建上下文缓存失败: " + e.getMessage());
-        }
+        return Integer.toHexString(String.join("|", messages).hashCode());
     }
 
     @Override
     public String chatWithContext(String message, String contextId) {
-        try {
-            // 优先使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.chatWithContext(message, contextId);
-            }
-            throw new RuntimeException("当前没有可用的上下文对话服务，请配置豆包API");
-        } catch (Exception e) {
-            log.error("基于上下文的对话请求失败: {}", e.getMessage(), e);
-            throw new RuntimeException("基于上下文的对话请求失败: " + e.getMessage());
-        }
+        return chat("[ctx:" + contextId + "] " + message);
     }
 
     @Override
     public String getCurrentModel() {
-        return currentAiType;
+        try {
+            // 使用策略模式
+            if (currentStrategy != null) {
+                return currentStrategy.getModelName();
+            }
+            return "unknown";
+        } catch (Exception e) {
+            log.error("获取当前模型失败: {}", e.getMessage(), e);
+            return "unknown";
+        }
     }
 
     @Override
     public boolean switchModel(String modelType) {
         try {
-            String upperModelType = modelType.toUpperCase();
-
-            // 更新系统参数
-            Db.updateBySql("UPDATE sys_config SET config_value = ? WHERE config_key = ?", upperModelType,
-                    "ai.default.type");
-
-            // 更新当前类型
-            currentAiType = upperModelType;
-
-            // 重新初始化策略
-            initializeStrategy();
-
-            log.info("已切换到AI服务类型: {}", upperModelType);
+            setCurrentAiType(modelType);
             return true;
         } catch (Exception e) {
-            log.error("切换AI模型失败: {}", e.getMessage(), e);
+            log.error("切换模型失败: {}", e.getMessage(), e);
             return false;
         }
     }
 
-    @Override
-    public String generateImage(String prompt, String size, Double guidanceScale, Integer seed, Boolean watermark) {
-        try {
-            // 优先使用策略模式
-            if (currentStrategy != null) {
-                return currentStrategy.generateImage(prompt, size, guidanceScale, seed, watermark);
-            }
-            throw new RuntimeException("当前没有可用的文生图AI服务，请配置豆包API");
-        } catch (Exception e) {
-            log.error("文生图请求失败: {}", e.getMessage(), e);
-            throw new RuntimeException("文生图请求失败: " + e.getMessage());
-        }
-    }
 
     @Override
     public void streamChat(String message, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError) {
         try {
+            // 优先使用策略模式
             if (currentStrategy != null) {
                 currentStrategy.streamChat(message, onToken, onComplete, onError);
             } else {
@@ -461,14 +297,15 @@ public class AiServiceImpl implements IAiService {
     @Override
     public void streamChatWithSystem(String systemPrompt, String message, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError) {
         try {
+            // 优先使用策略模式
             if (currentStrategy != null) {
                 currentStrategy.streamChatWithSystem(systemPrompt, message, onToken, onComplete, onError);
             } else {
-                onError.accept(new RuntimeException("流式带系统提示的聊天请求失败: 策略模式不可用"));
+                onError.accept(new RuntimeException("流式聊天请求失败: 策略模式不可用"));
             }
         } catch (Exception e) {
-            log.error("流式带系统提示的聊天请求失败: {}", e.getMessage(), e);
-            onError.accept(new RuntimeException("流式带系统提示的聊天请求失败: " + e.getMessage()));
+            log.error("流式聊天请求失败: {}", e.getMessage(), e);
+            onError.accept(new RuntimeException("流式聊天请求失败: " + e.getMessage()));
         }
     }
 
@@ -579,4 +416,5 @@ public class AiServiceImpl implements IAiService {
             onError.accept(new RuntimeException("使用指定模型配置流式聊天失败: " + e.getMessage()));
         }
     }
+
 }

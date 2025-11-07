@@ -3,33 +3,24 @@ package com.ruoyi.project.ai.strategy.impl;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Consumer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.row.Db;
 import com.mybatisflex.core.row.Row;
 import com.ruoyi.common.utils.spring.SpringUtils;
 import com.ruoyi.project.ai.domain.AiChatMessage;
 import com.ruoyi.project.ai.domain.AiModelConfig;
-import com.ruoyi.project.ai.domain.AiWorkflow;
-import com.ruoyi.project.ai.domain.AiWorkflowStep;
-import com.ruoyi.project.ai.service.IAiWorkflowService;
-import com.ruoyi.project.ai.service.IAiWorkflowStepService;
 import com.ruoyi.project.ai.strategy.AiClientStrategy;
+import com.ruoyi.project.ai.tool.LangChain4jToolRegistry;
 
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -39,15 +30,10 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.request.json.JsonArraySchema;
-import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
-import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
-import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
-
 
 /**
  * LangChain4j 通用客户端策略骨架
@@ -63,21 +49,15 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
     private final Integer toolCallDelay; // 工具调用后延时（毫秒）
     private final ChatModel chatModel;
     private final StreamingChatModel streamingChatModel;
-    private final EmbeddingModel embeddingModel;
+    
+    // 注入工具注册器
+    private final LangChain4jToolRegistry toolRegistry;
 
     // 速率限制重试配置
-    private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final int MAX_RETRY_ATTEMPTS = 10;
     private static final long INITIAL_RETRY_DELAY_MS = 3000; // 3秒
     private static final double RETRY_MULTIPLIER = 2.0;
     private static final long MAX_RETRY_DELAY_MS = 60000; // 60秒
-
-    // SQL安全检查的正则表达式
-    // 使用单词边界\b确保只匹配完整的SQL关键词，避免误判字段名或表名中包含这些词的情况
-    private static final Pattern DANGEROUS_SQL_PATTERN = Pattern.compile(
-        "(?i).*\\b(drop|delete|truncate|alter|create\\s+table|create\\s+database|create\\s+index|create\\s+view|insert|update|grant|revoke|exec|execute|xp_|sp_)\\b.*"
-    );
-
-    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     public LangChainGenericClientStrategy(String provider, String model, String endpoint, String apiKey) {
         this.provider = provider;
@@ -87,7 +67,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
         this.toolCallDelay = null; // 不设置默认延时
         this.chatModel = buildChatModel();
         this.streamingChatModel = buildStreamingChatModel();
-        this.embeddingModel = buildEmbeddingModel();
+        // 初始化工具注册器
+        this.toolRegistry = SpringUtils.getBean(LangChain4jToolRegistry.class);
     }
 
     public LangChainGenericClientStrategy(AiModelConfig config) {
@@ -98,7 +79,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
         this.toolCallDelay = config.getToolCallDelay(); // 直接使用配置值，可能为空
         this.chatModel = buildChatModel();
         this.streamingChatModel = buildStreamingChatModel();
-        this.embeddingModel = buildEmbeddingModel();
+        // 初始化工具注册器
+        this.toolRegistry = SpringUtils.getBean(LangChain4jToolRegistry.class);
     }
 
     /**
@@ -297,95 +279,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
         }
     }
 
-    @Override
-    public String chatWithHistory(List<String> messages) {
-        try {
-            if (messages == null || messages.isEmpty()) {
-                return chat("");
-            }
-            // 简化：将历史合并成一个输入，避免角色缺失导致的歧义
-            String merged = messages.stream().filter(StrUtil::isNotBlank).collect(Collectors.joining("\n"));
-            return chat(merged);
-        } catch (Exception e) {
-            log.error("[LC4J-{}] chatWithHistory error: {}", provider, e.getMessage(), e);
-            throw new RuntimeException("多轮对话请求失败: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public String chatVision(String message, List<String> imageUrls) {
-        // 兼容实现：多数OpenAI兼容后端支持在文本中引用URL进行视觉理解
-        // 更高级的多模态消息可后续接入：UserMessage.with(Text + ImageUrlContent)
-        String urlPart = (imageUrls == null || imageUrls.isEmpty()) ? "" : ("\nImages:" + String.join(",", imageUrls));
-        return chat(message + urlPart);
-    }
-
-    @Override
-    public String generateImage(String prompt, String size, Double guidanceScale, Integer seed, Boolean watermark) {
-        throw new UnsupportedOperationException("通用策略暂未实现 generateImage，用具体提供方扩展");
-    }
-
-    @Override
-    public String embeddingText(String[] texts) {
-        try {
-            if (texts == null || texts.length == 0) {
-                return "{\"model\":\"" + safe(getEmbeddingModelName()) + "\",\"vectors\":[]}";
-            }
-            List<List<Float>> vectors = new ArrayList<>();
-            for (String t : texts) {
-                var emb = embeddingModel.embed(t).content();
-                // LangChain4j Embedding 返回的是 List<Float>
-                vectors.add(emb.vectorAsList());
-            }
-            String vecJson = vectors.stream()
-                    .map(vec -> vec.stream().map(f -> f == null ? "0" : stripTrailingZeros(f))
-                            .collect(Collectors.joining(",", "[", "]")))
-                    .collect(Collectors.joining(",", "[", "]"));
-            return "{"
-                    + "\"model\":\"" + safe(getEmbeddingModelName()) + "\"," 
-                    + "\"vectors\":" + vecJson 
-                    + "}";
-        } catch (Exception e) {
-            log.error("[LC4J-{}] embeddingText error: {}", provider, e.getMessage(), e);
-            throw new RuntimeException("文本向量化请求失败: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public String embeddingVision(String text, String imageUrl) {
-        // OpenAI兼容多模态嵌入通常需要专用API，通用策略暂不直接支持
-        throw new UnsupportedOperationException("通用策略暂未实现 embeddingVision，用具体提供方扩展");
-    }
-
-    @Override
-    public String batchChat(String prompt) {
-        return chat(prompt);
-    }
-
-    @Override
-    public String createVideoTask(String prompt, String imageUrl) {
-        throw new UnsupportedOperationException("通用策略暂未实现 createVideoTask");
-    }
-
-    @Override
-    public String getVideoTaskStatus(String taskId) {
-        throw new UnsupportedOperationException("通用策略暂未实现 getVideoTaskStatus");
-    }
-
-    @Override
-    public String tokenization(String[] texts) {
-        return String.join(" ", texts);
-    }
-
-    @Override
-    public String createContext(List<String> messages) {
-        return Integer.toHexString(String.join("|", messages).hashCode());
-    }
-
-    @Override
-    public String chatWithContext(String message, String contextId) {
-        return chat("[ctx:" + contextId + "] " + message);
-    }
 
     @Override
     public String getModelName() {
@@ -500,58 +393,9 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
         }
     }
 
-    private EmbeddingModel buildEmbeddingModel() {
-        try {
-            String embModelName = getEmbeddingModelName();
-            if (StrUtil.isNotBlank(endpoint)) {
-                return OpenAiEmbeddingModel.builder()
-                        .apiKey(apiKey)
-                        .modelName(embModelName)
-                        .baseUrl(endpoint)
-                        .build();
-            } else {
-                return OpenAiEmbeddingModel.builder()
-                        .apiKey(apiKey)
-                        .modelName(embModelName)
-                        .build();
-            }
-        } catch (Exception e) {
-            log.warn("[LC4J-{}] buildEmbeddingModel failed: {}", provider, e.getMessage());
-            return null;
-        }
-    }
-
-    private String getEmbeddingModelName() {
-        // 如果配置的模型已是嵌入模型，直接使用；否则使用默认嵌入模型
-        String m = StrUtil.emptyToDefault(model, "text-embedding-3-small");
-        if (StrUtil.containsIgnoreCase(m, "embedding")) {
-            return m;
-        }
-        return "text-embedding-3-small";
-    }
-
-    private static String safe(String s) {
-        return s == null ? "" : s;
-    }
-
-    private static String escapeJson(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r");
-    }
-
-    private static String stripTrailingZeros(Float f) {
-        String str = String.valueOf(f);
-        // 统一为尽量短的表示
-        if (str.contains(".")) {
-            // 去掉多余的0
-            str = str.replaceAll("0+$", "").replaceAll("\\.$", "");
-        }
-        return str;
-    }
-
+    
+    
+    
     /**
      * 安全获取消息角色，防止空指针异常
      * @param message 聊天消息
@@ -725,7 +569,7 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("以下是你可以查询的数据库表详细结构信息。请仔细阅读每个表的字段定义、数据类型、业务含义和约束条件：\n\n");
 
             // 解析允许的表列表
-            String[] tables = allowedTables.split(",");
+            String[] tables = allowedTables != null ? allowedTables.split(",") : new String[0];
             for (String tableName : tables) {
                 tableName = tableName.trim();
                 if (StrUtil.isNotBlank(tableName)) {
@@ -1084,490 +928,9 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             structure.append(" [备注信息]");
         }
     }
-
-
-
+    
     /**
-     * 执行安全的数据库查询
-     */
-    private static String executeDatabaseQuery(String sql) {
-        try {
-            if (StrUtil.isBlank(sql)) {
-                return "SQL语句不能为空";
-            }
-
-            // 安全检查
-            if (!isSafeSql(sql)) {
-                return "安全检查失败：只允许执行SELECT查询语句";
-            }
-
-            // 限制查询结果数量
-            int limit = 100;
-
-            // 检查SQL是否已包含LIMIT子句
-            String normalizedSql = sql.trim().toLowerCase();
-            if (!normalizedSql.contains("limit")) {
-                sql = sql.trim();
-                if (!sql.endsWith(";")) {
-                    sql += " LIMIT " + limit;
-                } else {
-                    sql = sql.substring(0, sql.length() - 1) + " LIMIT " + limit + ";";
-                }
-            }
-
-            // 执行查询
-            List<Row> rows = Db.selectListBySql(sql);
-            
-            if (rows.isEmpty()) {
-                return "查询结果为空";
-            }
-
-            // 构建结果JSON
-            Map<String, Object> result = new HashMap<>();
-            result.put("total", rows.size());
-            result.put("limit", limit);
-            result.put("data",rows);
-
-            return JSONUtil.toJsonStr(result);
-
-        } catch (Exception e) {
-            log.error("执行数据库查询失败: {}", e.getMessage(), e);
-            return "查询执行失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 检查SQL是否安全（只允许SELECT语句）
-     */
-    private static boolean isSafeSql(String sql) {
-        if (StrUtil.isBlank(sql)) {
-            return false;
-        }
-
-        String normalizedSql = sql.trim().toLowerCase();
-        
-        // 检查是否以SELECT开头
-        if (!normalizedSql.startsWith("select")) {
-            return false;
-        }
-
-        // 检查是否包含危险操作
-        if (DANGEROUS_SQL_PATTERN.matcher(normalizedSql).matches()) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * 获取工作流列表和步骤信息
-     */
-    private static String getWorkflowList() {
-        try {
-            IAiWorkflowService workflowService = SpringUtils.getBean(IAiWorkflowService.class);
-            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
-            
-            // 获取所有启用的工作流
-            List<AiWorkflow> workflows = workflowService.listByEnabled("1");
-            
-            Map<String, Object> result = new HashMap<>();
-            List<Map<String, Object>> workflowList = new ArrayList<>();
-            
-            for (AiWorkflow workflow : workflows) {
-                Map<String, Object> workflowInfo = new HashMap<>();
-                workflowInfo.put("id", workflow.getId());
-                workflowInfo.put("name", workflow.getName());
-                workflowInfo.put("description", workflow.getDescription());
-                workflowInfo.put("type", workflow.getType());
-                workflowInfo.put("version", workflow.getVersion());
-                workflowInfo.put("status", workflow.getStatus());
-                
-                // 获取工作流步骤
-                List<AiWorkflowStep> steps = stepService.selectByWorkflowId(workflow.getId());
-                List<Map<String, Object>> stepList = new ArrayList<>();
-                
-                for (AiWorkflowStep step : steps) {
-                    Map<String, Object> stepInfo = new HashMap<>();
-                    stepInfo.put("id", step.getId());
-                    stepInfo.put("stepName", step.getStepName());
-                    stepInfo.put("description", step.getDescription());
-                    stepInfo.put("stepOrder", step.getStepOrder());
-                    stepInfo.put("systemPrompt", step.getSystemPrompt());
-                    stepInfo.put("userPrompt", step.getUserPrompt());
-                    stepInfo.put("inputVariable", step.getInputVariable());
-                    stepInfo.put("outputVariable", step.getOutputVariable());
-                    stepInfo.put("enabled", step.getEnabled());
-                    stepInfo.put("toolTypes", step.getToolTypes());
-                    stepInfo.put("toolEnabled", step.getToolEnabled());
-                    stepList.add(stepInfo);
-                }
-                
-                workflowInfo.put("steps", stepList);
-                workflowList.add(workflowInfo);
-            }
-            
-            result.put("success", true);
-            result.put("count", workflowList.size());
-            result.put("workflows", workflowList);
-            
-            return JSONUtil.toJsonStr(result);
-            
-        } catch (Exception e) {
-            log.error("获取工作流列表失败: {}", e.getMessage(), e);
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "获取工作流列表失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
-        }
-    }
-
-    /**
-     * 验证工作流步骤的变量配置
-     * 规则：第一步的输入变量可以为空，但输出变量不能为空
-     *      后续步骤的输入输出变量都不能为空
-     *      
-     * @param steps 工作流步骤列表
-     * @throws RuntimeException 如果变量配置不符合规则
-     */
-    private static void validateWorkflowSteps(List<Map<String, Object>> steps) {
-        if (steps == null || steps.isEmpty()) {
-            return;
-        }
-        
-        for (int i = 0; i < steps.size(); i++) {
-            Map<String, Object> stepData = steps.get(i);
-            String stepName = (String) stepData.get("stepName");
-            String inputVariable = (String) stepData.get("inputVariable");
-            String outputVariable = (String) stepData.get("outputVariable");
-            
-            // 第一步的特殊验证
-            if (i == 0) {
-                // 第一步的输出变量不能为空
-                if (StrUtil.isBlank(outputVariable)) {
-                    throw new RuntimeException("第一步 '" + stepName + "' 的输出变量名不能为空");
-                }
-            } else {
-                // 后续步骤的输入变量不能为空
-                if (StrUtil.isBlank(inputVariable)) {
-                    throw new RuntimeException("步骤 '" + stepName + "' 的输入变量名不能为空");
-                }
-                // 后续步骤的输出变量也不能为空
-                if (StrUtil.isBlank(outputVariable)) {
-                    throw new RuntimeException("步骤 '" + stepName + "' 的输出变量名不能为空");
-                }
-            }
-        }
-    }
-
-    /**
-     * 新增工作流
-     */
-    private static String addWorkflow(String name, String description, String type, List<Map<String, Object>> steps) {
-        try {
-            IAiWorkflowService workflowService = SpringUtils.getBean(IAiWorkflowService.class);
-            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
-            
-            // 创建工作流
-            AiWorkflow workflow = new AiWorkflow();
-            workflow.setName(name);
-            workflow.setDescription(description);
-            workflow.setType(type != null ? type : "sequential");
-            workflow.setVersion("1.0");
-            workflow.setEnabled("1");
-            workflow.setStatus("0");
-            workflow.setDelFlag("0");
-            
-            boolean workflowSaved = workflowService.save(workflow);
-            if (!workflowSaved) {
-                throw new RuntimeException("保存工作流失败");
-            }
-            
-            // 创建工作流步骤
-            if (steps != null && !steps.isEmpty()) {
-                // 验证步骤变量配置
-                validateWorkflowSteps(steps);
-                
-                for (int i = 0; i < steps.size(); i++) {
-                    Map<String, Object> stepData = steps.get(i);
-                    
-                    AiWorkflowStep step = new AiWorkflowStep();
-                    step.setWorkflowId(workflow.getId());
-                    step.setStepName((String) stepData.get("stepName"));
-                    step.setDescription((String) stepData.get("description"));
-                    step.setStepOrder(i + 1);
-                    // 固定使用deepseek配置ID为19
-                    step.setModelConfigId(19L);
-                    step.setSystemPrompt((String) stepData.get("systemPrompt"));
-                    step.setUserPrompt((String) stepData.get("userPrompt"));
-                    step.setInputVariable((String) stepData.get("inputVariable"));
-                    step.setOutputVariable((String) stepData.get("outputVariable"));
-                    step.setEnabled("1");
-                    step.setStatus("0");
-                    step.setDelFlag("0");
-                    
-                    // 设置工具配置
-                    step.setToolTypes((String) stepData.get("toolType"));
-                    step.setToolEnabled((String) stepData.get("toolEnabled"));
-                    
-                    // 如果配置了工具类型，必须配置工具启用状态
-                    String toolType = (String) stepData.get("toolType");
-                    if (StrUtil.isNotBlank(toolType)) {
-                        String toolEnabled = (String) stepData.get("toolEnabled");
-                        if (StrUtil.isBlank(toolEnabled)) {
-                            step.setToolEnabled("Y"); // 默认启用工具
-                        }
-                    }
-                    
-                    stepService.save(step);
-                }
-            }
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("workflowId", workflow.getId());
-            result.put("message", "工作流创建成功");
-            
-            return JSONUtil.toJsonStr(result);
-            
-        } catch (Exception e) {
-            log.error("新增工作流失败: {}", e.getMessage(), e);
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "新增工作流失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
-        }
-    }
-
-    /**
-     * 修改工作流
-     */
-    private static String updateWorkflow(Long workflowId, String name, String description, String type, List<Map<String, Object>> steps) {
-        try {
-            IAiWorkflowService workflowService = SpringUtils.getBean(IAiWorkflowService.class);
-            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
-            
-            // 更新工作流基本信息
-            AiWorkflow workflow = workflowService.getById(workflowId);
-            if (workflow == null) {
-                throw new RuntimeException("工作流不存在");
-            }
-            
-            if (name != null) workflow.setName(name);
-            if (description != null) workflow.setDescription(description);
-            if (type != null) workflow.setType(type);
-            
-            boolean workflowUpdated = workflowService.updateById(workflow);
-            if (!workflowUpdated) {
-                throw new RuntimeException("更新工作流失败");
-            }
-            
-            // 更新工作流步骤（先删除原有步骤，再添加新步骤）
-            if (steps != null) {
-                // 验证步骤变量配置
-                validateWorkflowSteps(steps);
-                
-                // 删除原有步骤
-                List<AiWorkflowStep> existingSteps = stepService.selectByWorkflowId(workflowId);
-                for (AiWorkflowStep existingStep : existingSteps) {
-                    existingStep.setDelFlag("1");
-                    stepService.updateById(existingStep);
-                }
-                
-                // 添加新步骤
-                for (int i = 0; i < steps.size(); i++) {
-                    Map<String, Object> stepData = steps.get(i);
-                    
-                    AiWorkflowStep step = new AiWorkflowStep();
-                    step.setWorkflowId(workflowId);
-                    step.setStepName((String) stepData.get("stepName"));
-                    step.setDescription((String) stepData.get("description"));
-                    step.setStepOrder(i + 1);
-                    // 固定使用deepseek配置ID为19
-                    step.setModelConfigId(19L);
-                    step.setSystemPrompt((String) stepData.get("systemPrompt"));
-                    step.setUserPrompt((String) stepData.get("userPrompt"));
-                    step.setInputVariable((String) stepData.get("inputVariable"));
-                    step.setOutputVariable((String) stepData.get("outputVariable"));
-                    step.setEnabled("1");
-                    step.setStatus("0");
-                    step.setDelFlag("0");
-                    
-                    // 设置工具配置
-                    step.setToolTypes((String) stepData.get("toolType"));
-                    step.setToolEnabled((String) stepData.get("toolEnabled"));
-                    
-                    // 如果配置了工具类型，必须配置工具启用状态
-                    String toolType = (String) stepData.get("toolType");
-                    if (StrUtil.isNotBlank(toolType)) {
-                        String toolEnabled = (String) stepData.get("toolEnabled");
-                        if (StrUtil.isBlank(toolEnabled)) {
-                            step.setToolEnabled("Y"); // 默认启用工具
-                        }
-                    }
-                    
-                    stepService.save(step);
-                }
-            }
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("workflowId", workflowId);
-            result.put("message", "工作流更新成功");
-            
-            return JSONUtil.toJsonStr(result);
-            
-        } catch (Exception e) {
-            log.error("修改工作流失败: {}", e.getMessage(), e);
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "修改工作流失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
-        }
-    }
-
-    /**
-     * 修改单个工作流步骤
-     */
-    private static String updateWorkflowStep(Long stepId, String stepName, String description, Integer stepOrder,
-                                           String systemPrompt, String userPrompt, String inputVariable, 
-                                           String outputVariable, String toolType, String toolEnabled, String enabled) {
-        try {
-            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
-            
-            // 获取现有步骤
-            AiWorkflowStep step = stepService.getById(stepId);
-            if (step == null) {
-                throw new RuntimeException("工作流步骤不存在");
-            }
-            
-            // 更新步骤信息（只更新非空字段）
-            if (StrUtil.isNotBlank(stepName)) {
-                step.setStepName(stepName);
-            }
-            if (StrUtil.isNotBlank(description)) {
-                step.setDescription(description);
-            }
-            if (stepOrder != null) {
-                step.setStepOrder(stepOrder);
-            }
-            if (StrUtil.isNotBlank(systemPrompt)) {
-                step.setSystemPrompt(systemPrompt);
-            }
-            if (StrUtil.isNotBlank(userPrompt)) {
-                step.setUserPrompt(userPrompt);
-            }
-            if (inputVariable != null) { // 允许设置为空字符串
-                step.setInputVariable(inputVariable);
-            }
-            if (StrUtil.isNotBlank(outputVariable)) {
-                step.setOutputVariable(outputVariable);
-            }
-            if (toolType != null) { // 允许设置为空字符串
-                step.setToolTypes(toolType);
-            }
-            if (StrUtil.isNotBlank(toolEnabled)) {
-                step.setToolEnabled(toolEnabled);
-            }
-            if (StrUtil.isNotBlank(enabled)) {
-                step.setEnabled(enabled);
-            }
-            
-            // 如果配置了工具类型，确保工具启用状态正确设置
-            if (StrUtil.isNotBlank(step.getToolTypes()) && StrUtil.isBlank(step.getToolEnabled())) {
-                step.setToolEnabled("Y"); // 默认启用工具
-            }
-            
-            // 验证步骤配置的合理性
-            if (StrUtil.isBlank(step.getOutputVariable())) {
-                throw new RuntimeException("输出变量名不能为空");
-            }
-            
-            // 更新步骤
-            boolean updated = stepService.updateById(step);
-            if (!updated) {
-                throw new RuntimeException("更新工作流步骤失败");
-            }
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("stepId", stepId);
-            result.put("message", "工作流步骤更新成功");
-            result.put("stepInfo", Map.of(
-                "stepName", step.getStepName(),
-                "description", step.getDescription(),
-                "stepOrder", step.getStepOrder(),
-                "inputVariable", step.getInputVariable(),
-                "outputVariable", step.getOutputVariable(),
-                "toolType", step.getToolTypes(),
-                "toolEnabled", step.getToolEnabled(),
-                "enabled", step.getEnabled()
-            ));
-            
-            return JSONUtil.toJsonStr(result);
-            
-        } catch (Exception e) {
-            log.error("修改工作流步骤失败: {}", e.getMessage(), e);
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "修改工作流步骤失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
-        }
-    }
-
-    /**
-     * 获取单个工作流步骤详情
-     */
-    private static String getWorkflowStep(Long stepId) {
-        try {
-            IAiWorkflowStepService stepService = SpringUtils.getBean(IAiWorkflowStepService.class);
-            IAiWorkflowService workflowService = SpringUtils.getBean(IAiWorkflowService.class);
-            
-            // 获取步骤信息
-            AiWorkflowStep step = stepService.getById(stepId);
-            if (step == null) {
-                throw new RuntimeException("工作流步骤不存在");
-            }
-            
-            // 获取所属工作流信息
-            AiWorkflow workflow = workflowService.getById(step.getWorkflowId());
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            
-            Map<String, Object> stepInfo = new HashMap<>();
-            stepInfo.put("stepId", step.getId());
-            stepInfo.put("workflowId", step.getWorkflowId());
-            stepInfo.put("workflowName", workflow.getName());
-            stepInfo.put("stepName", step.getStepName());
-            stepInfo.put("description", step.getDescription());
-            stepInfo.put("stepOrder", step.getStepOrder());
-            stepInfo.put("modelConfigId", step.getModelConfigId());
-            stepInfo.put("systemPrompt", step.getSystemPrompt());
-            stepInfo.put("userPrompt", step.getUserPrompt());
-            stepInfo.put("inputVariable", step.getInputVariable());
-            stepInfo.put("outputVariable", step.getOutputVariable());
-            stepInfo.put("toolType", step.getToolTypes());
-            stepInfo.put("toolEnabled", step.getToolEnabled());
-            stepInfo.put("enabled", step.getEnabled());
-            stepInfo.put("status", step.getStatus());
-            stepInfo.put("createTime", step.getCreateTime());
-            stepInfo.put("updateTime", step.getUpdateTime());
-            
-            result.put("stepInfo", stepInfo);
-            
-            return JSONUtil.toJsonStr(result);
-            
-        } catch (Exception e) {
-            log.error("获取工作流步骤详情失败: {}", e.getMessage(), e);
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "获取工作流步骤详情失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
-        }
-    }
-
-    /**
-     * 处理工具调用
+     * 解析工具参数
      */
     private void handleToolCalls(AiMessage aiMessage, List<ChatMessage> messages, 
                                 Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError) {
@@ -1583,110 +946,14 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                 String toolName = toolRequest.name();
                 String arguments = toolRequest.arguments();
                 String toolId = toolRequest.id();
+                String result;
                 
                 log.info("开始执行工具调用 - 工具名称: {}, 工具ID: {}, 参数: {}", toolName, toolId, arguments);
                 
                 try {
-                    String result;
-                    Map<String, Object> args = parseToolArguments(arguments);
-                    
-                    log.debug("解析后的工具参数: {}", args);
-                    
-                    switch (toolName) {
-                        case "database_query":
-                            String sql = (String) args.get("sql");
-                            if (sql == null || sql.trim().isEmpty()) {
-                                throw new IllegalArgumentException("SQL查询语句不能为空");
-                            }
-                            log.debug("执行数据库查询: {}", sql);
-                            result = executeDatabaseQuery(sql);
-                            log.debug("数据库查询结果长度: {} 字符", result.length());
-                            break;
-                        case "get_workflow_list":
-                            log.debug("获取工作流列表");
-                            result = getWorkflowList();
-                            log.debug("工作流列表结果长度: {} 字符", result.length());
-                            break;
-                        case "add_workflow":
-                            String name = (String) args.get("name");
-                            String description = (String) args.get("description");
-                            String type = (String) args.get("type");
-                            @SuppressWarnings("unchecked")
-                            List<Map<String, Object>> steps = (List<Map<String, Object>>) args.get("steps");
-                            
-                            if (name == null || name.trim().isEmpty()) {
-                                throw new IllegalArgumentException("工作流名称不能为空");
-                            }
-                            if (type == null || type.trim().isEmpty()) {
-                                throw new IllegalArgumentException("工作流类型不能为空");
-                            }
-                            
-                            log.debug("添加工作流 - 名称: {}, 类型: {}, 步骤数量: {}", name, type, steps != null ? steps.size() : 0);
-                            result = addWorkflow(name, description, type, steps);
-                            log.debug("添加工作流结果: {}", result);
-                            break;
-                        case "update_workflow":
-                            Object workflowIdObj = args.get("workflow_id");
-                            if (workflowIdObj == null) {
-                                throw new IllegalArgumentException("工作流ID不能为空");
-                            }
-                            
-                            Long workflowId = Long.valueOf(workflowIdObj.toString());
-                            String updateName = (String) args.get("name");
-                            String updateDescription = (String) args.get("description");
-                            String updateType = (String) args.get("type");
-                            @SuppressWarnings("unchecked")
-                            List<Map<String, Object>> updateSteps = (List<Map<String, Object>>) args.get("steps");
-                            
-                            log.debug("更新工作流 - ID: {}, 名称: {}, 类型: {}", workflowId, updateName, updateType);
-                            result = updateWorkflow(workflowId, updateName, updateDescription, updateType, updateSteps);
-                            log.debug("更新工作流结果: {}", result);
-                            break;
-                        case "update_workflow_step":
-                            Object stepIdObj = args.get("stepId");
-                            if (stepIdObj == null) {
-                                throw new IllegalArgumentException("步骤ID不能为空");
-                            }
-                            
-                            Long stepId = Long.valueOf(stepIdObj.toString());
-                            String stepName = (String) args.get("stepName");
-                            String stepDescription = (String) args.get("description");
-                            Object stepOrderObj = args.get("stepOrder");
-                            String systemPrompt = (String) args.get("systemPrompt");
-                            String userPrompt = (String) args.get("userPrompt");
-                            String inputVariable = (String) args.get("inputVariable");
-                            String outputVariable = (String) args.get("outputVariable");
-                            String toolType = (String) args.get("toolType");
-                            String toolEnabled = (String) args.get("toolEnabled");
-                            String enabled = (String) args.get("enabled");
-                            
-                            Integer stepOrder = null;
-                            if (stepOrderObj != null) {
-                                stepOrder = Integer.valueOf(stepOrderObj.toString());
-                            }
-                            
-                            log.debug("更新工作流步骤 - ID: {}, 名称: {}, 顺序: {}", stepId, stepName, stepOrder);
-                            result = updateWorkflowStep(stepId, stepName, stepDescription, stepOrder, 
-                                                      systemPrompt, userPrompt, inputVariable, outputVariable, 
-                                                      toolType, toolEnabled, enabled);
-                            log.debug("更新工作流步骤结果: {}", result);
-                            break;
-                        case "get_workflow_step":
-                            Object getStepIdObj = args.get("stepId");
-                            if (getStepIdObj == null) {
-                                throw new IllegalArgumentException("步骤ID不能为空");
-                            }
-                            
-                            Long getStepId = Long.valueOf(getStepIdObj.toString());
-                            
-                            log.debug("获取工作流步骤详情 - ID: {}", getStepId);
-                            result = getWorkflowStep(getStepId);
-                            log.debug("获取工作流步骤详情结果: {}", result);
-                            break;
-                        default:
-                            log.warn("未知的工具名称: {}", toolName);
-                            result = "错误: 未知的工具 '" + toolName + "'。可用工具: database_query, get_workflow_list, add_workflow, update_workflow, update_workflow_step, get_workflow_step";
-                    }
+                    // 使用ToolRegistry统一执行工具
+                    result = toolRegistry.executeTool(toolName, arguments);
+                    log.debug("工具调用成功 - 工具名称: {}, 结果长度: {} 字符", toolName, result.length());
                     
                     // 添加工具执行结果到对话历史
                     messages.add(ToolExecutionResultMessage.from(toolRequest, result));
@@ -1768,158 +1035,10 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
      * 构建所有可用的工具规范
      */
     private List<ToolSpecification> buildToolSpecifications() {
-        List<ToolSpecification> toolSpecs = new ArrayList<>();
-        
-        // 获取AI可访问的表列表
-        String allowedTablesDescription = "执行数据库查询并返回结果。";
-        try {
-            Row configRow = Db.selectOneBySql("SELECT config_value FROM sys_config WHERE config_key = ?", "ai.database.allowed_tables");
-            String allowedTables = configRow != null ? configRow.getString("config_value") : null;
-            if (StrUtil.isNotBlank(allowedTables)) {
-                allowedTablesDescription += "允许查询的表包括：" + allowedTables + "。";
-            }
-        } catch (Exception e) {
-            log.warn("获取允许访问的表列表失败: {}", e.getMessage());
-        }
-        
-        // 数据库查询工具
-        ToolSpecification databaseQueryToolSpec = ToolSpecification.builder()
-            .name("database_query")
-            .description(allowedTablesDescription)
-            .parameters(JsonObjectSchema.builder()
-                .addStringProperty("sql", "要执行的SQL查询语句，必须是SELECT语句")
-                .required("sql")
-                .build())
-            .build();
-        toolSpecs.add(databaseQueryToolSpec);
-        
-        // 获取工作流列表工具
-        ToolSpecification getWorkflowListToolSpec = ToolSpecification.builder()
-            .name("get_workflow_list")
-            .description("获取系统中所有已启用的工作流列表及其步骤信息。用于查看现有工作流配置。")
-            .parameters(JsonObjectSchema.builder().build())
-            .build();
-        toolSpecs.add(getWorkflowListToolSpec);
-        
-        // 添加工作流工具
-        ToolSpecification addWorkflowToolSpec = ToolSpecification.builder()
-            .name("add_workflow")
-            .description("创建新的工作流，包括工作流基本信息和步骤配置。用于自动化复杂的AI任务流程。")
-            .parameters(JsonObjectSchema.builder()
-                .addStringProperty("name", "工作流名称")
-                .addStringProperty("description", "工作流描述")
-                .addStringProperty("type", "工作流类型，推荐使用 sequential")
-                .addProperty("steps", JsonArraySchema.builder()
-                    .items(JsonObjectSchema.builder()
-                        .addStringProperty("stepName", "步骤名称")
-                        .addStringProperty("description", "步骤描述")
-                        .addNumberProperty("stepOrder", "步骤顺序，从1开始")
-                        .addStringProperty("systemPrompt", "系统提示词")
-                        .addStringProperty("userPrompt", "用户提示词，支持变量占位符如{{input_variable}}")
-                        .addStringProperty("inputVariable", "输入变量名，第一步可为空")
-                        .addStringProperty("outputVariable", "输出变量名，不能为空")
-                        .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
-                        .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
-                        .build())
-                    .build())
-                .required("name", "description", "type", "steps")
-                .build())
-            .build();
-        toolSpecs.add(addWorkflowToolSpec);
-        
-        // 修改工作流工具
-        ToolSpecification updateWorkflowToolSpec = ToolSpecification.builder()
-            .name("update_workflow")
-            .description("修改现有工作流的信息和步骤配置。用于更新已存在的工作流。")
-            .parameters(JsonObjectSchema.builder()
-                .addNumberProperty("workflowId", "要修改的工作流ID")
-                .addStringProperty("name", "工作流名称")
-                .addStringProperty("description", "工作流描述")
-                .addStringProperty("type", "工作流类型")
-                .addProperty("steps", JsonArraySchema.builder()
-                    .items(JsonObjectSchema.builder()
-                        .addStringProperty("stepName", "步骤名称")
-                        .addStringProperty("description", "步骤描述")
-                        .addNumberProperty("stepOrder", "步骤顺序，从1开始")
-                        .addStringProperty("systemPrompt", "系统提示词")
-                        .addStringProperty("userPrompt", "用户提示词，支持变量占位符如{{input_variable}}")
-                        .addStringProperty("inputVariable", "输入变量名，第一步可为空")
-                        .addStringProperty("outputVariable", "输出变量名，不能为空")
-                        .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
-                        .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
-                        .build())
-                    .build())
-                .required("workflowId", "name", "description", "type", "steps")
-                .build())
-            .build();
-        toolSpecs.add(updateWorkflowToolSpec);
-        
-        // 修改单个工作流步骤工具
-        ToolSpecification updateWorkflowStepToolSpec = ToolSpecification.builder()
-            .name("update_workflow_step")
-            .description("修改工作流中的单个步骤配置。用于更新已存在工作流中的特定步骤，而不需要重新配置整个工作流。")
-            .parameters(JsonObjectSchema.builder()
-                .addNumberProperty("stepId", "要修改的步骤ID")
-                .addStringProperty("stepName", "步骤名称")
-                .addStringProperty("description", "步骤描述")
-                .addNumberProperty("stepOrder", "步骤顺序，从1开始")
-                .addStringProperty("systemPrompt", "系统提示词")
-                .addStringProperty("userPrompt", "用户提示词，支持变量占位符如{{input_variable}}")
-                .addStringProperty("inputVariable", "输入变量名，第一步可为空")
-                .addStringProperty("outputVariable", "输出变量名，不能为空")
-                .addStringProperty("toolType", "工具类型，使用英文工具名称，如database_query、blog_save等，多个工具用逗号分隔")
-                .addStringProperty("toolEnabled", "工具启用状态，Y=启用，N=不启用")
-                .addStringProperty("enabled", "步骤启用状态，1=启用，0=禁用")
-                .required("stepId")
-                .build())
-            .build();
-        toolSpecs.add(updateWorkflowStepToolSpec);
-        
-        // 获取工作流步骤详情工具
-        ToolSpecification getWorkflowStepToolSpec = ToolSpecification.builder()
-            .name("get_workflow_step")
-            .description("获取工作流中特定步骤的详细信息。用于查看步骤的当前配置，便于进行精确修改。")
-            .parameters(JsonObjectSchema.builder()
-                .addNumberProperty("stepId", "要查询的步骤ID")
-                .required("stepId")
-                .build())
-            .build();
-        toolSpecs.add(getWorkflowStepToolSpec);
-        
-        return toolSpecs;
+        return toolRegistry.getAllToolSpecifications();
     }
     
-    /**
-     * 解析工具参数
-     */
-    private Map<String, Object> parseToolArguments(String arguments) {
-        try {
-            if (StrUtil.isBlank(arguments)) {
-                log.debug("工具参数为空，返回空Map");
-                return new HashMap<>();
-            }
-            
-            log.debug("开始解析工具参数: {}", arguments);
-            Map<String, Object> result = objectMapper.readValue(arguments, Map.class);
-            log.debug("工具参数解析成功，包含 {} 个参数", result.size());
-            return result;
-            
-        } catch (com.fasterxml.jackson.core.JsonParseException e) {
-            log.error("工具参数JSON格式错误 - 参数: {}, 错误位置: 行{} 列{}, 错误: {}", 
-                     arguments, e.getLocation().getLineNr(), e.getLocation().getColumnNr(), e.getMessage());
-            throw new IllegalArgumentException("JSON格式错误: " + e.getMessage() + 
-                                             " (位置: 行" + e.getLocation().getLineNr() + 
-                                             " 列" + e.getLocation().getColumnNr() + ")");
-        } catch (com.fasterxml.jackson.databind.JsonMappingException e) {
-            log.error("工具参数JSON映射错误 - 参数: {}, 错误: {}", arguments, e.getMessage());
-            throw new IllegalArgumentException("JSON映射错误: " + e.getMessage());
-        } catch (Exception e) {
-            log.error("解析工具参数时发生未知错误 - 参数: {}, 错误类型: {}, 错误: {}", 
-                     arguments, e.getClass().getSimpleName(), e.getMessage(), e);
-            throw new IllegalArgumentException("参数解析失败: " + e.getMessage());
-        }
-    }
-
+    
     @Override
     public void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError) {
         try {
@@ -2084,113 +1203,8 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
                     // 发送工具调用事件
                     onToolCall.accept(toolName, arguments);
                     
-                    // 解析参数
-                    Map<String, Object> args = parseToolArguments(arguments);
-                    log.debug("解析后的参数: {}", args);
-                    
-                    String result;
-                    switch (toolName) {
-                        case "database_query":
-                            String sql = (String) args.get("sql");
-                            if (sql == null || sql.trim().isEmpty()) {
-                                throw new IllegalArgumentException("缺少必要参数: sql");
-                            }
-                            log.debug("执行SQL查询: {}", sql);
-                            result = executeDatabaseQuery(sql);
-                            break;
-                            
-                        case "get_workflow_list":
-                            log.debug("获取工作流列表");
-                            result = getWorkflowList();
-                            break;
-                            
-                        case "add_workflow":
-                            String name = (String) args.get("name");
-                            String description = (String) args.get("description");
-                            String type = (String) args.get("type");
-                            @SuppressWarnings("unchecked")
-                            List<Map<String, Object>> steps = (List<Map<String, Object>>) args.get("steps");
-                            
-                            // 参数验证
-                            if (name == null || name.trim().isEmpty()) {
-                                throw new IllegalArgumentException("缺少必要参数: name");
-                            }
-                            if (description == null || description.trim().isEmpty()) {
-                                throw new IllegalArgumentException("缺少必要参数: description");
-                            }
-                            if (type == null || type.trim().isEmpty()) {
-                                throw new IllegalArgumentException("缺少必要参数: type");
-                            }
-                            if (steps == null || steps.isEmpty()) {
-                                throw new IllegalArgumentException("缺少必要参数: steps 或 steps不能为空");
-                            }
-                            
-                            log.debug("添加工作流 - 名称: {}, 类型: {}, 步骤数: {}", name, type, steps.size());
-                            result = addWorkflow(name, description, type, steps);
-                            break;
-                            
-                        case "update_workflow":
-                            // 支持两种命名方式：workflowId和workflow_id
-                            Object workflowIdObj = args.get("workflowId");
-                            if (workflowIdObj == null) {
-                                workflowIdObj = args.get("workflow_id");
-                            }
-                            if (workflowIdObj == null) {
-                                throw new IllegalArgumentException("缺少必要参数: workflowId 或 workflow_id");
-                            }
-                            Long workflowId = Long.valueOf(workflowIdObj.toString());
-                            String updateName = (String) args.get("name");
-                            String updateDescription = (String) args.get("description");
-                            String updateType = (String) args.get("type");
-                            @SuppressWarnings("unchecked")
-                            List<Map<String, Object>> updateSteps = (List<Map<String, Object>>) args.get("steps");
-                            
-                            log.debug("更新工作流 - ID: {}, 名称: {}", workflowId, updateName);
-                            result = updateWorkflow(workflowId, updateName, updateDescription, updateType, updateSteps);
-                            break;
-                            
-                        case "update_workflow_step":
-                            Object stepIdObj = args.get("stepId");
-                            if (stepIdObj == null) {
-                                throw new IllegalArgumentException("缺少必要参数: stepId");
-                            }
-                            Long stepId = Long.valueOf(stepIdObj.toString());
-                            String stepName = (String) args.get("stepName");
-                            String stepDescription = (String) args.get("description");
-                            Object stepOrderObj = args.get("stepOrder");
-                            Integer stepOrder = stepOrderObj != null ? Integer.valueOf(stepOrderObj.toString()) : null;
-                            String systemPrompt = (String) args.get("systemPrompt");
-                            String userPrompt = (String) args.get("userPrompt");
-                            String inputVariable = (String) args.get("inputVariable");
-                            String outputVariable = (String) args.get("outputVariable");
-                            String toolType = (String) args.get("toolType");
-                            Object toolEnabledObj = args.get("toolEnabled");
-                            String toolEnabled = toolEnabledObj != null ? toolEnabledObj.toString() : null;
-                            Object enabledObj = args.get("enabled");
-                            String enabled = enabledObj != null ? enabledObj.toString() : null;
-                            
-                            log.debug("更新工作流步骤 - 步骤ID: {}, 步骤名称: {}", stepId, stepName);
-                            result = updateWorkflowStep(stepId, stepName, stepDescription, stepOrder, 
-                                systemPrompt, userPrompt, inputVariable, outputVariable, 
-                                toolType, toolEnabled, enabled);
-                            break;
-                            
-                        case "get_workflow_step":
-                            Object getStepIdObj = args.get("stepId");
-                            if (getStepIdObj == null) {
-                                throw new IllegalArgumentException("缺少必要参数: stepId");
-                            }
-                            Long getStepId = Long.valueOf(getStepIdObj.toString());
-                            
-                            log.debug("获取工作流步骤详情 - 步骤ID: {}", getStepId);
-                            result = getWorkflowStep(getStepId);
-                            break;
-                            
-                        default:
-                            log.warn("未知的工具名称: {}", toolName);
-                            result = "未知的工具: " + toolName;
-                            break;
-                    }
+                    // 使用ToolRegistry统一执行工具
+                    String result = toolRegistry.executeTool(toolName, arguments);
                     
                     log.debug("工具调用成功 - 工具ID: {}, 结果长度: {}", toolId, result != null ? result.length() : 0);
                     

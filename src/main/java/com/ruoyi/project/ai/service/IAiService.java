@@ -80,46 +80,9 @@ public interface IAiService {
      */
     String chatWithHistory(String message, String systemPrompt, List<com.ruoyi.project.ai.domain.AiChatMessage> chatHistory, Long modelConfigId);
     
-    /**
-     * 图文理解（视觉对话）
-     * 支持豆包等具有视觉能力的模型
-     * 
-     * @param message 用户消息
-     * @param imageUrls 图片URL列表
-     * @return AI回复
-     */
-    String chatVision(String message, List<String> imageUrls);
     
-    /**
-     * 文生图（图像生成）
-     * 支持豆包等具有图像生成能力的模型
-     * 
-     * @param prompt 图像生成提示词
-     * @param size 图像尺寸（如：512x512）
-     * @param guidanceScale 引导比例
-     * @param seed 随机种子
-     * @param watermark 是否添加水印
-     * @return 生成的图像URL
-     */
-    String generateImage(String prompt, String size, Double guidanceScale, Integer seed, Boolean watermark);
     
-    /**
-     * 文本向量化
-     * 
-     * @param texts 文本数组
-     * @return 向量化结果JSON字符串
-     */
-    String embeddingText(String[] texts);
     
-    /**
-     * 图文向量化
-     * 支持豆包等具有图文向量化能力的模型
-     * 
-     * @param text 文本内容
-     * @param imageUrl 图片URL
-     * @return 向量化结果JSON字符串
-     */
-    String embeddingVision(String text, String imageUrl);
     
     /**
      * 批量推理
@@ -129,22 +92,7 @@ public interface IAiService {
      */
     String batchChat(String prompt);
     
-    /**
-     * 创建视频生成任务（豆包专用）
-     * 
-     * @param prompt 视频生成提示
-     * @param imageUrl 参考图片URL（可选）
-     * @return 任务ID
-     */
-    String createVideoTask(String prompt, String imageUrl);
     
-    /**
-     * 查询视频生成任务状态（豆包专用）
-     * 
-     * @param taskId 任务ID
-     * @return 任务状态信息
-     */
-    String getVideoTaskStatus(String taskId);
     
     /**
      * 文本分词和Token分析

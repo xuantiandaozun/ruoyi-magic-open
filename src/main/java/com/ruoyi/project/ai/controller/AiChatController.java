@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -25,7 +24,6 @@ import com.ruoyi.framework.web.page.TableSupport;
 import com.ruoyi.project.ai.domain.AiChatMessage;
 import com.ruoyi.project.ai.domain.AiChatSession;
 import com.ruoyi.project.ai.dto.ChatRequest;
-import com.ruoyi.project.ai.dto.ModelSwitchRequest;
 import com.ruoyi.project.ai.service.IAiChatMessageService;
 import com.ruoyi.project.ai.service.IAiChatSessionService;
 import com.ruoyi.project.ai.service.impl.AiServiceImpl;
@@ -57,87 +55,10 @@ public class AiChatController extends BaseController {
     private IAiChatMessageService aiChatMessageService;
     
     /**
-     * 基础聊天接口
-     */
-    @Operation(summary = "基础聊天")
-    @SaCheckPermission("ai:chat:use")
-    @PostMapping
-    public AjaxResult chat(@RequestBody ChatRequest request) {
-        try {
-            if (StrUtil.isBlank(request.getMessage())) {
-                return error("消息内容不能为空");
-            }
-            
-            Long userId = StpUtil.getLoginIdAsLong();
-            AiChatSession session = null;
-            
-            // 处理会话
-            if (request.getSessionId() != null) {
-                // 使用指定会话
-                session = aiChatSessionService.getById(request.getSessionId());
-                if (session == null || !session.getUserId().equals(userId)) {
-                    return error("会话不存在或无权限访问");
-                }
-            } else {
-                // 创建或获取默认会话
-                session = aiChatSessionService.getOrCreateDefaultSession(userId, request.getModelConfigId());
-            }
-            
-            // 保存用户消息
-            AiChatMessage userMessage = new AiChatMessage();
-            userMessage.setSessionId(session.getId());
-            userMessage.setMessageRole("user");
-            userMessage.setMessageContent(request.getMessage());
-            userMessage.setMessageType("text");
-            userMessage.setModelConfigId(request.getModelConfigId());
-            userMessage.setCreateBy(String.valueOf(userId));
-            aiChatMessageService.save(userMessage);
-            
-            // 获取聊天历史：始终从数据库获取完整历史，确保AI能看到完整上下文
-            // 不依赖前端发送的chatHistory，避免前端数据不同步导致的问题
-            List<AiChatMessage> chatHistory = aiChatMessageService.buildMessageHistory(session.getId(), false);
-            
-            String response;
-            if (chatHistory != null && !chatHistory.isEmpty() && request.getModelConfigId() != null) {
-                // 使用聊天历史和指定模型配置
-                response = aiService.chatWithHistory(request.getMessage(), request.getSystemPrompt(), chatHistory, request.getModelConfigId());
-            } else if (request.getModelConfigId() != null) {
-                // 使用指定模型配置
-                response = aiService.chatWithModelConfig(request.getMessage(), request.getSystemPrompt(), request.getModelConfigId());
-            } else if (StrUtil.isNotBlank(request.getSystemPrompt())) {
-                // 使用系统提示
-                response = aiService.chatWithSystem(request.getSystemPrompt(), request.getMessage());
-            } else {
-                // 基础聊天
-                response = aiService.chat(request.getMessage());
-            }
-            
-            // 保存AI回复消息
-            AiChatMessage assistantMessage = new AiChatMessage();
-            assistantMessage.setSessionId(session.getId());
-            assistantMessage.setMessageRole("assistant");
-            assistantMessage.setMessageContent(response);
-            assistantMessage.setMessageType("text");
-            assistantMessage.setModelConfigId(request.getModelConfigId());
-            assistantMessage.setCreateBy(String.valueOf(userId));
-            aiChatMessageService.save(assistantMessage);
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("message", response);
-            result.put("sessionId", session.getId());
-            result.put("timestamp", System.currentTimeMillis());
-            
-            return success(result);
-        } catch (Exception e) {
-            logger.error("AI聊天请求失败: {}", e.getMessage(), e);
-            return error("AI聊天请求失败: " + e.getMessage());
-        }
-    }
-    
-    /**
      * 流式聊天接口
      */
     @Operation(summary = "流式聊天")
+    @SaCheckPermission("ai:chat:use")
     @PostMapping("/stream")
     public SseEmitter chatStream(@RequestBody ChatRequest request) {
         // 增加超时时间到10分钟，避免长时间对话被中断
@@ -446,7 +367,6 @@ public class AiChatController extends BaseController {
                     // onComplete: 完成时发送结束信号
                     () -> {
                         try {
-                            
                             // 发送会话信息
                             Map<String, Object> sessionData = new HashMap<>();
                             sessionData.put("type", "session");
@@ -483,84 +403,6 @@ public class AiChatController extends BaseController {
         }
         
         return emitter;
-    }
-    
-    /**
-     * 将响应文本分割成合适的块
-     */
-    /**
-     * 获取当前AI模型信息
-     */
-    @Operation(summary = "获取当前AI模型信息")
-    @SaCheckPermission("ai:chat:query")
-    @GetMapping("/model/current")
-    public AjaxResult getCurrentModel() {
-        try {
-            Map<String, Object> modelInfo = new HashMap<>();
-            modelInfo.put("currentType", aiService.getCurrentAiType());
-            modelInfo.put("availableTypes", new String[]{"DOUBAO", "OPENAI", "DEEPSEEK"});
-            modelInfo.put("timestamp", System.currentTimeMillis());
-            
-            return success(modelInfo);
-        } catch (Exception e) {
-            logger.error("获取AI模型信息失败: {}", e.getMessage(), e);
-            return error("获取AI模型信息失败: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 切换AI模型
-     */
-    @Operation(summary = "切换AI模型")
-    @SaCheckPermission("ai:chat:config")
-    @PostMapping("/model/switch")
-    public AjaxResult switchModel(@RequestBody ModelSwitchRequest request) {
-        try {
-            if (StrUtil.isBlank(request.getModelType())) {
-                return error("模型类型不能为空");
-            }
-            
-            String modelType = request.getModelType().toUpperCase();
-            if (!"DOUBAO".equals(modelType) && !"OPENAI".equals(modelType) && !"DEEPSEEK".equals(modelType)) {
-                return error("不支持的模型类型: " + modelType);
-            }
-            
-            aiService.setCurrentAiType(modelType);
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("currentType", modelType);
-            result.put("message", "模型切换成功");
-            result.put("timestamp", System.currentTimeMillis());
-            
-            return success(result);
-        } catch (Exception e) {
-            logger.error("切换AI模型失败: {}", e.getMessage(), e);
-            return error("切换AI模型失败: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 测试AI连接
-     */
-    @Operation(summary = "测试AI连接")
-    @SaCheckPermission("ai:chat:test")
-    @GetMapping("/test")
-    public AjaxResult testConnection(@RequestParam(defaultValue = "你好") String message) {
-        try {
-            String response = aiService.chat(message);
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("status", "success");
-            result.put("message", "AI连接正常");
-            result.put("response", response);
-            result.put("currentType", aiService.getCurrentAiType());
-            result.put("timestamp", System.currentTimeMillis());
-            
-            return success(result);
-        } catch (Exception e) {
-            logger.error("AI连接测试失败: {}", e.getMessage(), e);
-            return error("AI连接测试失败: " + e.getMessage());
-        }
     }
     
     /**
@@ -759,54 +601,6 @@ public class AiChatController extends BaseController {
         } catch (Exception e) {
             logger.error("删除会话失败: {}", e.getMessage(), e);
             return error("删除会话失败: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 批量删除会话
-     */
-    @Operation(summary = "批量删除会话")
-    @SaCheckPermission("ai:chat:history")
-    @DeleteMapping("/sessions")
-    public AjaxResult deleteChatSessions(@RequestParam Long[] sessionIds) {
-        try {
-            Long userId = StpUtil.getLoginIdAsLong();
-            // 验证所有会话权限
-            for (Long sessionId : sessionIds) {
-                AiChatSession session = aiChatSessionService.getById(sessionId);
-                if (session == null || !session.getUserId().equals(userId)) {
-                    return error("部分会话不存在或无权限访问");
-                }
-            }
-            
-            boolean result = aiChatSessionService.removeByIds(java.util.Arrays.asList(sessionIds));
-            if (result) {
-                return success("删除成功");
-            } else {
-                return error("删除失败");
-            }
-        } catch (Exception e) {
-            logger.error("批量删除会话失败: {}", e.getMessage(), e);
-            return error("批量删除会话失败: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 清空用户所有聊天历史记录
-     */
-    @Operation(summary = "清空所有聊天历史记录")
-    @SaCheckPermission("ai:chat:history")
-    @DeleteMapping("/history/clear")
-    public AjaxResult clearAllChatHistory() {
-        try {
-            Long userId = StpUtil.getLoginIdAsLong();
-            QueryWrapper queryWrapper = QueryWrapper.create()
-                .eq("user_id", userId);
-            boolean result = aiChatSessionService.remove(queryWrapper);
-            return success("已清空聊天历史");
-        } catch (Exception e) {
-            logger.error("清空聊天历史失败: {}", e.getMessage(), e);
-            return error("清空聊天历史失败: " + e.getMessage());
         }
     }
     
