@@ -1,7 +1,9 @@
 package com.ruoyi.project.system.controller;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,6 +28,7 @@ import com.ruoyi.framework.web.page.TableSupport;
 import com.ruoyi.project.system.domain.RdsInstanceInfo;
 import com.ruoyi.project.system.domain.dto.ModifySecurityIpsRequest;
 import com.ruoyi.project.system.service.IRdsInstanceInfoService;
+import com.ruoyi.project.system.service.IpLocationService;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,6 +46,9 @@ public class RdsInstanceInfoController extends BaseController
 {
     @Autowired
     private IRdsInstanceInfoService rdsInstanceInfoService;
+    
+    @Autowired
+    private IpLocationService ipLocationService;
 
     /**
      * 查询RDS实例管理列表
@@ -228,6 +234,46 @@ public class RdsInstanceInfoController extends BaseController
         
         // 如果以上都没有获取到，则使用request.getRemoteAddr()
         return request.getRemoteAddr();
+    }
+    
+    /**
+     * 获取当前客户端IP地址和地理位置信息
+     */
+    @SaCheckPermission("system:rdsInstance:query")
+    @Log(title = "获取客户端IP地址", businessType = BusinessType.OTHER)
+    @GetMapping("/getClientIp")
+    public AjaxResult getClientIp(HttpServletRequest request)
+    {
+        String clientIp = getClientIpAddress(request);
+        
+        // 检查是否为IPv6地址
+        if (isIPv6Address(clientIp)) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("ip", clientIp);
+            result.put("isIPv6", true);
+            result.put("location", null);
+            return AjaxResult.error("当前客户端为IPv6地址: " + clientIp, result);
+        }
+        
+        // 获取地理位置信息
+        Map<String, String> location = null;
+        if (!ipLocationService.isInternalIp(clientIp)) {
+            location = ipLocationService.getIpLocation(clientIp);
+        } else {
+            // 内网IP设置默认地理位置
+            location = new HashMap<>();
+            location.put("country", "本地网络");
+            location.put("region", "内网");
+            location.put("city", "内部");
+            location.put("isp", "局域网");
+        }
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("ip", clientIp);
+        result.put("isIPv6", false);
+        result.put("location", location);
+        
+        return AjaxResult.success("获取客户端IP成功", result);
     }
     
     /**
