@@ -63,18 +63,17 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        try {
-            // Get required parameters
-            String title = getStringParameter(parameters, "title");
-            String content = getStringParameter(parameters, "content");
-            
-            if (StrUtil.isBlank(title)) {
-                return "Error: Blog title cannot be empty";
-            }
-            
-            if (StrUtil.isBlank(content)) {
-                return "Error: Blog content cannot be empty";
-            }
+        // Get required parameters
+        String title = getStringParameter(parameters, "title");
+        String content = getStringParameter(parameters, "content");
+        
+        if (StrUtil.isBlank(title)) {
+            return "Error: Blog title cannot be empty";
+        }
+        
+        if (StrUtil.isBlank(content)) {
+            return "Error: Blog content cannot be empty";
+        }
             
             // Create BlogEn entity
             BlogEn blogEn = new BlogEn();
@@ -154,12 +153,8 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
                     StrUtil.isNotBlank(blogEn.getCategory()) ? blogEn.getCategory() : "Uncategorized",
                     StrUtil.isNotBlank(blogEn.getTags()) ? blogEn.getTags() : "No tags",
                     StrUtil.isNotBlank(blogEn.getZhBlogId()) ? blogEn.getZhBlogId() : "None");
-            } else {
-                return "Failed to save English blog article, please check database connection or parameters";
-            }
-            
-        } catch (Exception e) {
-            return "Error occurred while saving English blog article: " + e.getMessage();
+        } else {
+            return "Failed to save English blog article, please check database connection or parameters";
         }
     }
     

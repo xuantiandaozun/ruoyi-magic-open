@@ -63,19 +63,18 @@ public class GithubRepoTreeLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        try {
-            String owner = (String) parameters.get("owner");
-            String repo = (String) parameters.get("repo");
-            String branch = parameters.get("branch") != null ? 
-                (String) parameters.get("branch") : "main";
-            String path = parameters.get("path") != null ? 
-                (String) parameters.get("path") : "";
-            Boolean recursive = parameters.get("recursive") != null ? 
-                Boolean.parseBoolean(parameters.get("recursive").toString()) : false;
-            
-            if (StrUtil.isBlank(owner) || StrUtil.isBlank(repo)) {
-                return "错误：仓库所有者和仓库名称不能为空";
-            }
+        String owner = (String) parameters.get("owner");
+        String repo = (String) parameters.get("repo");
+        String branch = parameters.get("branch") != null ? 
+            (String) parameters.get("branch") : "main";
+        String path = parameters.get("path") != null ? 
+            (String) parameters.get("path") : "";
+        Boolean recursive = parameters.get("recursive") != null ? 
+            Boolean.parseBoolean(parameters.get("recursive").toString()) : false;
+        
+        if (StrUtil.isBlank(owner) || StrUtil.isBlank(repo)) {
+            return "错误：仓库所有者和仓库名称不能为空";
+        }
             
             // 构建GitHub API URL
             String apiUrl;
@@ -94,27 +93,24 @@ public class GithubRepoTreeLangChain4jTool implements LangChain4jTool {
                 }
             }
             
-            // 调用GitHub API
-            String response = callGithubApi(apiUrl);
-            
-            // 解析并格式化响应
-            String formattedResult = formatTreeResponse(response, recursive, owner, repo, branch, path);
-            
-            return formattedResult;
-            
-        } catch (Exception e) {
-            return "获取GitHub仓库目录时发生错误: " + e.getMessage();
-        }
+        // 调用GitHub API
+        String response = callGithubApi(apiUrl);
+        
+        // 解析并格式化响应
+        String formattedResult = formatTreeResponse(response, recursive, owner, repo, branch, path);
+        
+        return formattedResult;
     }
     
     /**
      * 调用GitHub API
      */
-    private String callGithubApi(String apiUrl) throws IOException {
-        URL url = new URL(apiUrl);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        
+    private String callGithubApi(String apiUrl) {
+        HttpURLConnection connection = null;
         try {
+            URL url = new URL(apiUrl);
+            connection = (HttpURLConnection) url.openConnection();
+            
             // 设置请求方法和超时
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(10000); // 10秒连接超时
@@ -139,7 +135,7 @@ public class GithubRepoTreeLangChain4jTool implements LangChain4jTool {
                         errorResponse.append(line);
                     }
                 }
-                throw new IOException("GitHub API请求失败，响应码: " + responseCode + ", 错误信息: " + errorResponse.toString());
+                throw new RuntimeException("GitHub API请求失败，响应码: " + responseCode + ", 错误信息: " + errorResponse.toString());
             }
             
             // 读取响应内容
@@ -154,8 +150,12 @@ public class GithubRepoTreeLangChain4jTool implements LangChain4jTool {
             
             return response.toString();
             
+        } catch (IOException e) {
+            throw new RuntimeException("GitHub API调用失败: " + e.getMessage(), e);
         } finally {
-            connection.disconnect();
+            if (connection != null) {
+                connection.disconnect();
+            }
         }
     }
     

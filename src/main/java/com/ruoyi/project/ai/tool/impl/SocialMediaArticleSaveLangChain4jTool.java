@@ -65,13 +65,12 @@ public class SocialMediaArticleSaveLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        try {
-            // 获取必填参数
-            String titleZh = (String) parameters.get("titleZh");
-            
-            if (StrUtil.isBlank(titleZh)) {
-                return "错误：中文标题不能为空";
-            }
+        // 获取必填参数
+        String titleZh = (String) parameters.get("titleZh");
+        
+        if (StrUtil.isBlank(titleZh)) {
+            return "错误：中文标题不能为空";
+        }
             
             // 创建SocialMediaArticle实体
             SocialMediaArticle article = new SocialMediaArticle();
@@ -172,12 +171,8 @@ public class SocialMediaArticleSaveLangChain4jTool implements LangChain4jTool {
                     StrUtil.isNotBlank(article.getTargetPlatform()) ? article.getTargetPlatform() : "未指定",
                     getPublishStatusText(article.getPublishStatus()),
                     StrUtil.isNotBlank(article.getBlogName()) ? article.getBlogName() : "未指定");
-            } else {
-                return "自媒体文章保存失败，请检查数据库连接或参数是否正确";
-            }
-            
-        } catch (Exception e) {
-            return "保存自媒体文章时发生错误: " + e.getMessage();
+        } else {
+            return "自媒体文章保存失败，请检查数据库连接或参数是否正确";
         }
     }
     

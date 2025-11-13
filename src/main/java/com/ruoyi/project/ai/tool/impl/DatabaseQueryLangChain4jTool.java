@@ -66,49 +66,44 @@ public class DatabaseQueryLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        try {
-            String sql = (String) parameters.get("sql");
-            if (StrUtil.isBlank(sql)) {
-                return "SQL语句不能为空";
-            }
-
-            // 安全检查
-            if (!isSafeSql(sql)) {
-                return "安全检查失败：只允许执行SELECT查询语句";
-            }
-
-            // 限制查询结果数量
-            int limit = 100;
-
-            // 检查SQL是否已包含LIMIT子句
-            String normalizedSql = sql.trim().toLowerCase();
-            if (!normalizedSql.contains("limit")) {
-                sql = sql.trim();
-                if (!sql.endsWith(";")) {
-                    sql += " LIMIT " + limit;
-                } else {
-                    sql = sql.substring(0, sql.length() - 1) + " LIMIT " + limit + ";";
-                }
-            }
-
-            // 执行查询
-            List<Row> rows = Db.selectListBySql(sql);
-            
-            if (rows.isEmpty()) {
-                return "查询结果为空";
-            }
-
-            // 构建结果JSON
-            Map<String, Object> result = new HashMap<>();
-            result.put("total", rows.size());
-            result.put("limit", limit);
-            result.put("data", rows);
-
-            return JSONUtil.toJsonStr(result);
-
-        } catch (Exception e) {
-            return "查询执行失败: " + e.getMessage();
+        String sql = (String) parameters.get("sql");
+        if (StrUtil.isBlank(sql)) {
+            return "SQL语句不能为空";
         }
+
+        // 安全检查
+        if (!isSafeSql(sql)) {
+            return "安全检查失败：只允许执行SELECT查询语句";
+        }
+
+        // 限制查询结果数量
+        int limit = 100;
+
+        // 检查SQL是否已包含LIMIT子句
+        String normalizedSql = sql.trim().toLowerCase();
+        if (!normalizedSql.contains("limit")) {
+            sql = sql.trim();
+            if (!sql.endsWith(";")) {
+                sql += " LIMIT " + limit;
+            } else {
+                sql = sql.substring(0, sql.length() - 1) + " LIMIT " + limit + ";";
+            }
+        }
+
+        // 执行查询
+        List<Row> rows = Db.selectListBySql(sql);
+        
+        if (rows.isEmpty()) {
+            return "查询结果为空";
+        }
+
+        // 构建结果JSON
+        Map<String, Object> result = new HashMap<>();
+        result.put("total", rows.size());
+        result.put("limit", limit);
+        result.put("data", rows);
+
+        return JSONUtil.toJsonStr(result);
     }
     
     @Override

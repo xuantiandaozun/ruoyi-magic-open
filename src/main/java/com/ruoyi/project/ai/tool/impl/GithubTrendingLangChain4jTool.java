@@ -61,22 +61,21 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        try {
-            // 获取参数
-            Integer limit = parameters.get("limit") != null ? 
-                Integer.parseInt(parameters.get("limit").toString()) : 10;
-            String language = (String) parameters.get("language");
-            Integer minStars = parameters.get("minStars") != null ? 
-                Integer.parseInt(parameters.get("minStars").toString()) : null;
-            Integer maxStars = parameters.get("maxStars") != null ? 
-                Integer.parseInt(parameters.get("maxStars").toString()) : null;
-            String orderBy = (String) parameters.get("orderBy");
-            Boolean hasReadme = parameters.get("hasReadme") != null ? 
-                Boolean.parseBoolean(parameters.get("hasReadme").toString()) : null;
-            
-            // 限制最大数量
-            if (limit > 150) limit = 150;
-            if (limit < 1) limit = 10;
+        // 获取参数
+        Integer limit = parameters.get("limit") != null ? 
+            Integer.parseInt(parameters.get("limit").toString()) : 10;
+        String language = (String) parameters.get("language");
+        Integer minStars = parameters.get("minStars") != null ? 
+            Integer.parseInt(parameters.get("minStars").toString()) : null;
+        Integer maxStars = parameters.get("maxStars") != null ? 
+            Integer.parseInt(parameters.get("maxStars").toString()) : null;
+        String orderBy = (String) parameters.get("orderBy");
+        Boolean hasReadme = parameters.get("hasReadme") != null ? 
+            Boolean.parseBoolean(parameters.get("hasReadme").toString()) : null;
+        
+        // 限制最大数量
+        if (limit > 150) limit = 150;
+        if (limit < 1) limit = 10;
             
             // 构建查询条件 - 查询今天首次上榜的项目，使用左连接排除已生成过文章的仓库
             QueryWrapper qw = QueryWrapper.create()
@@ -211,11 +210,7 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
                 result.append("\n");
             }
             
-            return result.toString();
-            
-        } catch (Exception e) {
-            return "查询GitHub趋势数据时发生错误: " + e.getMessage();
-        }
+        return result.toString();
     }
     
     @Override

@@ -1,6 +1,7 @@
 package com.ruoyi.project.ai.tool.impl;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +14,6 @@ import com.ruoyi.project.article.domain.Blog;
 import com.ruoyi.project.article.service.IBlogService;
 
 import cn.hutool.core.util.StrUtil;
-import java.util.Date;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 
@@ -67,18 +67,17 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        try {
-            // 获取必填参数
-            String title = (String) parameters.get("title");
-            String content = (String) parameters.get("content");
-            
-            if (StrUtil.isBlank(title)) {
-                return "错误：博客标题不能为空";
-            }
-            
-            if (StrUtil.isBlank(content)) {
-                return "错误：博客内容不能为空";
-            }
+        // 获取必填参数
+        String title = (String) parameters.get("title");
+        String content = (String) parameters.get("content");
+        
+        if (StrUtil.isBlank(title)) {
+            return "错误：博客标题不能为空";
+        }
+        
+        if (StrUtil.isBlank(content)) {
+            return "错误：博客内容不能为空";
+        }
             
             // 创建Blog实体
             Blog blog = new Blog();
@@ -162,12 +161,8 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
                     getStatusText(blog.getStatus()),
                     StrUtil.isNotBlank(blog.getCategory()) ? blog.getCategory() : "未分类",
                     StrUtil.isNotBlank(blog.getTags()) ? blog.getTags() : "无标签");
-            } else {
-                return "博客文章保存失败，请检查数据库连接或参数是否正确";
-            }
-            
-        } catch (Exception e) {
-            return "保存博客文章时发生错误: " + e.getMessage();
+        } else {
+            return "博客文章保存失败，请检查数据库连接或参数是否正确";
         }
     }
     

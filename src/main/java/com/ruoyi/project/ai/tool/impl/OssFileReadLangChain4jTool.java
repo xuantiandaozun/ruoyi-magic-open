@@ -46,25 +46,20 @@ public class OssFileReadLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        try {
-            String ossUrl = (String) parameters.get("ossUrl");
-            
-            if (StrUtil.isBlank(ossUrl)) {
-                return "错误：OSS URL不能为空";
-            }
-            
-            // 使用 Hutool 从OSS地址读取文件内容
-            String content = HttpUtil.get(ossUrl);
-            
-            if (StrUtil.isBlank(content)) {
-                return "文件内容为空或读取失败";
-            }
-            
-            return String.format("文件内容读取成功（共%d字符）：\n\n%s", content.length(), content);
-            
-        } catch (Exception e) {
-            return "读取OSS文件时发生错误: " + e.getMessage();
+        String ossUrl = (String) parameters.get("ossUrl");
+        
+        if (StrUtil.isBlank(ossUrl)) {
+            return "错误：OSS URL不能为空";
         }
+        
+        // 使用 Hutool 从OSS地址读取文件内容
+        String content = HttpUtil.get(ossUrl);
+        
+        if (StrUtil.isBlank(content)) {
+            return "文件内容为空或读取失败";
+        }
+        
+        return String.format("文件内容读取成功（共%d字符）：\n\n%s", content.length(), content);
     }
     
 
