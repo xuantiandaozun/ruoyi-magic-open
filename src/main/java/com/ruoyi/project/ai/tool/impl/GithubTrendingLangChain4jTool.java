@@ -82,9 +82,9 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
                 .select("gt.*")
                 .from("github_trending").as("gt")
                 .leftJoin("ai_blog_production_record").as("abpr")
-                .on(new QueryColumn("gt.url").eq(new QueryColumn("abpr.repo_url")))
-                .where(new QueryColumn("gt.first_trending_date").eq(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))))
-                .and(new QueryColumn("abpr.id").isNull()) // 左连接后，如果没有匹配记录则为NULL，表示未生成过
+                .on("gt.url = abpr.repo_url AND abpr.del_flag = '0'")
+                .where("gt.first_trending_date = ?", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")))
+                .and("abpr.id IS NULL") // 左连接后，如果没有匹配记录则为NULL，表示未生成过
                 .limit(limit);
             
             // 添加各种筛选条件
