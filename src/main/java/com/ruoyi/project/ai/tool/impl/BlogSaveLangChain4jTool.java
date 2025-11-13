@@ -141,6 +141,7 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
             if (success) {
                 // 保存生产记录
                 AiBlogProductionRecord productionRecord = new AiBlogProductionRecord();
+                productionRecord.setRepoUrl(""); // 非仓库相关博客，设置为空字符串
                 if (StrUtil.isNotBlank(blog.getBlogId())) {
                     productionRecord.setBlogId(Long.parseLong(blog.getBlogId()));
                 }

@@ -1,16 +1,23 @@
 package com.ruoyi.project.ai.tool.impl;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.ruoyi.project.ai.domain.AiBlogProductionRecord;
+import com.ruoyi.project.ai.service.IAiBlogProductionRecordService;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.article.domain.Blog;
+import com.ruoyi.project.article.service.IBlogService;
 import com.ruoyi.project.github.domain.GithubTrending;
 import com.ruoyi.project.github.service.IGithubTrendingService;
 
@@ -29,6 +36,12 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
     
     @Autowired
     private IGithubTrendingService githubTrendingService;
+    
+    @Autowired
+    private IAiBlogProductionRecordService blogProductionRecordService;
+    
+    @Autowired
+    private IBlogService blogService;
     
     @Override
     public String getToolName() {
@@ -76,16 +89,14 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
         // 限制最大数量
         if (limit > 150) limit = 150;
         if (limit < 1) limit = 10;
-            
-            // 构建查询条件 - 查询今天首次上榜的项目，使用左连接排除已生成过文章的仓库
-            QueryWrapper qw = QueryWrapper.create()
-                .select("gt.*")
-                .from("github_trending").as("gt")
-                .leftJoin("ai_blog_production_record").as("abpr")
-                .on("gt.url = abpr.repo_url AND abpr.del_flag = '0'")
-                .where("gt.first_trending_date = ?", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")))
-                .and("abpr.id IS NULL") // 左连接后，如果没有匹配记录则为NULL，表示未生成过
-                .limit(limit);
+        
+        // 第一步：查询最近30天内生成成功的博客文章内容
+        List<String> generatedBlogContents = getRecentGeneratedBlogContents();
+        
+        // 第二步：查询今天首次上榜的项目
+        QueryWrapper qw = QueryWrapper.create()
+            .from("github_trending")
+            .where(new QueryColumn("first_trending_date").eq(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))));
             
             // 添加各种筛选条件
             if (StrUtil.isNotBlank(language)) {
@@ -129,7 +140,15 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
                 qw.orderBy(new QueryColumn("stars_count").desc(), new QueryColumn("id").desc());
             }
             
-            List<GithubTrending> repositories = githubTrendingService.list(qw);
+            List<GithubTrending> allRepositories = githubTrendingService.list(qw);
+            
+            // 第三步：过滤掉已生成过博客的仓库（通过仓库名称或简介匹配博客内容）
+            List<GithubTrending> repositories = filterAlreadyGenerated(allRepositories, generatedBlogContents);
+            
+            // 限制返回数量
+            if (repositories.size() > limit) {
+                repositories = repositories.subList(0, limit);
+            }
             
             if (repositories.isEmpty()) {
                 StringBuilder filterInfo = new StringBuilder();
@@ -293,5 +312,128 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
         3. 查询星数在1000-10000之间的仓库，限制20个结果：
            {"minStars": 1000, "maxStars": 10000, "limit": 20}
         """;
+    }
+    
+    /**
+     * 查询最近30天内生成成功的博客文章内容
+     * @return 博客标题和内容的列表
+     */
+    private List<String> getRecentGeneratedBlogContents() {
+        List<String> contents = new ArrayList<>();
+        
+        try {
+            // 查询最近30天内状态为成功(status=1)的生产记录
+            LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+            QueryWrapper recordQw = QueryWrapper.create()
+                .from("ai_blog_production_record")
+                .where(new QueryColumn("status").eq("1"))
+                .and(new QueryColumn("del_flag").eq("0"))
+                .and(new QueryColumn("completion_time").ge(thirtyDaysAgo))
+                .and(new QueryColumn("blog_id").isNotNull());
+            
+            List<AiBlogProductionRecord> records = blogProductionRecordService.list(recordQw);
+            
+            if (records.isEmpty()) {
+                return contents;
+            }
+            
+            // 提取所有博客ID
+            List<Long> blogIds = records.stream()
+                .map(AiBlogProductionRecord::getBlogId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+            
+            if (blogIds.isEmpty()) {
+                return contents;
+            }
+            
+            // 查询这些博客的标题和内容
+            QueryWrapper blogQw = QueryWrapper.create()
+                .from("blog")
+                .where(new QueryColumn("blog_id").in(blogIds))
+                .and(new QueryColumn("del_flag").eq("0"));
+            
+            List<Blog> blogs = blogService.list(blogQw);
+            
+            // 合并标题和内容用于匹配
+            for (Blog blog : blogs) {
+                if (StrUtil.isNotBlank(blog.getTitle())) {
+                    contents.add(blog.getTitle());
+                }
+                if (StrUtil.isNotBlank(blog.getContent())) {
+                    contents.add(blog.getContent());
+                }
+            }
+        } catch (Exception e) {
+            // 查询失败时返回空列表，不影响主流程
+            System.err.println("查询最近生成的博客内容失败: " + e.getMessage());
+        }
+        
+        return contents;
+    }
+    
+    /**
+     * 过滤掉已生成过博客的仓库
+     * 通过仓库名称或简介内容去匹配博客的标题和内容
+     * @param repositories 待过滤的仓库列表
+     * @param blogContents 博客标题和内容列表
+     * @return 过滤后的仓库列表
+     */
+    private List<GithubTrending> filterAlreadyGenerated(List<GithubTrending> repositories, List<String> blogContents) {
+        if (blogContents.isEmpty()) {
+            return repositories;
+        }
+        
+        List<GithubTrending> filtered = new ArrayList<>();
+        
+        for (GithubTrending repo : repositories) {
+            boolean isGenerated = false;
+            
+            // 构建仓库的关键信息用于匹配
+            String repoName = repo.getTitle(); // 仓库名称
+            String repoDescription = repo.getDescription(); // 仓库简介
+            String repoOwner = repo.getOwner(); // 仓库作者
+            String fullRepoName = StrUtil.isNotBlank(repoOwner) && StrUtil.isNotBlank(repoName) 
+                ? repoOwner + "/" + repoName : repoName; // 完整仓库名
+            
+            // 与每篇博客内容进行匹配
+            for (String blogContent : blogContents) {
+                if (StrUtil.isBlank(blogContent)) {
+                    continue;
+                }
+                
+                // 匹配规则：
+                // 1. 博客内容包含完整仓库名（owner/repo）
+                // 2. 博客内容包含仓库名称
+                // 3. 如果仓库有简介，且简介长度大于20，博客内容包含简介的主要部分（前50个字符）
+                
+                if (StrUtil.isNotBlank(fullRepoName) && blogContent.contains(fullRepoName)) {
+                    isGenerated = true;
+                    break;
+                }
+                
+                if (StrUtil.isNotBlank(repoName) && repoName.length() > 3 && blogContent.contains(repoName)) {
+                    isGenerated = true;
+                    break;
+                }
+                
+                // 简介匹配：取简介前50个字符进行匹配，避免过于宽泛
+                if (StrUtil.isNotBlank(repoDescription) && repoDescription.length() > 20) {
+                    String descriptionPart = repoDescription.substring(0, Math.min(50, repoDescription.length()));
+                    if (blogContent.contains(descriptionPart)) {
+                        isGenerated = true;
+                        break;
+                    }
+                }
+            }
+            
+            // 如果未匹配到，说明未生成过，加入结果列表
+            if (!isGenerated) {
+                filtered.add(repo);
+            }
+        }
+        
+        return filtered;
     }
 }
