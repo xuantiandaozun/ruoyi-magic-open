@@ -109,6 +109,7 @@ public class GithubUsers extends BaseEntity
 
     /** 是否为前100(0-否 1-是) */
     @Excel(name = "是否前100", readConverterExp = "0=否,1=是")
+    @Column("is_top_100")
     private Integer isTop100;
 
     /** 是否关注(0-否 1-是) */

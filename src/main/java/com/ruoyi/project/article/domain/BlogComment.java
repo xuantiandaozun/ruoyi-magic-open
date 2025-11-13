@@ -78,4 +78,8 @@ public class BlogComment extends BaseEntity
     /** 博客标题（冗余字段） */
     @Column(ignore = true)
     private String blogTitle;
+    
+    /** 回复列表（冗余字段，用于前端展示） */
+    @Column(ignore = true)
+    private java.util.List<BlogComment> replies;
 }

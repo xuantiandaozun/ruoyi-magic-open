@@ -1,5 +1,6 @@
 package com.ruoyi.project.article.domain;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 
 import com.mybatisflex.annotation.Column;
@@ -87,6 +88,9 @@ public class BlogEn extends BaseEntity
 
     /** 飞书最后同步时间 */
     private Date feishuLastSyncTime;
+
+    /** 上次阅读时间 */
+    private LocalDateTime lastReadTime;
 
 
     /** 排序字段 */

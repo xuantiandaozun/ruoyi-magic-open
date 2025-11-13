@@ -93,6 +93,9 @@ public class Blog extends BaseEntity
     /** 飞书最后同步时间 */
     private LocalDateTime feishuLastSyncTime;
 
+    /** 上次阅读时间 */
+    private LocalDateTime lastReadTime;
+
 
 
     /** 排序字段 */
