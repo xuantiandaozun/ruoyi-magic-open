@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.ai.tool.ToolExecutionResult;
 
 import cn.hutool.core.util.StrUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -63,43 +65,51 @@ public class GithubRepoTreeLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        String owner = (String) parameters.get("owner");
-        String repo = (String) parameters.get("repo");
-        String branch = parameters.get("branch") != null ? 
-            (String) parameters.get("branch") : "main";
-        String path = parameters.get("path") != null ? 
-            (String) parameters.get("path") : "";
-        Boolean recursive = parameters.get("recursive") != null ? 
-            Boolean.parseBoolean(parameters.get("recursive").toString()) : false;
-        
-        if (StrUtil.isBlank(owner) || StrUtil.isBlank(repo)) {
-            return "错误：仓库所有者和仓库名称不能为空";
-        }
+        try {
+            String owner = (String) parameters.get("owner");
+            String repo = (String) parameters.get("repo");
+            String branch = parameters.get("branch") != null ? 
+                (String) parameters.get("branch") : "main";
+            String path = parameters.get("path") != null ? 
+                (String) parameters.get("path") : "";
+            Boolean recursive = parameters.get("recursive") != null ? 
+                Boolean.parseBoolean(parameters.get("recursive").toString()) : false;
             
-            // 构建GitHub API URL
-            String apiUrl;
-            if (recursive) {
-                // 使用Git Trees API获取递归目录结构
-                apiUrl = String.format("https://api.github.com/repos/%s/%s/git/trees/%s?recursive=1", 
-                    owner, repo, branch);
-            } else {
-                // 使用Contents API获取指定路径的内容
-                if (StrUtil.isNotBlank(path)) {
-                    apiUrl = String.format("https://api.github.com/repos/%s/%s/contents/%s?ref=%s", 
-                        owner, repo, path, branch);
-                } else {
-                    apiUrl = String.format("https://api.github.com/repos/%s/%s/contents?ref=%s", 
+            if (StrUtil.isBlank(owner) || StrUtil.isBlank(repo)) {
+                return ToolExecutionResult.failure("query", "仓库所有者和仓库名称不能为空");
+            }
+                
+                // 构建GitHub API URL
+                String apiUrl;
+                if (recursive) {
+                    // 使用Git Trees API获取递归目录结构
+                    apiUrl = String.format("https://api.github.com/repos/%s/%s/git/trees/%s?recursive=1", 
                         owner, repo, branch);
+                } else {
+                    // 使用Contents API获取指定路径的内容
+                    if (StrUtil.isNotBlank(path)) {
+                        apiUrl = String.format("https://api.github.com/repos/%s/%s/contents/%s?ref=%s", 
+                            owner, repo, path, branch);
+                    } else {
+                        apiUrl = String.format("https://api.github.com/repos/%s/%s/contents?ref=%s", 
+                            owner, repo, branch);
+                    }
                 }
+                
+            // 调用GitHub API
+            String response = callGithubApi(apiUrl);
+            
+            // 解析并格式化响应
+            Map<String, Object> treeData = parseTreeResponse(response, recursive, owner, repo, branch, path);
+            
+            if (treeData == null || treeData.isEmpty()) {
+                return ToolExecutionResult.empty("query", "未找到仓库文件目录信息");
             }
             
-        // 调用GitHub API
-        String response = callGithubApi(apiUrl);
-        
-        // 解析并格式化响应
-        String formattedResult = formatTreeResponse(response, recursive, owner, repo, branch, path);
-        
-        return formattedResult;
+            return ToolExecutionResult.querySuccess(treeData, "成功获取GitHub仓库目录结构");
+        } catch (Exception e) {
+            return ToolExecutionResult.failure("query", "获取GitHub仓库目录失败: " + e.getMessage());
+        }
     }
     
     /**
@@ -160,63 +170,83 @@ public class GithubRepoTreeLangChain4jTool implements LangChain4jTool {
     }
     
     /**
-     * 格式化目录树响应
+     * 解析目录树响应为结构化数据
      */
-    private String formatTreeResponse(String response, boolean recursive, String owner, String repo, String branch, String path) {
+    private Map<String, Object> parseTreeResponse(String response, boolean recursive, String owner, String repo, String branch, String path) {
         try {
             JsonNode rootNode = objectMapper.readTree(response);
-            StringBuilder result = new StringBuilder();
+            Map<String, Object> result = new HashMap<>();
             
-            result.append(String.format("GitHub仓库目录结构：%s/%s", owner, repo));
-            if (StrUtil.isNotBlank(branch)) {
-                result.append(" (分支: ").append(branch).append(")");
-            }
+            result.put("owner", owner);
+            result.put("repo", repo);
+            result.put("branch", branch);
             if (StrUtil.isNotBlank(path)) {
-                result.append(" (路径: ").append(path).append(")");
+                result.put("path", path);
             }
-            result.append("\n\n");
             
             if (recursive && rootNode.has("tree")) {
                 // 递归模式 - Git Trees API响应
                 JsonNode treeNode = rootNode.get("tree");
-                result.append("文件和目录列表：\n");
+                java.util.List<Map<String, Object>> items = new java.util.ArrayList<>();
                 
                 for (JsonNode item : treeNode) {
-                    String itemPath = item.get("path").asText();
-                    String type = item.get("type").asText();
-                    String mode = item.get("mode").asText();
-                    
-                    String icon = "file".equals(type) ? "📄" : "📁";
-                    result.append(String.format("%s %s (%s, mode: %s)\n", icon, itemPath, type, mode));
+                    Map<String, Object> itemMap = new HashMap<>();
+                    itemMap.put("path", item.get("path").asText());
+                    itemMap.put("type", item.get("type").asText());
+                    itemMap.put("mode", item.get("mode").asText());
+                    if (item.has("size")) {
+                        itemMap.put("size", item.get("size").asLong());
+                    }
+                    items.add(itemMap);
                 }
+                
+                result.put("items", items);
+                result.put("total", items.size());
+                result.put("recursive", true);
             } else if (rootNode.isArray()) {
                 // 非递归模式 - Contents API响应（数组）
-                result.append("当前目录内容：\n");
+                java.util.List<Map<String, Object>> items = new java.util.ArrayList<>();
                 
                 for (JsonNode item : rootNode) {
-                    String name = item.get("name").asText();
-                    String type = item.get("type").asText();
-                    long size = item.has("size") ? item.get("size").asLong() : 0;
-                    
-                    String icon = "file".equals(type) ? "📄" : "📁";
-                    String sizeInfo = "file".equals(type) ? String.format(" (%d bytes)", size) : "";
-                    result.append(String.format("%s %s%s\n", icon, name, sizeInfo));
+                    Map<String, Object> itemMap = new HashMap<>();
+                    itemMap.put("name", item.get("name").asText());
+                    itemMap.put("type", item.get("type").asText());
+                    if (item.has("size")) {
+                        itemMap.put("size", item.get("size").asLong());
+                    }
+                    if (item.has("download_url")) {
+                        itemMap.put("url", item.get("download_url").asText());
+                    }
+                    items.add(itemMap);
                 }
+                
+                result.put("items", items);
+                result.put("total", items.size());
+                result.put("recursive", false);
             } else if (rootNode.has("name")) {
                 // 单个文件 - Contents API响应（对象）
-                String name = rootNode.get("name").asText();
-                String type = rootNode.get("type").asText();
-                long size = rootNode.has("size") ? rootNode.get("size").asLong() : 0;
+                Map<String, Object> fileInfo = new HashMap<>();
+                fileInfo.put("name", rootNode.get("name").asText());
+                fileInfo.put("type", rootNode.get("type").asText());
+                if (rootNode.has("size")) {
+                    fileInfo.put("size", rootNode.get("size").asLong());
+                }
+                if (rootNode.has("download_url")) {
+                    fileInfo.put("url", rootNode.get("download_url").asText());
+                }
                 
-                result.append(String.format("文件信息：\n📄 %s (%s, %d bytes)\n", name, type, size));
+                java.util.List<Map<String, Object>> items = new java.util.ArrayList<>();
+                items.add(fileInfo);
+                result.put("items", items);
+                result.put("total", 1);
             } else {
-                result.append("未找到文件或目录信息");
+                return null;
             }
             
-            return result.toString();
+            return result;
             
         } catch (Exception e) {
-            return "解析GitHub API响应时发生错误: " + e.getMessage() + "\n原始响应: " + response;
+            return null;
         }
     }
     

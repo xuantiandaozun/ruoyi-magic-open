@@ -15,10 +15,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.service.IAiModelConfigService;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.ai.tool.ToolExecutionResult;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 
@@ -75,7 +75,7 @@ public class AliImageGenerationLangChain4jTool implements LangChain4jTool {
             String prompt = (String) parameters.get("prompt");
             
             if (StrUtil.isBlank(prompt)) {
-                return "错误：提示词不能为空";
+                return ToolExecutionResult.failure("operation", "提示词不能为空");
             }
             
             // 使用固定的配置ID: 24
@@ -84,15 +84,15 @@ public class AliImageGenerationLangChain4jTool implements LangChain4jTool {
             // 获取AI模型配置
             AiModelConfig config = aiModelConfigService.getById(configId);
             if (config == null) {
-                return "错误：找不到指定的AI模型配置，配置ID: " + configId;
+                return ToolExecutionResult.failure("operation", "找不到指定的AI模型配置，配置ID: " + configId);
             }
             
             if (!"Y".equals(config.getEnabled())) {
-                return "错误：指定的AI模型配置已禁用，配置ID: " + configId;
+                return ToolExecutionResult.failure("operation", "指定的AI模型配置已禁用，配置ID: " + configId);
             }
             
             if (StrUtil.isBlank(config.getApiKey())) {
-                return "错误：AI模型配置中缺少API密钥，配置ID: " + configId;
+                return ToolExecutionResult.failure("operation", "AI模型配置中缺少API密钥，配置ID: " + configId);
             }
             
             // 获取可选参数
@@ -140,10 +140,24 @@ public class AliImageGenerationLangChain4jTool implements LangChain4jTool {
             String response = sendImageGenerationRequest(config.getApiKey(), requestBody.toString());
             
             // 解析响应
-            return parseImageGenerationResponse(response, prompt, model, size, 1);
+            String imageUrl = parseImageGenerationResponse(response, prompt, model, size, 1);
+            
+            // 检查是否是错误响应
+            if (imageUrl.startsWith("ERROR:")) {
+                return ToolExecutionResult.failure("operation", imageUrl.substring(7)); // 去掉 "ERROR: " 前缀
+            }
+            
+            // 成功返回图片URL
+            Map<String, Object> result = new java.util.HashMap<>();
+            result.put("imageUrl", imageUrl);
+            result.put("prompt", prompt);
+            result.put("model", model);
+            result.put("size", size);
+            
+            return ToolExecutionResult.operationSuccess(result, "图片生成成功");
             
         } catch (Exception e) {
-            return "生成图片时发生错误: " + e.getMessage();
+            return ToolExecutionResult.failure("operation", "生成图片时发生错误: " + e.getMessage());
         }
     }
     

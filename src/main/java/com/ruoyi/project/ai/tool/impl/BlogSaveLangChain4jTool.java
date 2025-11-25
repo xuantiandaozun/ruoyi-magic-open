@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import com.ruoyi.project.ai.domain.AiBlogProductionRecord;
 import com.ruoyi.project.ai.service.IAiBlogProductionRecordService;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.ai.tool.ToolExecutionResult;
 import com.ruoyi.project.article.domain.Blog;
 import com.ruoyi.project.article.service.IBlogService;
 
@@ -72,11 +73,11 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
         String content = (String) parameters.get("content");
         
         if (StrUtil.isBlank(title)) {
-            return "错误：博客标题不能为空";
+            return ToolExecutionResult.failure("save", "博客标题不能为空");
         }
         
         if (StrUtil.isBlank(content)) {
-            return "错误：博客内容不能为空";
+            return ToolExecutionResult.failure("save", "博客内容不能为空");
         }
             
             // 创建Blog实体
@@ -151,19 +152,16 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
                 productionRecord.setCompletionTime(new Date());
                 aiBlogProductionRecordService.save(productionRecord);
                 
-                return String.format("博客文章保存成功！\n" +
-                    "文章ID: %s\n" +
-                    "标题: %s\n" +
-                    "状态: %s\n" +
-                    "分类: %s\n" +
-                    "标签: %s", 
-                    blog.getBlogId(),
-                    blog.getTitle(),
-                    getStatusText(blog.getStatus()),
-                    StrUtil.isNotBlank(blog.getCategory()) ? blog.getCategory() : "未分类",
-                    StrUtil.isNotBlank(blog.getTags()) ? blog.getTags() : "无标签");
+                Map<String, Object> resultData = new java.util.HashMap<>();
+                resultData.put("blogId", blog.getBlogId());
+                resultData.put("title", blog.getTitle());
+                resultData.put("status", getStatusText(blog.getStatus()));
+                resultData.put("category", StrUtil.isNotBlank(blog.getCategory()) ? blog.getCategory() : "未分类");
+                resultData.put("tags", StrUtil.isNotBlank(blog.getTags()) ? blog.getTags() : "无标签");
+                
+                return ToolExecutionResult.saveSuccess(resultData, "博客文章保存成功");
         } else {
-            return "博客文章保存失败，请检查数据库连接或参数是否正确";
+            return ToolExecutionResult.failure("save", "博客文章保存失败，请检查数据库连接或参数是否正确");
         }
     }
     

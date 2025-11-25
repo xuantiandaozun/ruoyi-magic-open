@@ -1,12 +1,14 @@
 package com.ruoyi.project.ai.tool.impl;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.ai.tool.ToolExecutionResult;
 import com.ruoyi.project.article.domain.SocialMediaArticle;
 import com.ruoyi.project.article.service.ISocialMediaArticleService;
 
@@ -65,12 +67,13 @@ public class SocialMediaArticleSaveLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        // 获取必填参数
-        String titleZh = (String) parameters.get("titleZh");
-        
-        if (StrUtil.isBlank(titleZh)) {
-            return "错误：中文标题不能为空";
-        }
+        try {
+            // 获取必填参数
+            String titleZh = (String) parameters.get("titleZh");
+            
+            if (StrUtil.isBlank(titleZh)) {
+                return ToolExecutionResult.failure("save", "中文标题不能为空");
+            }
             
             // 创建SocialMediaArticle实体
             SocialMediaArticle article = new SocialMediaArticle();
@@ -156,23 +159,21 @@ public class SocialMediaArticleSaveLangChain4jTool implements LangChain4jTool {
             boolean success = socialMediaArticleService.save(article);
             
             if (success) {
-                return String.format("自媒体文章保存成功！\n" +
-                    "文章ID: %s\n" +
-                    "中文标题: %s\n" +
-                    "英文标题: %s\n" +
-                    "文章类型: %s\n" +
-                    "目标平台: %s\n" +
-                    "发布状态: %s\n" +
-                    "博客名称: %s", 
-                    article.getArticleId(),
-                    article.getTitleZh(),
-                    StrUtil.isNotBlank(article.getTitleEn()) ? article.getTitleEn() : "无",
-                    StrUtil.isNotBlank(article.getArticleType()) ? article.getArticleType() : "未分类",
-                    StrUtil.isNotBlank(article.getTargetPlatform()) ? article.getTargetPlatform() : "未指定",
-                    getPublishStatusText(article.getPublishStatus()),
-                    StrUtil.isNotBlank(article.getBlogName()) ? article.getBlogName() : "未指定");
-        } else {
-            return "自媒体文章保存失败，请检查数据库连接或参数是否正确";
+                Map<String, Object> result = new HashMap<>();
+                result.put("articleId", article.getArticleId());
+                result.put("titleZh", article.getTitleZh());
+                result.put("titleEn", StrUtil.isNotBlank(article.getTitleEn()) ? article.getTitleEn() : null);
+                result.put("articleType", StrUtil.isNotBlank(article.getArticleType()) ? article.getArticleType() : null);
+                result.put("targetPlatform", StrUtil.isNotBlank(article.getTargetPlatform()) ? article.getTargetPlatform() : null);
+                result.put("publishStatus", article.getPublishStatus());
+                result.put("blogName", StrUtil.isNotBlank(article.getBlogName()) ? article.getBlogName() : null);
+                
+                return ToolExecutionResult.saveSuccess(result, "自媒体文章保存成功");
+            } else {
+                return ToolExecutionResult.failure("save", "自媒体文章保存失败，请检查数据库连接或参数是否正确");
+            }
+        } catch (Exception e) {
+            return ToolExecutionResult.failure("save", "保存自媒体文章时发生错误: " + e.getMessage());
         }
     }
     

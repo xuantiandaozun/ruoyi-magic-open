@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.ai.tool.ToolExecutionResult;
 import com.ruoyi.project.article.domain.BlogEn;
 import com.ruoyi.project.article.service.IBlogEnService;
 
@@ -68,11 +69,11 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
         String content = getStringParameter(parameters, "content");
         
         if (StrUtil.isBlank(title)) {
-            return "Error: Blog title cannot be empty";
+            return ToolExecutionResult.failure("save", "Blog title cannot be empty");
         }
         
         if (StrUtil.isBlank(content)) {
-            return "Error: Blog content cannot be empty";
+            return ToolExecutionResult.failure("save", "Blog content cannot be empty");
         }
             
             // Create BlogEn entity
@@ -140,21 +141,11 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
             boolean success = blogEnService.save(blogEn);
             
             if (success) {
-                return String.format("English blog article saved successfully!\n" +
-                    "Article ID: %s\n" +
-                    "Title: %s\n" +
-                    "Status: %s\n" +
-                    "Category: %s\n" +
-                    "Tags: %s\n" +
-                    "Associated Chinese Blog ID: %s", 
-                    blogEn.getBlogId(),
-                    blogEn.getTitle(),
-                    getStatusText(blogEn.getStatus()),
-                    StrUtil.isNotBlank(blogEn.getCategory()) ? blogEn.getCategory() : "Uncategorized",
-                    StrUtil.isNotBlank(blogEn.getTags()) ? blogEn.getTags() : "No tags",
-                    StrUtil.isNotBlank(blogEn.getZhBlogId()) ? blogEn.getZhBlogId() : "None");
+                return ToolExecutionResult.saveSuccess(blogEn, 
+                    String.format("English blog article saved successfully! Article ID: %s, Title: %s", 
+                        blogEn.getBlogId(), blogEn.getTitle()));
         } else {
-            return "Failed to save English blog article, please check database connection or parameters";
+            return ToolExecutionResult.failure("save", "Failed to save English blog article, please check database connection or parameters");
         }
     }
     
@@ -223,18 +214,6 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
         """;
     }
     
-    /**
-     * Get status text description
-     */
-    private String getStatusText(String status) {
-        switch (status) {
-            case "0": return "Draft";
-            case "1": return "Published";
-            case "2": return "Offline";
-            default: return "Unknown Status";
-        }
-    }
-
     private String getStringParameter(Map<String, Object> parameters, String key) {
         Object value = parameters.get(key);
         return value == null ? null : StrUtil.trimToNull(Convert.toStr(value));

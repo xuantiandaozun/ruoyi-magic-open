@@ -13,9 +13,9 @@ import com.ruoyi.project.ai.domain.AiWorkflowStep;
 import com.ruoyi.project.ai.service.IAiWorkflowService;
 import com.ruoyi.project.ai.service.IAiWorkflowStepService;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.ai.tool.ToolExecutionResult;
 
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
@@ -87,24 +87,28 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        String operation = (String) parameters.get("operation");
-        if (StrUtil.isBlank(operation)) {
-            return "操作类型不能为空";
-        }
-        
-        switch (operation) {
-            case "get_workflow_list":
-                return getWorkflowList();
-            case "add_workflow":
-                return addWorkflow(parameters);
-            case "update_workflow":
-                return updateWorkflow(parameters);
-            case "update_workflow_step":
-                return updateWorkflowStep(parameters);
-            case "get_workflow_step":
-                return getWorkflowStep(parameters);
-            default:
-                return "不支持的操作类型: " + operation + "。支持的操作：get_workflow_list、add_workflow、update_workflow、update_workflow_step、get_workflow_step";
+        try {
+            String operation = (String) parameters.get("operation");
+            if (StrUtil.isBlank(operation)) {
+                return ToolExecutionResult.failure("operation", "操作类型不能为空");
+            }
+            
+            switch (operation) {
+                case "get_workflow_list":
+                    return getWorkflowList();
+                case "add_workflow":
+                    return addWorkflow(parameters);
+                case "update_workflow":
+                    return updateWorkflow(parameters);
+                case "update_workflow_step":
+                    return updateWorkflowStep(parameters);
+                case "get_workflow_step":
+                    return getWorkflowStep(parameters);
+                default:
+                    return ToolExecutionResult.failure("operation", "不支持的操作类型: " + operation + "。支持的操作：get_workflow_list、add_workflow、update_workflow、update_workflow_step、get_workflow_step");
+            }
+        } catch (Exception e) {
+            return ToolExecutionResult.failure("operation", "工作流管理操作失败: " + e.getMessage());
         }
     }
     
@@ -164,7 +168,10 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             // 获取所有启用的工作流
             List<AiWorkflow> workflows = workflowService.listByEnabled("1");
             
-            Map<String, Object> result = new HashMap<>();
+            if (workflows == null || workflows.isEmpty()) {
+                return ToolExecutionResult.empty("query", "未找到任何工作流");
+            }
+            
             List<Map<String, Object>> workflowList = new ArrayList<>();
             
             for (AiWorkflow workflow : workflows) {
@@ -200,17 +207,14 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
                 workflowList.add(workflowInfo);
             }
             
-            result.put("success", true);
-            result.put("count", workflowList.size());
-            result.put("workflows", workflowList);
+            Map<String, Object> resultData = new HashMap<>();
+            resultData.put("total", workflowList.size());
+            resultData.put("workflows", workflowList);
             
-            return JSONUtil.toJsonStr(result);
+            return ToolExecutionResult.querySuccess(resultData, "成功获取工作流列表");
             
         } catch (Exception e) {
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "获取工作流列表失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
+            return ToolExecutionResult.failure("query", "获取工作流列表失败: " + e.getMessage());
         }
     }
     
@@ -225,6 +229,10 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> steps = (List<Map<String, Object>>) parameters.get("steps");
             
+            if (StrUtil.isBlank(name)) {
+                return ToolExecutionResult.failure("save", "工作流名称不能为空");
+            }
+            
             // 创建工作流
             AiWorkflow workflow = new AiWorkflow();
             workflow.setName(name);
@@ -237,7 +245,7 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             
             boolean workflowSaved = workflowService.save(workflow);
             if (!workflowSaved) {
-                throw new RuntimeException("保存工作流失败");
+                return ToolExecutionResult.failure("save", "保存工作流失败");
             }
             
             // 创建工作流步骤
@@ -280,18 +288,17 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
                 }
             }
             
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("workflowId", workflow.getId());
-            result.put("message", "工作流创建成功");
+            Map<String, Object> resultData = new HashMap<>();
+            resultData.put("workflowId", workflow.getId());
+            resultData.put("name", workflow.getName());
+            resultData.put("description", workflow.getDescription());
+            resultData.put("type", workflow.getType());
+            resultData.put("stepCount", steps != null ? steps.size() : 0);
             
-            return JSONUtil.toJsonStr(result);
+            return ToolExecutionResult.saveSuccess(resultData, "工作流创建成功");
             
         } catch (Exception e) {
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "新增工作流失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
+            return ToolExecutionResult.failure("save", "新增工作流失败: " + e.getMessage());
         }
     }
     
@@ -302,7 +309,7 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
         try {
             Object workflowIdObj = parameters.get("workflowId");
             if (workflowIdObj == null) {
-                throw new IllegalArgumentException("工作流ID不能为空");
+                return ToolExecutionResult.failure("operation", "工作流ID不能为空");
             }
             
             Long workflowId = Long.valueOf(workflowIdObj.toString());
@@ -315,7 +322,7 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             // 更新工作流基本信息
             AiWorkflow workflow = workflowService.getById(workflowId);
             if (workflow == null) {
-                throw new RuntimeException("工作流不存在");
+                return ToolExecutionResult.failure("operation", "工作流不存在");
             }
             
             if (name != null) workflow.setName(name);
@@ -324,7 +331,7 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             
             boolean workflowUpdated = workflowService.updateById(workflow);
             if (!workflowUpdated) {
-                throw new RuntimeException("更新工作流失败");
+                return ToolExecutionResult.failure("operation", "更新工作流失败");
             }
             
             // 更新工作流步骤（先删除原有步骤，再添加新步骤）
@@ -375,18 +382,17 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
                 }
             }
             
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("workflowId", workflowId);
-            result.put("message", "工作流更新成功");
+            Map<String, Object> resultData = new HashMap<>();
+            resultData.put("workflowId", workflowId);
+            resultData.put("name", workflow.getName());
+            resultData.put("description", workflow.getDescription());
+            resultData.put("type", workflow.getType());
+            resultData.put("stepCount", steps != null ? steps.size() : 0);
             
-            return JSONUtil.toJsonStr(result);
+            return ToolExecutionResult.operationSuccess(resultData, "工作流更新成功");
             
         } catch (Exception e) {
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "修改工作流失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
+            return ToolExecutionResult.failure("operation", "修改工作流失败: " + e.getMessage());
         }
     }
     
@@ -397,7 +403,7 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
         try {
             Object stepIdObj = parameters.get("stepId");
             if (stepIdObj == null) {
-                throw new IllegalArgumentException("步骤ID不能为空");
+                return ToolExecutionResult.failure("operation", "步骤ID不能为空");
             }
             
             Long stepId = Long.valueOf(stepIdObj.toString());
@@ -420,7 +426,7 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             // 获取现有步骤
             AiWorkflowStep step = stepService.getById(stepId);
             if (step == null) {
-                throw new RuntimeException("工作流步骤不存在");
+                return ToolExecutionResult.failure("operation", "工作流步骤不存在");
             }
             
             // 更新步骤信息（只更新非空字段）
@@ -462,37 +468,30 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             
             // 验证步骤配置的合理性
             if (StrUtil.isBlank(step.getOutputVariable())) {
-                throw new RuntimeException("输出变量名不能为空");
+                return ToolExecutionResult.failure("operation", "输出变量名不能为空");
             }
             
             // 更新步骤
             boolean updated = stepService.updateById(step);
             if (!updated) {
-                throw new RuntimeException("更新工作流步骤失败");
+                return ToolExecutionResult.failure("operation", "更新工作流步骤失败");
             }
             
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            result.put("stepId", stepId);
-            result.put("message", "工作流步骤更新成功");
-            result.put("stepInfo", Map.of(
-                "stepName", step.getStepName(),
-                "description", step.getDescription(),
-                "stepOrder", step.getStepOrder(),
-                "inputVariable", step.getInputVariable(),
-                "outputVariable", step.getOutputVariable(),
-                "toolType", step.getToolTypes(),
-                "toolEnabled", step.getToolEnabled(),
-                "enabled", step.getEnabled()
-            ));
+            Map<String, Object> resultData = new HashMap<>();
+            resultData.put("stepId", stepId);
+            resultData.put("stepName", step.getStepName());
+            resultData.put("description", step.getDescription());
+            resultData.put("stepOrder", step.getStepOrder());
+            resultData.put("inputVariable", step.getInputVariable());
+            resultData.put("outputVariable", step.getOutputVariable());
+            resultData.put("toolType", step.getToolTypes());
+            resultData.put("toolEnabled", step.getToolEnabled());
+            resultData.put("enabled", step.getEnabled());
             
-            return JSONUtil.toJsonStr(result);
+            return ToolExecutionResult.operationSuccess(resultData, "工作流步骤更新成功");
             
         } catch (Exception e) {
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "修改工作流步骤失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
+            return ToolExecutionResult.failure("operation", "修改工作流步骤失败: " + e.getMessage());
         }
     }
     
@@ -503,7 +502,7 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
         try {
             Object stepIdObj = parameters.get("stepId");
             if (stepIdObj == null) {
-                throw new IllegalArgumentException("步骤ID不能为空");
+                return ToolExecutionResult.failure("query", "步骤ID不能为空");
             }
             
             Long stepId = Long.valueOf(stepIdObj.toString());
@@ -511,19 +510,16 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             // 获取步骤信息
             AiWorkflowStep step = stepService.getById(stepId);
             if (step == null) {
-                throw new RuntimeException("工作流步骤不存在");
+                return ToolExecutionResult.empty("query", "工作流步骤不存在");
             }
             
             // 获取所属工作流信息
             AiWorkflow workflow = workflowService.getById(step.getWorkflowId());
             
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", true);
-            
             Map<String, Object> stepInfo = new HashMap<>();
             stepInfo.put("stepId", step.getId());
             stepInfo.put("workflowId", step.getWorkflowId());
-            stepInfo.put("workflowName", workflow.getName());
+            stepInfo.put("workflowName", workflow != null ? workflow.getName() : null);
             stepInfo.put("stepName", step.getStepName());
             stepInfo.put("description", step.getDescription());
             stepInfo.put("stepOrder", step.getStepOrder());
@@ -539,15 +535,10 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             stepInfo.put("createTime", step.getCreateTime());
             stepInfo.put("updateTime", step.getUpdateTime());
             
-            result.put("stepInfo", stepInfo);
-            
-            return JSONUtil.toJsonStr(result);
+            return ToolExecutionResult.querySuccess(stepInfo, "成功获取工作流步骤详情");
             
         } catch (Exception e) {
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("success", false);
-            errorResult.put("error", "获取工作流步骤详情失败: " + e.getMessage());
-            return JSONUtil.toJsonStr(errorResult);
+            return ToolExecutionResult.failure("query", "获取工作流步骤详情失败: " + e.getMessage());
         }
     }
     

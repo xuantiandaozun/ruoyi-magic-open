@@ -5,6 +5,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.ai.tool.ToolExecutionResult;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpUtil;
@@ -49,17 +50,17 @@ public class OssFileReadLangChain4jTool implements LangChain4jTool {
         String ossUrl = (String) parameters.get("ossUrl");
         
         if (StrUtil.isBlank(ossUrl)) {
-            return "错误：OSS URL不能为空";
+            return ToolExecutionResult.empty("query", "OSS URL为空");
         }
         
         // 使用 Hutool 从OSS地址读取文件内容
         String content = HttpUtil.get(ossUrl);
         
         if (StrUtil.isBlank(content)) {
-            return "文件内容为空或读取失败";
+            return ToolExecutionResult.empty("query", "文件内容为空或读取失败");
         }
         
-        return String.format("文件内容读取成功（共%d字符）：\n\n%s", content.length(), content);
+        return ToolExecutionResult.querySuccess(content, String.format("成功读取文件内容（共%d字符）", content.length()));
     }
     
 

@@ -13,12 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ruoyi.common.exception.ServiceException;
-import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.domain.AiWorkflow;
 import com.ruoyi.project.ai.domain.AiWorkflowExecution;
 import com.ruoyi.project.ai.domain.AiWorkflowStep;
 import com.ruoyi.project.ai.dto.WorkflowExecuteRequest;
-import com.ruoyi.project.ai.service.IAiModelConfigService;
 import com.ruoyi.project.ai.service.IAiWorkflowExecutionService;
 import com.ruoyi.project.ai.service.IAiWorkflowService;
 import com.ruoyi.project.ai.service.IAiWorkflowStepService;
@@ -28,8 +26,6 @@ import com.ruoyi.project.ai.util.PromptVariableProcessor;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.openai.OpenAiChatModel;
 
 
 /**
@@ -46,20 +42,15 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
     
     @Autowired
     private IAiWorkflowService workflowService;
-    
+
     @Autowired
     private IAiWorkflowStepService stepService;
-    
+
     @Autowired
     private IAiWorkflowExecutionService executionService;
-    
+
     @Autowired
-    private IAiModelConfigService modelConfigService;
-    
-    @Autowired
-    private LangChain4jToolRegistry toolRegistry;
-    
-    @Autowired
+    private LangChain4jToolRegistry toolRegistry;    @Autowired
     private LangChain4jAgentService agentService;
     
     @Override
@@ -145,9 +136,6 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
      * 执行单个Agent步骤
      */
     private Map<String, Object> executeSingleAgentStep(AiWorkflowStep step, Map<String, Object> inputData) {
-        // 获取ChatModel
-        ChatModel chatModel = getChatModel(step.getModelConfigId());
-        
         // 准备工具列表
         List<String> toolNames = getToolNamesForStep(step);
         
@@ -175,9 +163,26 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
         }
         String systemPrompt = StrUtil.isNotEmpty(step.getSystemPrompt()) ? step.getSystemPrompt() : "你是一个智能助手，请根据用户输入提供帮助。";
         
+        // 自动增强提示词：处理工具返回的统一格式
+        if (toolNames != null && !toolNames.isEmpty()) {
+            systemPrompt += "\n\n【工具调用规则】\n" +
+                "所有工具都会返回JSON格式的结果，包含以下结构：\n" +
+                "{\n" +
+                "  \"success\": true/false,   // true表示成功，false表示失败或空数据\n" +
+                "  \"operationType\": \"query/operation/save\",  // 操作类型\n" +
+                "  \"data\": {...},           // 实际数据内容\n" +
+                "  \"message\": \"...\"       // 操作说明或错误信息\n" +
+                "}\n\n" +
+                "【重要规则】\n" +
+                "1. 如果工具返回的success字段为false，说明操作失败或没有查询到数据\n" +
+                "2. 当success为false时，请直接回复 \"TOOL_EXECUTION_FAILED\" (不包含引号)，不要尝试重新解释或生成其他内容\n" +
+                "3. 这样做可以让系统知道数据获取失败，需要停止整个工作流\n" +
+                "4. 只有当success为true时，才能使用返回的data数据继续你的任务";
+        }
+        
         try {
             log.info("开始执行Agent步骤: stepId={}, modelConfigId={}, toolCount={}", 
-                    step.getId(), step.getModelConfigId(), toolNames.size());
+                    step.getId(), step.getModelConfigId(), toolNames != null ? toolNames.size() : 0);
             log.debug("系统提示: {}", systemPrompt);
             log.debug("用户输入: {}", userInput);
             log.debug("可用工具: {}", toolNames);
@@ -196,6 +201,12 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
             log.info("Agent执行成功: stepId={}, resultType={}", 
                     step.getId(), agentResult != null ? agentResult.getClass().getSimpleName() : "null");
             log.debug("Agent执行结果: {}", agentResult);
+            
+            // 检查是否触发了工具失败规则
+            if ("TOOL_EXECUTION_FAILED".equals(agentResult)) {
+                log.warn("步骤 {} 工具执行失败，停止工作流", step.getStepName());
+                throw new ServiceException("工具执行失败或没有查询到数据，工作流已停止");
+            }
             
             if (agentResult == null) {
                 log.warn("Agent执行结果为null: stepId={}", step.getId());
@@ -299,78 +310,6 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
         return toolNames;
     }
     
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    /**
-     * 获取ChatModel
-     */
-    private ChatModel getChatModel(Long modelConfigId) {
-        try {
-            // 根据模型配置ID获取配置
-            AiModelConfig config = modelConfigService.getById(modelConfigId);
-            if (config == null) {
-                throw new ServiceException("模型配置不存在: " + modelConfigId);
-            }
-            
-            if (!"Y".equals(config.getEnabled())) {
-                throw new ServiceException("模型配置已禁用: " + modelConfigId);
-            }
-            
-            // 使用LangChain4j创建ChatModel
-            return createChatModelFromConfig(config);
-            
-        } catch (Exception e) {
-            log.error("获取ChatModel失败: {}", e.getMessage(), e);
-            throw new ServiceException("获取ChatModel失败: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 根据配置创建ChatModel
-     */
-    private ChatModel createChatModelFromConfig(AiModelConfig config) {
-        try {
-            String apiKey = config.getApiKey();
-            String model = config.getModel();
-            String endpoint = config.getEndpoint();
-            
-            if (StrUtil.isBlank(apiKey)) {
-                throw new ServiceException("API Key不能为空");
-            }
-            
-            if (StrUtil.isBlank(model)) {
-                throw new ServiceException("模型名称不能为空");
-            }
-            
-            // 统一走 OpenAI 兼容接口；若 endpoint 非空，则使用自定义 baseUrl
-            if (StrUtil.isNotBlank(endpoint)) {
-                return OpenAiChatModel.builder()
-                        .apiKey(apiKey)
-                        .modelName(model)
-                        .baseUrl(endpoint)
-                        .build();
-            } else {
-                return OpenAiChatModel.builder()
-                        .apiKey(apiKey)
-                        .modelName(model)
-                        .build();
-            }
-        } catch (Exception e) {
-            log.error("创建ChatModel失败: {}", e.getMessage(), e);
-            throw new ServiceException("创建ChatModel失败: " + e.getMessage());
-        }
-    }
-    
     /**
      * 处理用户提示词和变量整合
      */
@@ -417,6 +356,5 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
         }
         return JSONUtil.toJsonStr(map);
     }
-    
 
 }

@@ -16,6 +16,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.project.ai.domain.AiBlogProductionRecord;
 import com.ruoyi.project.ai.service.IAiBlogProductionRecordService;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.ai.tool.ToolExecutionResult;
 import com.ruoyi.project.article.domain.Blog;
 import com.ruoyi.project.article.service.IBlogService;
 import com.ruoyi.project.github.domain.GithubTrending;
@@ -50,7 +51,7 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String getToolDescription() {
-        return "查询GitHub今日首次上榜的热门仓库，支持多维度筛选条件";
+        return "智能查询GitHub热门仓库，优先查询今日首次上榜项目，若无结果则自动降级到本周或本月。支持多维度筛选，自动过滤已生成过博客的仓库";
     }
     
     @Override
@@ -63,6 +64,8 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
             .addIntegerProperty("maxStars", "最大星数筛选，可选")
             .addStringProperty("orderBy", "排序方式：stars(按星数)、forks(按fork数)、issues(按问题数)、created(按创建时间)，默认按星数")
             .addBooleanProperty("hasReadme", "是否有README文件，可选")
+            .addStringProperty("timeRange", "时间范围：today(今日)、week(本周)、month(本月)、auto(自动降级，默认)。auto模式下优先查询今日，若无结果则自动尝试本周、本月")
+            .addBooleanProperty("includeGenerated", "是否包含已生成过博客的仓库，默认false（不包含）")
             .build();
         
         return ToolSpecification.builder()
@@ -85,91 +88,77 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
         String orderBy = (String) parameters.get("orderBy");
         Boolean hasReadme = parameters.get("hasReadme") != null ? 
             Boolean.parseBoolean(parameters.get("hasReadme").toString()) : null;
+        String timeRange = parameters.get("timeRange") != null ?
+            parameters.get("timeRange").toString() : "auto";
+        Boolean includeGenerated = parameters.get("includeGenerated") != null ?
+            Boolean.parseBoolean(parameters.get("includeGenerated").toString()) : false;
         
         // 限制最大数量
         if (limit > 150) limit = 150;
         if (limit < 1) limit = 10;
         
-        // 第一步：查询最近30天内生成成功的博客文章内容
-        List<String> generatedBlogContents = getRecentGeneratedBlogContents();
+        // 第一步：查询最近生成成功的博客记录（用于过滤）
+        List<GeneratedRepoInfo> generatedRepos = includeGenerated ? new ArrayList<>() : getRecentGeneratedRepoInfos();
         
-        // 第二步：查询今天首次上榜的项目
-        QueryWrapper qw = QueryWrapper.create()
-            .from("github_trending")
-            .where(new QueryColumn("first_trending_date").eq(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))));
+        // 第二步：根据时间范围查询项目
+        List<GithubTrending> repositories = new ArrayList<>();
+        String actualTimeRange = timeRange;
+        
+        // 构建基础查询条件
+        if ("auto".equalsIgnoreCase(timeRange)) {
+            // 自动降级模式：今日 -> 本周 -> 本月
+            repositories = queryRepositories("today", language, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+            actualTimeRange = "today";
             
-            // 添加各种筛选条件
-            if (StrUtil.isNotBlank(language)) {
-                qw.and(new QueryColumn("language").eq(language));
-            }
-            
-            if (minStars != null) {
-                qw.and(new QueryColumn("stars_count").ge(minStars.toString()));
-            }
-            
-            if (maxStars != null) {
-                qw.and(new QueryColumn("stars_count").le(maxStars.toString()));
-            }
-            
-            if (hasReadme != null) {
-                if (hasReadme) {
-                    qw.and(new QueryColumn("readme_path").isNotNull());
-                } else {
-                    qw.and(new QueryColumn("readme_path").isNull());
+            if (repositories.size() < limit) {
+                List<GithubTrending> weekRepos = queryRepositories("week", language, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+                // 合并并去重
+                repositories = mergeAndDeduplicate(repositories, weekRepos);
+                if (repositories.size() >= limit || weekRepos.size() > 0) {
+                    actualTimeRange = "week";
                 }
             }
             
-            // 设置排序方式
-            if (StrUtil.isNotBlank(orderBy)) {
-                switch (orderBy.toLowerCase()) {
-                    case "forks":
-                        qw.orderBy(new QueryColumn("forks_count").desc(), new QueryColumn("id").desc());
-                        break;
-                    case "issues":
-                        qw.orderBy(new QueryColumn("open_issues_count").desc(), new QueryColumn("id").desc());
-                        break;
-                    case "created":
-                        qw.orderBy(new QueryColumn("github_created_at").desc(), new QueryColumn("id").desc());
-                        break;
-                    default: // stars 或其他情况
-                        qw.orderBy(new QueryColumn("stars_count").desc(), new QueryColumn("id").desc());
-                        break;
+            if (repositories.size() < limit) {
+                List<GithubTrending> monthRepos = queryRepositories("month", language, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+                // 合并并去重
+                repositories = mergeAndDeduplicate(repositories, monthRepos);
+                if (monthRepos.size() > 0) {
+                    actualTimeRange = "month";
                 }
-            } else {
-                // 默认按星数排序
-                qw.orderBy(new QueryColumn("stars_count").desc(), new QueryColumn("id").desc());
             }
+        } else {
+            // 指定时间范围
+            repositories = queryRepositories(timeRange, language, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+            actualTimeRange = timeRange;
+        }
+        
+        // 第三步：如果不包含已生成的，进行过滤
+        if (!includeGenerated && !generatedRepos.isEmpty()) {
+            repositories = filterAlreadyGenerated(repositories, generatedRepos);
+        }
+        
+        // 限制返回数量
+        if (repositories.size() > limit) {
+            repositories = repositories.subList(0, limit);
+        }
+        
+        if (repositories.isEmpty()) {
+            return ToolExecutionResult.empty("query", "未找到符合条件的GitHub趋势仓库");
+        }
             
-            List<GithubTrending> allRepositories = githubTrendingService.list(qw);
-            
-            // 第三步：过滤掉已生成过博客的仓库（通过仓库名称或简介匹配博客内容）
-            List<GithubTrending> repositories = filterAlreadyGenerated(allRepositories, generatedBlogContents);
-            
-            // 限制返回数量
-            if (repositories.size() > limit) {
-                repositories = repositories.subList(0, limit);
-            }
-            
-            if (repositories.isEmpty()) {
-                StringBuilder filterInfo = new StringBuilder();
-                if (StrUtil.isNotBlank(language)) filterInfo.append("语言：").append(language).append(" ");
-                if (minStars != null) filterInfo.append("最小星数：").append(minStars).append(" ");
-                if (maxStars != null) filterInfo.append("最大星数：").append(maxStars).append(" ");
-                
-                return "今日暂无符合条件的GitHub首次上榜仓库数据" + 
-                    (filterInfo.length() > 0 ? "（筛选条件：" + filterInfo.toString().trim() + "）" : "");
-            }
-            
-            // 格式化返回结果
-            StringBuilder result = new StringBuilder();
-            StringBuilder filterInfo = new StringBuilder();
-            if (StrUtil.isNotBlank(language)) filterInfo.append("语言：").append(language).append(" ");
-            if (minStars != null) filterInfo.append("最小星数：").append(minStars).append(" ");
-            if (maxStars != null) filterInfo.append("最大星数：").append(maxStars).append(" ");
-            
-            result.append("GitHub今日首次上榜仓库")
-                .append(filterInfo.length() > 0 ? "（筛选条件：" + filterInfo.toString().trim() + "）" : "")
-                .append("：\n\n");
+        // 格式化返回结果
+        StringBuilder result = new StringBuilder();
+        StringBuilder filterInfo = new StringBuilder();
+        if (StrUtil.isNotBlank(language)) filterInfo.append("语言：").append(language).append(" ");
+        if (minStars != null) filterInfo.append("最小星数：").append(minStars).append(" ");
+        if (maxStars != null) filterInfo.append("最大星数：").append(maxStars).append(" ");
+        
+        String timeRangeDesc = getTimeRangeDescription(actualTimeRange);
+        result.append("GitHub").append(timeRangeDesc).append("首次上榜仓库")
+            .append(filterInfo.length() > 0 ? "（筛选条件：" + filterInfo.toString().trim() + "）" : "")
+            .append(!includeGenerated ? "（已过滤" + generatedRepos.size() + "个已生成博客的仓库）" : "")
+            .append("：\n\n");
             
             for (int i = 0; i < repositories.size(); i++) {
                 GithubTrending repo = repositories.get(i);
@@ -229,7 +218,7 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
                 result.append("\n");
             }
             
-        return result.toString();
+        return ToolExecutionResult.querySuccess(result.toString(), "成功查询GitHub趋势仓库");
     }
     
     @Override
@@ -303,137 +292,378 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
     public String getUsageExample() {
         return """
         示例用法：
-        1. 查询所有语言的今日首次上榜仓库（默认10个）：
+        1. 智能查询（自动降级）- 优先今日，无结果则查本周/本月：
            {}
         
-        2. 查询Java语言的今日首次上榜仓库：
+        2. 查询Java语言的热门仓库（自动降级）：
            {"language": "java"}
         
-        3. 查询星数在1000-10000之间的仓库，限制20个结果：
+        3. 仅查询今日首次上榜仓库：
+           {"timeRange": "today"}
+        
+        4. 查询本周首次上榜仓库：
+           {"timeRange": "week"}
+        
+        5. 查询本月首次上榜仓库：
+           {"timeRange": "month"}
+        
+        6. 查询星数在1000-10000之间的仓库，限制20个结果：
            {"minStars": 1000, "maxStars": 10000, "limit": 20}
+        
+        7. 包含已生成过博客的仓库（不过滤）：
+           {"includeGenerated": true}
+        
+        8. 综合查询示例 - 查询本周Python仓库，星数大于500：
+           {"timeRange": "week", "language": "python", "minStars": 500, "hasReadme": true}
         """;
     }
     
     /**
-     * 查询最近30天内生成成功的博客文章内容
-     * @return 博客标题和内容的列表
+     * 查询最近60天内生成成功的博客对应的仓库信息
+     * 使用多维度信息进行精确匹配
+     * @return 已生成博客的仓库信息列表
      */
-    private List<String> getRecentGeneratedBlogContents() {
-        List<String> contents = new ArrayList<>();
+    private List<GeneratedRepoInfo> getRecentGeneratedRepoInfos() {
+        List<GeneratedRepoInfo> repoInfos = new ArrayList<>();
         
         try {
-            // 查询最近30天内状态为成功(status=1)的生产记录
-            LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+            // 查询最近60天内状态为成功(status=1)的生产记录
+            LocalDateTime sixtyDaysAgo = LocalDateTime.now().minusDays(60);
             QueryWrapper recordQw = QueryWrapper.create()
                 .from("ai_blog_production_record")
                 .where(new QueryColumn("status").eq("1"))
                 .and(new QueryColumn("del_flag").eq("0"))
-                .and(new QueryColumn("completion_time").ge(thirtyDaysAgo))
-                .and(new QueryColumn("blog_id").isNotNull());
+                .and(new QueryColumn("completion_time").ge(sixtyDaysAgo));
             
             List<AiBlogProductionRecord> records = blogProductionRecordService.list(recordQw);
             
             if (records.isEmpty()) {
-                return contents;
+                return repoInfos;
             }
             
-            // 提取所有博客ID
+            // 方式1：直接从生产记录中提取仓库信息（最精确）
+            for (AiBlogProductionRecord record : records) {
+                GeneratedRepoInfo info = new GeneratedRepoInfo();
+                info.repoUrl = record.getRepoUrl();
+                info.repoTitle = record.getRepoTitle();
+                info.repoOwner = record.getRepoOwner();
+                
+                // 只有当有有效信息时才加入
+                if (StrUtil.isNotBlank(info.repoUrl) || 
+                    (StrUtil.isNotBlank(info.repoOwner) && StrUtil.isNotBlank(info.repoTitle))) {
+                    repoInfos.add(info);
+                }
+            }
+            
+            // 方式2：从博客内容中提取GitHub仓库信息（作为补充）
             List<Long> blogIds = records.stream()
                 .map(AiBlogProductionRecord::getBlogId)
                 .filter(id -> id != null)
                 .distinct()
                 .collect(Collectors.toList());
             
-            if (blogIds.isEmpty()) {
-                return contents;
-            }
-            
-            // 查询这些博客的标题和内容
-            QueryWrapper blogQw = QueryWrapper.create()
-                .from("blog")
-                .where(new QueryColumn("blog_id").in(blogIds))
-                .and(new QueryColumn("del_flag").eq("0"));
-            
-            List<Blog> blogs = blogService.list(blogQw);
-            
-            // 合并标题和内容用于匹配
-            for (Blog blog : blogs) {
-                if (StrUtil.isNotBlank(blog.getTitle())) {
-                    contents.add(blog.getTitle());
-                }
-                if (StrUtil.isNotBlank(blog.getContent())) {
-                    contents.add(blog.getContent());
+            if (!blogIds.isEmpty()) {
+                QueryWrapper blogQw = QueryWrapper.create()
+                    .from("blog")
+                    .where(new QueryColumn("blog_id").in(blogIds))
+                    .and(new QueryColumn("del_flag").eq("0"));
+                
+                List<Blog> blogs = blogService.list(blogQw);
+                
+                for (Blog blog : blogs) {
+                    // 从博客内容中提取GitHub仓库URL
+                    List<String> extractedUrls = extractGitHubUrls(blog.getContent());
+                    for (String url : extractedUrls) {
+                        GeneratedRepoInfo info = parseGitHubUrl(url);
+                        if (info != null && !containsRepoInfo(repoInfos, info)) {
+                            repoInfos.add(info);
+                        }
+                    }
+                    
+                    // 将博客标题也作为匹配依据
+                    if (StrUtil.isNotBlank(blog.getTitle())) {
+                        GeneratedRepoInfo titleInfo = new GeneratedRepoInfo();
+                        titleInfo.blogTitle = blog.getTitle();
+                        repoInfos.add(titleInfo);
+                    }
                 }
             }
         } catch (Exception e) {
             // 查询失败时返回空列表，不影响主流程
-            System.err.println("查询最近生成的博客内容失败: " + e.getMessage());
+            System.err.println("查询最近生成的博客仓库信息失败: " + e.getMessage());
         }
         
-        return contents;
+        return repoInfos;
     }
     
     /**
-     * 过滤掉已生成过博客的仓库
-     * 通过仓库名称或简介内容去匹配博客的标题和内容
+     * 过滤掉已生成过博客的仓库（优化版）
+     * 使用多维度匹配策略，精确度更高
      * @param repositories 待过滤的仓库列表
-     * @param blogContents 博客标题和内容列表
+     * @param generatedRepos 已生成博客的仓库信息列表
      * @return 过滤后的仓库列表
      */
-    private List<GithubTrending> filterAlreadyGenerated(List<GithubTrending> repositories, List<String> blogContents) {
-        if (blogContents.isEmpty()) {
+    private List<GithubTrending> filterAlreadyGenerated(List<GithubTrending> repositories, List<GeneratedRepoInfo> generatedRepos) {
+        if (generatedRepos.isEmpty()) {
             return repositories;
         }
         
         List<GithubTrending> filtered = new ArrayList<>();
         
         for (GithubTrending repo : repositories) {
-            boolean isGenerated = false;
-            
-            // 构建仓库的关键信息用于匹配
-            String repoName = repo.getTitle(); // 仓库名称
-            String repoDescription = repo.getDescription(); // 仓库简介
-            String repoOwner = repo.getOwner(); // 仓库作者
-            String fullRepoName = StrUtil.isNotBlank(repoOwner) && StrUtil.isNotBlank(repoName) 
-                ? repoOwner + "/" + repoName : repoName; // 完整仓库名
-            
-            // 与每篇博客内容进行匹配
-            for (String blogContent : blogContents) {
-                if (StrUtil.isBlank(blogContent)) {
-                    continue;
-                }
-                
-                // 匹配规则：
-                // 1. 博客内容包含完整仓库名（owner/repo）
-                // 2. 博客内容包含仓库名称
-                // 3. 如果仓库有简介，且简介长度大于20，博客内容包含简介的主要部分（前50个字符）
-                
-                if (StrUtil.isNotBlank(fullRepoName) && blogContent.contains(fullRepoName)) {
-                    isGenerated = true;
-                    break;
-                }
-                
-                if (StrUtil.isNotBlank(repoName) && repoName.length() > 3 && blogContent.contains(repoName)) {
-                    isGenerated = true;
-                    break;
-                }
-                
-                // 简介匹配：取简介前50个字符进行匹配，避免过于宽泛
-                if (StrUtil.isNotBlank(repoDescription) && repoDescription.length() > 20) {
-                    String descriptionPart = repoDescription.substring(0, Math.min(50, repoDescription.length()));
-                    if (blogContent.contains(descriptionPart)) {
-                        isGenerated = true;
-                        break;
-                    }
-                }
-            }
-            
-            // 如果未匹配到，说明未生成过，加入结果列表
-            if (!isGenerated) {
+            if (!isRepoAlreadyGenerated(repo, generatedRepos)) {
                 filtered.add(repo);
             }
         }
         
         return filtered;
+    }
+    
+    /**
+     * 判断仓库是否已生成过博客
+     * @param repo 待检查的仓库
+     * @param generatedRepos 已生成博客的仓库信息列表
+     * @return 是否已生成
+     */
+    private boolean isRepoAlreadyGenerated(GithubTrending repo, List<GeneratedRepoInfo> generatedRepos) {
+        String repoUrl = repo.getUrl();
+        String repoName = repo.getTitle();
+        String repoOwner = repo.getOwner();
+        String fullRepoName = StrUtil.isNotBlank(repoOwner) && StrUtil.isNotBlank(repoName) 
+            ? repoOwner + "/" + repoName : "";
+        
+        for (GeneratedRepoInfo genInfo : generatedRepos) {
+            // 优先级1：URL完全匹配（最精确）
+            if (StrUtil.isNotBlank(genInfo.repoUrl) && StrUtil.isNotBlank(repoUrl)) {
+                // 标准化URL比较（移除末尾斜杠，忽略大小写）
+                String normalizedRepoUrl = normalizeUrl(repoUrl);
+                String normalizedGenUrl = normalizeUrl(genInfo.repoUrl);
+                if (normalizedRepoUrl.equalsIgnoreCase(normalizedGenUrl)) {
+                    return true;
+                }
+            }
+            
+            // 优先级2：owner/repo 完全匹配
+            if (StrUtil.isNotBlank(genInfo.repoOwner) && StrUtil.isNotBlank(genInfo.repoTitle)) {
+                String genFullName = genInfo.repoOwner + "/" + genInfo.repoTitle;
+                if (StrUtil.isNotBlank(fullRepoName) && fullRepoName.equalsIgnoreCase(genFullName)) {
+                    return true;
+                }
+            }
+            
+            // 优先级3：仓库名称精确匹配（需要名称长度大于4，避免误匹配）
+            if (StrUtil.isNotBlank(genInfo.repoTitle) && StrUtil.isNotBlank(repoName)) {
+                if (repoName.length() > 4 && repoName.equalsIgnoreCase(genInfo.repoTitle)) {
+                    return true;
+                }
+            }
+            
+            // 优先级4：博客标题包含完整仓库名
+            if (StrUtil.isNotBlank(genInfo.blogTitle) && StrUtil.isNotBlank(fullRepoName)) {
+                if (genInfo.blogTitle.contains(fullRepoName) || 
+                    genInfo.blogTitle.toLowerCase().contains(fullRepoName.toLowerCase())) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 根据时间范围查询仓库
+     */
+    private List<GithubTrending> queryRepositories(String timeRange, String language, Integer minStars, 
+            Integer maxStars, Boolean hasReadme, String orderBy, List<GeneratedRepoInfo> generatedRepos, int maxLimit) {
+        
+        LocalDate startDate;
+        LocalDate endDate = LocalDate.now();
+        
+        switch (timeRange.toLowerCase()) {
+            case "week":
+                startDate = endDate.minusDays(7);
+                break;
+            case "month":
+                startDate = endDate.minusDays(30);
+                break;
+            case "today":
+            default:
+                startDate = endDate;
+                break;
+        }
+        
+        QueryWrapper qw = QueryWrapper.create()
+            .from("github_trending")
+            .where(new QueryColumn("first_trending_date").ge(startDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))))
+            .and(new QueryColumn("first_trending_date").le(endDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))));
+        
+        // 添加各种筛选条件
+        if (StrUtil.isNotBlank(language)) {
+            qw.and(new QueryColumn("language").eq(language));
+        }
+        
+        if (minStars != null) {
+            qw.and(new QueryColumn("stars_count").ge(minStars));
+        }
+        
+        if (maxStars != null) {
+            qw.and(new QueryColumn("stars_count").le(maxStars));
+        }
+        
+        if (hasReadme != null) {
+            if (hasReadme) {
+                qw.and(new QueryColumn("readme_path").isNotNull());
+            } else {
+                qw.and(new QueryColumn("readme_path").isNull());
+            }
+        }
+        
+        // 设置排序方式
+        applyOrderBy(qw, orderBy);
+        
+        // 限制查询数量
+        qw.limit(maxLimit);
+        
+        return githubTrendingService.list(qw);
+    }
+    
+    /**
+     * 应用排序方式
+     */
+    private void applyOrderBy(QueryWrapper qw, String orderBy) {
+        if (StrUtil.isNotBlank(orderBy)) {
+            switch (orderBy.toLowerCase()) {
+                case "forks":
+                    qw.orderBy(new QueryColumn("forks_count").desc(), new QueryColumn("id").desc());
+                    break;
+                case "issues":
+                    qw.orderBy(new QueryColumn("open_issues_count").desc(), new QueryColumn("id").desc());
+                    break;
+                case "created":
+                    qw.orderBy(new QueryColumn("github_created_at").desc(), new QueryColumn("id").desc());
+                    break;
+                default: // stars 或其他情况
+                    qw.orderBy(new QueryColumn("stars_count").desc(), new QueryColumn("id").desc());
+                    break;
+            }
+        } else {
+            qw.orderBy(new QueryColumn("stars_count").desc(), new QueryColumn("id").desc());
+        }
+    }
+    
+    /**
+     * 合并并去重仓库列表
+     */
+    private List<GithubTrending> mergeAndDeduplicate(List<GithubTrending> list1, List<GithubTrending> list2) {
+        Map<String, GithubTrending> map = new java.util.LinkedHashMap<>();
+        for (GithubTrending repo : list1) {
+            map.put(repo.getId(), repo);
+        }
+        for (GithubTrending repo : list2) {
+            map.putIfAbsent(repo.getId(), repo);
+        }
+        return new ArrayList<>(map.values());
+    }
+    
+    /**
+     * 获取时间范围描述
+     */
+    private String getTimeRangeDescription(String timeRange) {
+        switch (timeRange.toLowerCase()) {
+            case "week":
+                return "本周";
+            case "month":
+                return "本月";
+            case "today":
+            default:
+                return "今日";
+        }
+    }
+    
+    /**
+     * 标准化URL（移除末尾斜杠，转小写）
+     */
+    private String normalizeUrl(String url) {
+        if (StrUtil.isBlank(url)) return "";
+        url = url.trim();
+        while (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        return url.toLowerCase();
+    }
+    
+    /**
+     * 从文本中提取GitHub仓库URL
+     */
+    private List<String> extractGitHubUrls(String content) {
+        List<String> urls = new ArrayList<>();
+        if (StrUtil.isBlank(content)) return urls;
+        
+        // 匹配 GitHub 仓库 URL 的正则表达式
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+            "https?://github\\.com/([\\w-]+)/([\\w.-]+)(?:/|$|[?#])", 
+            java.util.regex.Pattern.CASE_INSENSITIVE
+        );
+        java.util.regex.Matcher matcher = pattern.matcher(content);
+        
+        while (matcher.find()) {
+            urls.add(matcher.group(0).replaceAll("[?#].*$", "").replaceAll("/$", ""));
+        }
+        
+        return urls;
+    }
+    
+    /**
+     * 解析GitHub URL为仓库信息
+     */
+    private GeneratedRepoInfo parseGitHubUrl(String url) {
+        if (StrUtil.isBlank(url)) return null;
+        
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+            "github\\.com/([\\w-]+)/([\\w.-]+)", 
+            java.util.regex.Pattern.CASE_INSENSITIVE
+        );
+        java.util.regex.Matcher matcher = pattern.matcher(url);
+        
+        if (matcher.find()) {
+            GeneratedRepoInfo info = new GeneratedRepoInfo();
+            info.repoUrl = url;
+            info.repoOwner = matcher.group(1);
+            info.repoTitle = matcher.group(2);
+            return info;
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 检查列表中是否已包含相同的仓库信息
+     */
+    private boolean containsRepoInfo(List<GeneratedRepoInfo> list, GeneratedRepoInfo info) {
+        for (GeneratedRepoInfo existing : list) {
+            if (StrUtil.isNotBlank(existing.repoUrl) && StrUtil.isNotBlank(info.repoUrl)) {
+                if (normalizeUrl(existing.repoUrl).equals(normalizeUrl(info.repoUrl))) {
+                    return true;
+                }
+            }
+            if (StrUtil.isNotBlank(existing.repoOwner) && StrUtil.isNotBlank(existing.repoTitle) &&
+                StrUtil.isNotBlank(info.repoOwner) && StrUtil.isNotBlank(info.repoTitle)) {
+                if (existing.repoOwner.equalsIgnoreCase(info.repoOwner) && 
+                    existing.repoTitle.equalsIgnoreCase(info.repoTitle)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * 已生成博客的仓库信息内部类
+     */
+    private static class GeneratedRepoInfo {
+        String repoUrl;       // 仓库URL
+        String repoTitle;     // 仓库名称
+        String repoOwner;     // 仓库所有者
+        String blogTitle;     // 博客标题（用于模糊匹配）
     }
 }

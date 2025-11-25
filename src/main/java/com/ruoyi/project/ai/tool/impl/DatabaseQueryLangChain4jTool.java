@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import com.mybatisflex.core.row.Db;
 import com.mybatisflex.core.row.Row;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
+import com.ruoyi.project.ai.tool.ToolExecutionResult;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
@@ -94,7 +95,7 @@ public class DatabaseQueryLangChain4jTool implements LangChain4jTool {
         List<Row> rows = Db.selectListBySql(sql);
         
         if (rows.isEmpty()) {
-            return "查询结果为空";
+            return ToolExecutionResult.empty("query", "数据库查询结果为空");
         }
 
         // 构建结果JSON
@@ -103,7 +104,7 @@ public class DatabaseQueryLangChain4jTool implements LangChain4jTool {
         result.put("limit", limit);
         result.put("data", rows);
 
-        return JSONUtil.toJsonStr(result);
+        return ToolExecutionResult.querySuccess(JSONUtil.toJsonStr(result), "成功执行数据库查询");
     }
     
     @Override

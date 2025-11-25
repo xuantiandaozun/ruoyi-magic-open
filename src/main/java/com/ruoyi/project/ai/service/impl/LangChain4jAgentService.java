@@ -199,12 +199,21 @@ public class LangChain4jAgentService {
                              aiMessage.toolExecutionRequests().forEach(toolRequest -> {
                                  try {
                                      String result = toolRegistry.executeTool(toolRequest.name(), toolRequest.arguments());
+                                     
+                                     // 如果工具执行结果为null，转换为失败的统一格式
+                                     if (result == null) {
+                                         result = "{\"success\":false,\"operationType\":\"unknown\",\"message\":\"工具返回null\"}";
+                                         log.warn("工具返回null结果: {}, 已转换为失败格式", toolRequest.name());
+                                     }
+                                     
                                      // 创建工具执行结果消息
                                      messages.add(ToolExecutionResultMessage.from(toolRequest, result));
                                      log.debug("工具调用成功: {} -> {}", toolRequest.name(), result);
                                  } catch (Exception e) {
                                      log.error("工具调用失败: {}", e.getMessage(), e);
-                                     messages.add(ToolExecutionResultMessage.from(toolRequest, "工具调用失败: " + e.getMessage()));
+                                     // 工具调用异常，返回失败格式
+                                     String errorResult = "{\"success\":false,\"operationType\":\"error\",\"message\":\"工具调用失败: " + e.getMessage() + "\"}";
+                                     messages.add(ToolExecutionResultMessage.from(toolRequest, errorResult));
                                  }
                              });
                             
