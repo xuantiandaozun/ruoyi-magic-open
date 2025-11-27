@@ -1,30 +1,33 @@
 package com.ruoyi.project.system.controller;
 
-import java.util.List;
 import java.util.Arrays;
-import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.mybatisflex.core.paginate.Page;
+import com.mybatisflex.core.query.QueryWrapper;
+import com.ruoyi.common.utils.poi.MagicExcelUtil;
 import com.ruoyi.framework.aspectj.lang.annotation.Log;
 import com.ruoyi.framework.aspectj.lang.enums.BusinessType;
-import com.ruoyi.project.system.domain.SysSecretKey;
-import com.ruoyi.project.system.service.ISysSecretKeyService;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
-import com.ruoyi.common.utils.poi.MagicExcelUtil;
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.core.paginate.Page;
 import com.ruoyi.framework.web.page.PageDomain;
-import com.ruoyi.framework.web.page.TableSupport;
-import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.ruoyi.framework.web.page.TableDataInfo;
+import com.ruoyi.framework.web.page.TableSupport;
+import com.ruoyi.project.system.domain.SysSecretKey;
+import com.ruoyi.project.system.service.ISysSecretKeyService;
+
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * 密钥管理Controller
@@ -115,5 +118,19 @@ public class SysSecretKeyController extends BaseController
     public AjaxResult remove(@PathVariable Long[] ids)
     {
         return toAjax(sysSecretKeyService.removeByIds(Arrays.asList(ids)) ? ids.length : 0);
+    }
+
+    /**
+     * 获取飞书密钥下拉选项列表
+     */
+    @GetMapping("/feishu/options")
+    public AjaxResult getFeishuKeyOptions()
+    {
+        QueryWrapper queryWrapper = QueryWrapper.create()
+            .eq("provider_name", "飞书")
+            .eq("status", "0")
+            .select("id", "key_name", "key_type");
+        List<SysSecretKey> list = sysSecretKeyService.list(queryWrapper);
+        return success(list);
     }
 }

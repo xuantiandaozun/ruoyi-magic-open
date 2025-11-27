@@ -65,6 +65,8 @@ public class FeishuConfigUtils {
                 && StrUtil.isNotEmpty(selectedKey.getSecretKey())) {
                 
                 FeishuConfig feishuConfig = new FeishuConfig(selectedKey.getAccessKey(), selectedKey.getSecretKey());
+                feishuConfig.setKeyId(selectedKey.getId());
+                feishuConfig.setKeyName(selectedKey.getKeyName());
                 
                 log.info("飞书配置获取成功，密钥名称: {}, 应用ID: {}", 
                         selectedKey.getKeyName(), selectedKey.getAccessKey());

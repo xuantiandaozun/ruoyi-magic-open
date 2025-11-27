@@ -66,6 +66,10 @@ public class FeishuDoc extends BaseEntity {
     @Excel(name = "飞书修改时间(时间戳)")
     private String feishuModifiedTime;
 
+    /** 关联的密钥ID */
+    @Excel(name = "关联的密钥ID")
+    private Long keyId;
+
     /** 关联的密钥名称 */
     @Excel(name = "关联的密钥名称")
     private String keyName;

@@ -1,7 +1,8 @@
 package com.ruoyi.project.system.config;
 
-import lombok.Data;
 import org.springframework.stereotype.Component;
+
+import lombok.Data;
 
 /**
  * 飞书配置类
@@ -21,6 +22,12 @@ public class FeishuConfig {
     
     /** 是否启用 */
     private boolean enabled = false;
+    
+    /** 密钥ID */
+    private Long keyId;
+    
+    /** 密钥名称 */
+    private String keyName;
     
     /**
      * 构造函数
