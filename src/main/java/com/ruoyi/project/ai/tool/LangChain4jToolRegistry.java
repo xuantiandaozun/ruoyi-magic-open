@@ -81,19 +81,38 @@ public class LangChain4jToolRegistry {
     public String executeTool(String toolName, String arguments) {
         LangChain4jTool tool = tools.get(toolName);
         if (tool == null) {
-            throw new ServiceException("未找到工具: " + toolName);
+            log.warn("[LangChain4jToolRegistry] 未找到工具: {}", toolName);
+            return ToolExecutionResult.failure("operation", "未找到工具: " + toolName);
         }
         
+        Map<String, Object> params;
         try {
-            // 解析参数
-            Map<String, Object> params = parseArguments(arguments);
-            
-            // 执行工具
-            return tool.execute(params);
-            
+            params = parseArguments(arguments);
+        } catch (ServiceException e) {
+            // 参数解析失败，记录日志并返回统一失败结果
+            log.warn("[LangChain4jToolRegistry] 工具参数格式错误: name={}, rawArgs={}, error={}", toolName, arguments, e.getMessage());
+            return ToolExecutionResult.failure("operation", "工具参数格式错误: " + e.getMessage());
+        }
+        
+        long start = System.currentTimeMillis();
+        try {
+            String result = tool.execute(params);
+            long cost = System.currentTimeMillis() - start;
+            int length = result != null ? result.length() : 0;
+            // 成功时只打印精简信息，不输出具体结果内容
+            log.info("[LangChain4jToolRegistry] 工具执行成功: name={}, cost={}ms, resultLength={}",
+                    toolName, cost, length);
+            return result;
+        } catch (IllegalArgumentException e) {
+            long cost = System.currentTimeMillis() - start;
+            log.warn("[LangChain4jToolRegistry] 工具参数错误: name={}, cost={}ms, params={}, error={}",
+                    toolName, cost, arguments, e.getMessage());
+            return ToolExecutionResult.failure("operation", "工具参数错误: " + e.getMessage());
         } catch (Exception e) {
-            log.error("执行工具失败: {} - {}", toolName, e.getMessage(), e);
-            throw new ServiceException("工具执行失败: " + e.getMessage());
+            long cost = System.currentTimeMillis() - start;
+            log.error("[LangChain4jToolRegistry] 工具执行异常: name={}, cost={}ms, params={}, error={}",
+                    toolName, cost, arguments, e.getMessage(), e);
+            return ToolExecutionResult.failure("operation", "工具执行失败: " + e.getMessage());
         }
     }
     

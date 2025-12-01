@@ -67,6 +67,12 @@ ruoyi:
       # 自定义域名（可选）
       custom-domain: 
 
+# GitHub配置
+github:
+  # GitHub API Token（可选，用于提高API请求限流额度）
+  # 可在 https://github.com/settings/tokens 生成personal access token
+  token: 
+
 # 飞书应用配置
 feishu:
   # 飞书应用ID

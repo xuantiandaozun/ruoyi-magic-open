@@ -131,26 +131,50 @@ public class ToolResultProcessor {
     /**
      * 判断结果是否为空数据
      * 当success=false且message表示空数据时返回true
+     * 注意：此方法接收的可能是AI的最终响应文本，不一定是纯JSON格式
      * 
-     * @param resultJson 工具执行结果JSON字符串
+     * @param agentResult AI Agent的最终响应文本（可能包含工具调用结果的分析）
      * @return 如果是空数据返回true
      */
-    public static boolean isEmpty(String resultJson) {
+    public static boolean isEmpty(String agentResult) {
         try {
-            if (resultJson == null || resultJson.isEmpty()) {
+            if (agentResult == null || agentResult.isEmpty()) {
                 return true;
             }
             
-            if (isJsonObject(resultJson)) {
-                JSONObject json = JSONUtil.parseObj(resultJson);
+            // 首先检查是否是纯JSON格式（工具直接返回的情况，兼容性处理）
+            if (isJsonObject(agentResult)) {
+                JSONObject json = JSONUtil.parseObj(agentResult);
                 Boolean success = json.getBool("success");
                 return success != null && !success;
             }
+            
+            // 不是纯JSON格式，说明是AI的文本响应
+            // 检查是否包含工具执行失败的JSON标记
+            if (agentResult.contains("{\"success\":false")) {
+                // 尝试从文本中提取JSON部分进行判断
+                int jsonStart = agentResult.indexOf("{");
+                int jsonEnd = agentResult.lastIndexOf("}") + 1;
+                if (jsonStart >= 0 && jsonEnd > jsonStart) {
+                    String jsonPart = agentResult.substring(jsonStart, jsonEnd);
+                    if (isJsonObject(jsonPart)) {
+                        JSONObject json = JSONUtil.parseObj(jsonPart);
+                        Boolean success = json.getBool("success");
+                        // 只有明确标记success=false才认为失败
+                        if (success != null && !success) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            
+            // AI的正常文本响应，认为是成功的
+            return false;
+            
         } catch (Exception e) {
-            // 解析失败认为是空
+            // 解析失败，但有文本内容，认为是正常响应
+            return false;
         }
-        
-        return true;
     }
     
     /**

@@ -1,11 +1,12 @@
 package com.ruoyi.framework.config;
 
-import cn.dev33.satoken.interceptor.SaInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import cn.dev33.satoken.interceptor.SaInterceptor;
 
 /**
  * WebMvc配置
@@ -47,17 +48,35 @@ public class WebMvcConfig implements WebMvcConfigurer {
         @Override
         public void addInterceptors(InterceptorRegistry registry) {
                 // 注册 Sa-Token 拦截器，校验规则为 StpUtil.checkLogin() 登录校验。
-                registry.addInterceptor(new SaInterceptor())
-                                .addPathPatterns("/**")
-                                .excludePathPatterns(
-                                                "/login",
-                                                "/register",
-                                                "/captchaImage",
-                                                "/system/user/profile/feishu/callback",
-                                                "/swagger-resources/**",
-                                                "/webjars/**",
-                                                "/v3/api-docs/**",
-                                                "/swagger-ui/**",
-                                                "/doc.html");
+                registry.addInterceptor(new SaInterceptor(handle -> {
+                        // 登录校验拦截
+                        cn.dev33.satoken.stp.StpUtil.checkLogin();
+                }))
+                .addPathPatterns("/**")
+                .excludePathPatterns(
+                        // 登录接口
+                        "/login",
+                        "/register",
+                        "/captchaImage",
+                        // 飞书回调
+                        "/feishu/callback",
+                        "/system/user/profile/feishu/callback",
+                        // MCP 和 SSE
+                        "/mcp/messages",
+                        "/sse",
+                        "/v2/**",
+                        // 下载接口
+                        "/common/download/**",
+                        // API 文档
+                        "/swagger-resources/**",
+                        "/webjars/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/*/api-docs",
+                        "/doc.html",
+                        // magic-api 接口
+                        "/magic/**",
+                        "/api/**"
+                );
         }
 }

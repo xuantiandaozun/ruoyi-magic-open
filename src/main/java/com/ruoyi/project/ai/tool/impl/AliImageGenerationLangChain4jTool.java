@@ -70,72 +70,72 @@ public class AliImageGenerationLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
+        // 获取必填参数
+        String prompt = (String) parameters.get("prompt");
+        
+        if (StrUtil.isBlank(prompt)) {
+            return ToolExecutionResult.failure("operation", "提示词不能为空");
+        }
+        
+        // 使用固定的配置ID: 24
+        Long configId = 24L;
+        
+        // 获取AI模型配置
+        AiModelConfig config = aiModelConfigService.getById(configId);
+        if (config == null) {
+            return ToolExecutionResult.failure("operation", "找不到指定的AI模型配置，配置ID: " + configId);
+        }
+        
+        if (!"Y".equals(config.getEnabled())) {
+            return ToolExecutionResult.failure("operation", "指定的AI模型配置已禁用，配置ID: " + configId);
+        }
+        
+        if (StrUtil.isBlank(config.getApiKey())) {
+            return ToolExecutionResult.failure("operation", "AI模型配置中缺少API密钥，配置ID: " + configId);
+        }
+        
+        // 获取可选参数
+        String model = (String) parameters.getOrDefault("model", "qwen-image-plus");
+        String size = (String) parameters.getOrDefault("size", "1328*1328");
+        String negativePrompt = (String) parameters.getOrDefault("negativePrompt", "");
+        Boolean promptExtend = parameters.get("promptExtend") != null ? 
+            Boolean.parseBoolean(parameters.get("promptExtend").toString()) : true;
+        Boolean watermark = parameters.get("watermark") != null ? 
+            Boolean.parseBoolean(parameters.get("watermark").toString()) : false;
+        Integer seed = parameters.get("seed") != null ? 
+            Integer.parseInt(parameters.get("seed").toString()) : null;
+        
+        // 构建请求体 - 使用新的同步接口格式
+        JSONObject requestBody = new JSONObject();
+        requestBody.set("model", model);
+        
+        // 构建input对象，包含messages数组
+        JSONObject input = new JSONObject();
+        JSONObject message = new JSONObject();
+        message.set("role", "user");
+        
+        // 构建content数组，包含text对象
+        JSONObject textContent = new JSONObject();
+        textContent.set("text", prompt);
+        message.set("content", new Object[]{textContent});
+        
+        input.set("messages", new Object[]{message});
+        requestBody.set("input", input);
+        
+        // 构建parameters对象
+        JSONObject params = new JSONObject();
+        params.set("size", size);
+        // 注意：同步接口当前仅支持生成1张图像
+        params.set("n", 1);
+        params.set("prompt_extend", promptExtend);
+        params.set("watermark", watermark);
+        params.set("negative_prompt", negativePrompt);
+        if (seed != null) {
+            params.set("seed", seed);
+        }
+        requestBody.set("parameters", params);
+        
         try {
-            // 获取必填参数
-            String prompt = (String) parameters.get("prompt");
-            
-            if (StrUtil.isBlank(prompt)) {
-                return ToolExecutionResult.failure("operation", "提示词不能为空");
-            }
-            
-            // 使用固定的配置ID: 24
-            Long configId = 24L;
-            
-            // 获取AI模型配置
-            AiModelConfig config = aiModelConfigService.getById(configId);
-            if (config == null) {
-                return ToolExecutionResult.failure("operation", "找不到指定的AI模型配置，配置ID: " + configId);
-            }
-            
-            if (!"Y".equals(config.getEnabled())) {
-                return ToolExecutionResult.failure("operation", "指定的AI模型配置已禁用，配置ID: " + configId);
-            }
-            
-            if (StrUtil.isBlank(config.getApiKey())) {
-                return ToolExecutionResult.failure("operation", "AI模型配置中缺少API密钥，配置ID: " + configId);
-            }
-            
-            // 获取可选参数
-            String model = (String) parameters.getOrDefault("model", "qwen-image-plus");
-            String size = (String) parameters.getOrDefault("size", "1328*1328");
-            String negativePrompt = (String) parameters.getOrDefault("negativePrompt", "");
-            Boolean promptExtend = parameters.get("promptExtend") != null ? 
-                Boolean.parseBoolean(parameters.get("promptExtend").toString()) : true;
-            Boolean watermark = parameters.get("watermark") != null ? 
-                Boolean.parseBoolean(parameters.get("watermark").toString()) : false;
-            Integer seed = parameters.get("seed") != null ? 
-                Integer.parseInt(parameters.get("seed").toString()) : null;
-            
-            // 构建请求体 - 使用新的同步接口格式
-            JSONObject requestBody = new JSONObject();
-            requestBody.set("model", model);
-            
-            // 构建input对象，包含messages数组
-            JSONObject input = new JSONObject();
-            JSONObject message = new JSONObject();
-            message.set("role", "user");
-            
-            // 构建content数组，包含text对象
-            JSONObject textContent = new JSONObject();
-            textContent.set("text", prompt);
-            message.set("content", new Object[]{textContent});
-            
-            input.set("messages", new Object[]{message});
-            requestBody.set("input", input);
-            
-            // 构建parameters对象
-            JSONObject params = new JSONObject();
-            params.set("size", size);
-            // 注意：同步接口当前仅支持生成1张图像
-            params.set("n", 1);
-            params.set("prompt_extend", promptExtend);
-            params.set("watermark", watermark);
-            params.set("negative_prompt", negativePrompt);
-            if (seed != null) {
-                params.set("seed", seed);
-            }
-            requestBody.set("parameters", params);
-            
             // 发送HTTP请求
             String response = sendImageGenerationRequest(config.getApiKey(), requestBody.toString());
             
@@ -155,7 +155,6 @@ public class AliImageGenerationLangChain4jTool implements LangChain4jTool {
             result.put("size", size);
             
             return ToolExecutionResult.operationSuccess(result, "图片生成成功");
-            
         } catch (Exception e) {
             return ToolExecutionResult.failure("operation", "生成图片时发生错误: " + e.getMessage());
         }

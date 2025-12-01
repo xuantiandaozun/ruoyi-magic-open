@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +37,8 @@ import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 @Component
 public class GithubTrendingLangChain4jTool implements LangChain4jTool {
     
+    private static final Logger log = LoggerFactory.getLogger(GithubTrendingLangChain4jTool.class);
+    
     @Autowired
     private IGithubTrendingService githubTrendingService;
     
@@ -51,21 +55,21 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String getToolDescription() {
-        return "智能查询GitHub热门仓库，优先查询今日首次上榜项目，若无结果则自动降级到本周或本月。支持多维度筛选，自动过滤已生成过博客的仓库";
+        return "智能查询GitHub热门仓库,优先查询今日首次上榜项目,若无结果则自动降级到本周或本月。支持多维度筛选,自动过滤已生成过博客的仓库。注意:language参数是可选的,如果不指定则返回所有编程语言的仓库,建议默认不指定language以获取更全面的结果";
     }
     
     @Override
     public ToolSpecification getToolSpecification() {
         // 创建GitHub趋势查询工具规范
         JsonObjectSchema parametersSchema = JsonObjectSchema.builder()
-            .addIntegerProperty("limit", "返回结果数量限制，默认为10，最大150")
-            .addStringProperty("language", "编程语言筛选，如java、python、javascript等，可选")
-            .addIntegerProperty("minStars", "最小星数筛选，可选")
-            .addIntegerProperty("maxStars", "最大星数筛选，可选")
-            .addStringProperty("orderBy", "排序方式：stars(按星数)、forks(按fork数)、issues(按问题数)、created(按创建时间)，默认按星数")
-            .addBooleanProperty("hasReadme", "是否有README文件，可选")
-            .addStringProperty("timeRange", "时间范围：today(今日)、week(本周)、month(本月)、auto(自动降级，默认)。auto模式下优先查询今日，若无结果则自动尝试本周、本月")
-            .addBooleanProperty("includeGenerated", "是否包含已生成过博客的仓库，默认false（不包含）")
+            .addIntegerProperty("limit", "返回结果数量限制,默认为10,最大150")
+            .addStringProperty("language", "编程语言筛选,如java、python、javascript等,可选。建议不指定以获取所有语言的仓库")
+            .addIntegerProperty("minStars", "最小星数筛选,可选")
+            .addIntegerProperty("maxStars", "最大星数筛选,可选")
+            .addStringProperty("orderBy", "排序方式:stars(按星数)、forks(按fork数)、issues(按问题数)、created(按创建Mysql时间),默认按星数")
+            .addBooleanProperty("hasReadme", "是否有README文件,可选")
+            .addStringProperty("timeRange", "时间范围:today(今日)、week(本周)、month(本月)、auto(自动降级,默认)。auto模式下优先查询今日,若无结果则自动尝试本周、本月")
+            .addBooleanProperty("includeGenerated", "是否包含已生成过博客的仓库,默认false（不包含）")
             .build();
         
         return ToolSpecification.builder()
@@ -93,6 +97,9 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
         Boolean includeGenerated = parameters.get("includeGenerated") != null ?
             Boolean.parseBoolean(parameters.get("includeGenerated").toString()) : false;
         
+        log.info("[GithubTrendingTool] 开始查询GitHub趋势仓库, params: limit={}, language={}, minStars={}, maxStars={}, timeRange={}, includeGenerated={}",
+                limit, language, minStars, maxStars, timeRange, includeGenerated);
+        
         // 限制最大数量
         if (limit > 150) limit = 150;
         if (limit < 1) limit = 10;
@@ -110,8 +117,19 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
             repositories = queryRepositories("today", language, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
             actualTimeRange = "today";
             
+            // 如果指定了语言但查不到,尝试不指定语言再查一次
+            if (repositories.isEmpty() && StrUtil.isNotBlank(language)) {
+                log.warn("[GithubTrendingTool] 指定语言{}查不到数据,尝试查询所有语言", language);
+                repositories = queryRepositories("today", null, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+            }
+            
             if (repositories.size() < limit) {
                 List<GithubTrending> weekRepos = queryRepositories("week", language, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+                // 如果指定了语言但查不到,尝试不指定语言再查一次
+                if (weekRepos.isEmpty() && StrUtil.isNotBlank(language)) {
+                    log.warn("[GithubTrendingTool] 本周指定语言{}查不到数据,尝试查询所有语言", language);
+                    weekRepos = queryRepositories("week", null, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+                }
                 // 合并并去重
                 repositories = mergeAndDeduplicate(repositories, weekRepos);
                 if (repositories.size() >= limit || weekRepos.size() > 0) {
@@ -121,6 +139,11 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
             
             if (repositories.size() < limit) {
                 List<GithubTrending> monthRepos = queryRepositories("month", language, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+                // 如果指定了语言但查不到,尝试不指定语言再查一次
+                if (monthRepos.isEmpty() && StrUtil.isNotBlank(language)) {
+                    log.warn("[GithubTrendingTool] 本月指定语言{}查不到数据,尝试查询所有语言", language);
+                    monthRepos = queryRepositories("month", null, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+                }
                 // 合并并去重
                 repositories = mergeAndDeduplicate(repositories, monthRepos);
                 if (monthRepos.size() > 0) {
@@ -130,6 +153,11 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
         } else {
             // 指定时间范围
             repositories = queryRepositories(timeRange, language, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+            // 如果指定了语言但查不到,尝试不指定语言再查一次
+            if (repositories.isEmpty() && StrUtil.isNotBlank(language)) {
+                log.warn("[GithubTrendingTool] 指定语言{}查不到数据,尝试查询所有语言", language);
+                repositories = queryRepositories(timeRange, null, minStars, maxStars, hasReadme, orderBy, generatedRepos, limit * 3);
+            }
             actualTimeRange = timeRange;
         }
         
@@ -144,9 +172,13 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
         }
         
         if (repositories.isEmpty()) {
+            log.warn("[GithubTrendingTool] 查询结果为空, timeRange={}, language={}, minStars={}, maxStars={}, hasReadme={}",
+                    actualTimeRange, language, minStars, maxStars, hasReadme);
             return ToolExecutionResult.empty("query", "未找到符合条件的GitHub趋势仓库");
         }
-            
+        
+        log.info("[GithubTrendingTool] 查询成功, timeRange={}, resultSize={}", actualTimeRange, repositories.size());
+        
         // 格式化返回结果
         StringBuilder result = new StringBuilder();
         StringBuilder filterInfo = new StringBuilder();
@@ -159,65 +191,65 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
             .append(filterInfo.length() > 0 ? "（筛选条件：" + filterInfo.toString().trim() + "）" : "")
             .append(!includeGenerated ? "（已过滤" + generatedRepos.size() + "个已生成博客的仓库）" : "")
             .append("：\n\n");
+        
+        for (int i = 0; i < repositories.size(); i++) {
+            GithubTrending repo = repositories.get(i);
+            result.append(String.format("%d. %s/%s\n", i + 1, repo.getOwner(), repo.getTitle()));
+            result.append(String.format("   描述: %s\n", StrUtil.isNotBlank(repo.getDescription()) ? repo.getDescription() : "无描述"));
+            result.append(String.format("   语言: %s\n", StrUtil.isNotBlank(repo.getLanguage()) ? repo.getLanguage() : "未知"));
+            result.append(String.format("   星数: %s\n", StrUtil.isNotBlank(repo.getStarsCount()) ? repo.getStarsCount() : "0"));
+            result.append(String.format("   Fork数: %s\n", StrUtil.isNotBlank(repo.getForksCount()) ? repo.getForksCount() : "0"));
+            result.append(String.format("   问题数: %s\n", StrUtil.isNotBlank(repo.getOpenIssuesCount()) ? repo.getOpenIssuesCount() : "0"));
+            result.append(String.format("   仓库地址: %s\n", StrUtil.isNotBlank(repo.getUrl()) ? repo.getUrl() : "无链接"));
+            result.append(String.format("   上榜天数: %s\n", StrUtil.isNotBlank(repo.getTrendingDays()) ? repo.getTrendingDays() : "1"));
+            result.append(String.format("   连续上榜: %s天\n", StrUtil.isNotBlank(repo.getContinuousTrendingDays()) ? repo.getContinuousTrendingDays() : "1"));
             
-            for (int i = 0; i < repositories.size(); i++) {
-                GithubTrending repo = repositories.get(i);
-                result.append(String.format("%d. %s/%s\n", i + 1, repo.getOwner(), repo.getTitle()));
-                result.append(String.format("   描述: %s\n", StrUtil.isNotBlank(repo.getDescription()) ? repo.getDescription() : "无描述"));
-                result.append(String.format("   语言: %s\n", StrUtil.isNotBlank(repo.getLanguage()) ? repo.getLanguage() : "未知"));
-                result.append(String.format("   星数: %s\n", StrUtil.isNotBlank(repo.getStarsCount()) ? repo.getStarsCount() : "0"));
-                result.append(String.format("   Fork数: %s\n", StrUtil.isNotBlank(repo.getForksCount()) ? repo.getForksCount() : "0"));
-                result.append(String.format("   问题数: %s\n", StrUtil.isNotBlank(repo.getOpenIssuesCount()) ? repo.getOpenIssuesCount() : "0"));
-                result.append(String.format("   仓库地址: %s\n", StrUtil.isNotBlank(repo.getUrl()) ? repo.getUrl() : "无链接"));
-                result.append(String.format("   上榜天数: %s\n", StrUtil.isNotBlank(repo.getTrendingDays()) ? repo.getTrendingDays() : "1"));
-                result.append(String.format("   连续上榜: %s天\n", StrUtil.isNotBlank(repo.getContinuousTrendingDays()) ? repo.getContinuousTrendingDays() : "1"));
-                
-                // 添加README文件相关信息
-                if (StrUtil.isNotBlank(repo.getReadmePath())) {
-                    result.append(String.format("   README文件地址: %s\n", repo.getReadmePath()));
-                }
-                if (StrUtil.isNotBlank(repo.getAiReadmePath())) {
-                    result.append(String.format("   AI翻译README地址: %s\n", repo.getAiReadmePath()));
-                }
-                
-                // 添加仓库价值信息
-                if (StrUtil.isNotBlank(repo.getRepValue())) {
-                    result.append(String.format("   仓库价值: %s\n", repo.getRepValue()));
-                }
-                
-                // 添加时间相关信息
-                if (repo.getGithubCreatedAt() != null) {
-                    result.append(String.format("   GitHub创建时间: %s\n", repo.getGithubCreatedAt().toString().substring(0, 10)));
-                }
-                if (repo.getGithubUpdatedAt() != null) {
-                    result.append(String.format("   GitHub最后更新: %s\n", repo.getGithubUpdatedAt().toString().substring(0, 10)));
-                }
-                if (repo.getFirstTrendingDate() != null) {
-                    result.append(String.format("   首次上榜日期: %s\n", repo.getFirstTrendingDate().toString()));
-                }
-                if (repo.getLastTrendingDate() != null) {
-                    result.append(String.format("   最后上榜日期: %s\n", repo.getLastTrendingDate().toString()));
-                }
-                
-                // 添加推广文章信息
-                if (StrUtil.isNotBlank(repo.getPromotionArticle())) {
-                    result.append(String.format("   推广文章: %s\n", repo.getPromotionArticle()));
-                }
-                
-                // 添加README更新时间
-                if (repo.getReadmeUpdatedAt() != null) {
-                    result.append(String.format("   README更新时间: %s\n", repo.getReadmeUpdatedAt().toString().substring(0, 10)));
-                }
-                
-                // 添加是否需要更新标识
-                if (StrUtil.isNotBlank(repo.getIsNeedUpdate())) {
-                    String needUpdate = "1".equals(repo.getIsNeedUpdate()) ? "是" : "否";
-                    result.append(String.format("   需要更新: %s\n", needUpdate));
-                }
-                
-                result.append("\n");
+            // 添加README文件相关信息
+            if (StrUtil.isNotBlank(repo.getReadmePath())) {
+                result.append(String.format("   README文件地址: %s\n", repo.getReadmePath()));
+            }
+            if (StrUtil.isNotBlank(repo.getAiReadmePath())) {
+                result.append(String.format("   AI翻译README地址: %s\n", repo.getAiReadmePath()));
             }
             
+            // 添加仓库价值信息
+            if (StrUtil.isNotBlank(repo.getRepValue())) {
+                result.append(String.format("   仓库价值: %s\n", repo.getRepValue()));
+            }
+            
+            // 添加时间相关信息
+            if (repo.getGithubCreatedAt() != null) {
+                result.append(String.format("   GitHub创建时间: %s\n", repo.getGithubCreatedAt().toString().substring(0, 10)));
+            }
+            if (repo.getGithubUpdatedAt() != null) {
+                result.append(String.format("   GitHub最后更新: %s\n", repo.getGithubUpdatedAt().toString().substring(0, 10)));
+            }
+            if (repo.getFirstTrendingDate() != null) {
+                result.append(String.format("   首次上榜日期: %s\n", repo.getFirstTrendingDate().toString()));
+            }
+            if (repo.getLastTrendingDate() != null) {
+                result.append(String.format("   最后上榜日期: %s\n", repo.getLastTrendingDate().toString()));
+            }
+            
+            // 添加推广文章信息
+            if (StrUtil.isNotBlank(repo.getPromotionArticle())) {
+                result.append(String.format("   推广文章: %s\n", repo.getPromotionArticle()));
+            }
+            
+            // 添加README更新时间
+            if (repo.getReadmeUpdatedAt() != null) {
+                result.append(String.format("   README更新时间: %s\n", repo.getReadmeUpdatedAt().toString().substring(0, 10)));
+            }
+            
+            // 添加是否需要更新标识
+            if (StrUtil.isNotBlank(repo.getIsNeedUpdate())) {
+                String needUpdate = "1".equals(repo.getIsNeedUpdate()) ? "是" : "否";
+                result.append(String.format("   需要更新: %s\n", needUpdate));
+            }
+            
+            result.append("\n");
+        }
+        
         return ToolExecutionResult.querySuccess(result.toString(), "成功查询GitHub趋势仓库");
     }
     
@@ -491,6 +523,8 @@ public class GithubTrendingLangChain4jTool implements LangChain4jTool {
                 startDate = endDate;
                 break;
         }
+        
+        log.info("[GithubTrendingTool] 查询时间范围: startDate={}, endDate={}, timeRange={}", startDate, endDate, timeRange);
         
         QueryWrapper qw = QueryWrapper.create()
             .from("github_trending")

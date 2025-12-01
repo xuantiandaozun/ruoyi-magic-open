@@ -8,8 +8,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-import cn.hutool.core.collection.CollUtil;
-
 import org.quartz.Scheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,15 +20,17 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.ruoyi.common.utils.spring.SpringUtils;
-import com.ruoyi.common.utils.job.ScheduleUtils;
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
-
+import com.ruoyi.common.utils.job.ScheduleUtils;
+import com.ruoyi.common.utils.spring.SpringUtils;
 import com.ruoyi.framework.datasource.DynamicDataSourceManager;
 import com.ruoyi.framework.redis.OptimizedRedisCache;
+import com.ruoyi.project.ai.domain.AiWorkflowSchedule;
+import com.ruoyi.project.ai.service.IAiWorkflowScheduleService;
 import com.ruoyi.project.monitor.domain.SysJob;
 import com.ruoyi.project.monitor.mapper.SysJobMapper;
+import com.ruoyi.project.monitor.service.ISysJobService;
 import com.ruoyi.project.system.domain.SysConfig;
 import com.ruoyi.project.system.domain.SysDataSource;
 import com.ruoyi.project.system.domain.SysDictData;
@@ -41,7 +41,8 @@ import com.ruoyi.project.system.mapper.SysDictDataMapper;
 import com.ruoyi.project.system.mapper.SysDictTypeMapper;
 import com.ruoyi.project.system.service.ISysConfigService;
 import com.ruoyi.project.system.service.ISysDictTypeService;
-import com.ruoyi.project.monitor.service.ISysJobService;
+
+import cn.hutool.core.collection.CollUtil;
 
 /**
  * 批量初始化服务
@@ -91,6 +92,10 @@ public class BatchInitializationService {
     @Lazy
     @Autowired
     private ISysJobService jobService;
+    
+    @Lazy
+    @Autowired
+    private IAiWorkflowScheduleService workflowScheduleService;
     
     /**
      * 初始化数据容器
@@ -459,7 +464,7 @@ public class BatchInitializationService {
 
     /**
      * 使用已有数据初始化定时任务（避免重复查询数据库）
-     * 排除AI工作流调度任务，由WorkflowScheduleInitService专门处理
+     * 包含普通任务和AI工作流调度任务的统一初始化
      */
     private void initializeJobsWithData(List<SysJob> jobs) {
         long startTime = System.currentTimeMillis();
@@ -474,40 +479,78 @@ public class BatchInitializationService {
             
             log.info("调度器清空完成，耗时: {}ms", schedulerClearDuration);
             
-            // 过滤掉AI工作流调度任务，避免与WorkflowScheduleInitService重复初始化
+            // 第一阶段：初始化普通定时任务（排除AI工作流调度任务）
             long filterStart = System.currentTimeMillis();
-            List<SysJob> filteredJobs = jobs.stream()
+            List<SysJob> regularJobs = jobs.stream()
                 .filter(job -> !"AI_WORKFLOW".equals(job.getJobGroup()) && 
+                              !"WORKFLOW_SCHEDULE".equals(job.getJobGroup()) &&
                               !job.getJobName().startsWith("WORKFLOW_SCHEDULE_"))
                 .collect(Collectors.toList());
             long filterDuration = System.currentTimeMillis() - filterStart;
             
-            int excludedCount = jobs.size() - filteredJobs.size();
-            log.info("任务过滤完成，排除{}个AI工作流调度任务，剩余{}个任务需要初始化，耗时: {}ms", 
-                    excludedCount, filteredJobs.size(), filterDuration);
+            int excludedCount = jobs.size() - regularJobs.size();
+            log.info("任务过滤完成，排除{}个AI工作流调度任务，剩余{}个普通任务需要初始化，耗时: {}ms", 
+                    excludedCount, regularJobs.size(), filterDuration);
             
-            // 初始化定时任务
+            // 初始化普通定时任务
             long jobCreateStart = System.currentTimeMillis();
-            int successCount = 0;
-            int errorCount = 0;
+            int regularSuccessCount = 0;
+            int regularErrorCount = 0;
             
-            for (SysJob job : filteredJobs) {
+            for (SysJob job : regularJobs) {
                 try {
                     ScheduleUtils.createScheduleJob(scheduler, job);
-                    successCount++;
-                    log.debug("定时任务 [{}] 初始化成功", job.getJobName());
+                    regularSuccessCount++;
+                    log.debug("普通定时任务 [{}] 初始化成功", job.getJobName());
                 } catch (Exception e) {
-                    errorCount++;
-                    log.error("定时任务 [{}] 初始化失败: {}", job.getJobName(), e.getMessage());
+                    regularErrorCount++;
+                    log.error("普通定时任务 [{}] 初始化失败: {}", job.getJobName(), e.getMessage());
                 }
             }
             
             long jobCreateDuration = System.currentTimeMillis() - jobCreateStart;
+            log.info("普通定时任务初始化完成，成功: {}, 失败: {}, 耗时: {}ms", 
+                    regularSuccessCount, regularErrorCount, jobCreateDuration);
+            
+            // 第二阶段：初始化AI工作流调度任务（从 ai_workflow_schedule 表读取配置）
+            long aiJobStart = System.currentTimeMillis();
+            int aiSuccessCount = 0;
+            int aiErrorCount = 0;
+            
+            try {
+                // 获取所有启用的AI工作流调度配置
+                List<AiWorkflowSchedule> enabledSchedules = workflowScheduleService.listEnabledSchedules();
+                log.info("发现 {} 个启用的AI工作流调度配置", enabledSchedules.size());
+                
+                for (AiWorkflowSchedule schedule : enabledSchedules) {
+                    try {
+                        // 创建Quartz任务对象
+                        SysJob aiJob = workflowScheduleService.createQuartzJobForInit(schedule);
+                        // 直接在调度器中创建任务（不保存到 sys_job 表）
+                        ScheduleUtils.createScheduleJob(scheduler, aiJob);
+                        aiSuccessCount++;
+                        log.debug("AI工作流调度任务 [{}] 初始化成功", aiJob.getJobName());
+                        
+                        // 更新下次执行时间
+                        workflowScheduleService.updateNextExecutionTime(schedule.getId());
+                    } catch (Exception e) {
+                        aiErrorCount++;
+                        log.error("AI工作流调度任务 [{}] 初始化失败: {}", 
+                                "WORKFLOW_SCHEDULE_" + schedule.getId(), e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("加载AI工作流调度配置失败", e);
+            }
+            
+            long aiJobDuration = System.currentTimeMillis() - aiJobStart;
             long totalDuration = System.currentTimeMillis() - startTime;
             
-            log.info("定时任务初始化完成，成功: {}, 失败: {}, 总耗时: {}ms，详细耗时: 调度器清空{}ms，任务过滤{}ms，任务创建{}ms", 
-                    successCount, errorCount, totalDuration, 
-                    schedulerClearDuration, filterDuration, jobCreateDuration);
+            log.info("AI工作流调度任务初始化完成，成功: {}, 失败: {}, 耗时: {}ms", 
+                    aiSuccessCount, aiErrorCount, aiJobDuration);
+            
+            log.info("所有定时任务初始化完成，普通任务成功: {}/失败: {}，AI工作流任务成功: {}/失败: {}，总耗时: {}ms", 
+                    regularSuccessCount, regularErrorCount, aiSuccessCount, aiErrorCount, totalDuration);
                     
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;

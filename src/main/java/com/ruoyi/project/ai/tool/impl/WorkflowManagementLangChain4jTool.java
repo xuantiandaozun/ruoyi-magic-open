@@ -87,28 +87,24 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        try {
-            String operation = (String) parameters.get("operation");
-            if (StrUtil.isBlank(operation)) {
-                return ToolExecutionResult.failure("operation", "操作类型不能为空");
-            }
-            
-            switch (operation) {
-                case "get_workflow_list":
-                    return getWorkflowList();
-                case "add_workflow":
-                    return addWorkflow(parameters);
-                case "update_workflow":
-                    return updateWorkflow(parameters);
-                case "update_workflow_step":
-                    return updateWorkflowStep(parameters);
-                case "get_workflow_step":
-                    return getWorkflowStep(parameters);
-                default:
-                    return ToolExecutionResult.failure("operation", "不支持的操作类型: " + operation + "。支持的操作：get_workflow_list、add_workflow、update_workflow、update_workflow_step、get_workflow_step");
-            }
-        } catch (Exception e) {
-            return ToolExecutionResult.failure("operation", "工作流管理操作失败: " + e.getMessage());
+        String operation = (String) parameters.get("operation");
+        if (StrUtil.isBlank(operation)) {
+            return ToolExecutionResult.failure("operation", "操作类型不能为空");
+        }
+        
+        switch (operation) {
+            case "get_workflow_list":
+                return getWorkflowList();
+            case "add_workflow":
+                return addWorkflow(parameters);
+            case "update_workflow":
+                return updateWorkflow(parameters);
+            case "update_workflow_step":
+                return updateWorkflowStep(parameters);
+            case "get_workflow_step":
+                return getWorkflowStep(parameters);
+            default:
+                return ToolExecutionResult.failure("operation", "不支持的操作类型: " + operation + "。支持的操作：get_workflow_list、add_workflow、update_workflow、update_workflow_step、get_workflow_step");
         }
     }
     
@@ -295,10 +291,10 @@ public class WorkflowManagementLangChain4jTool implements LangChain4jTool {
             resultData.put("type", workflow.getType());
             resultData.put("stepCount", steps != null ? steps.size() : 0);
             
-            return ToolExecutionResult.saveSuccess(resultData, "工作流创建成功");
+            return ToolExecutionResult.operationSuccess(resultData, "工作流创建成功");
             
         } catch (Exception e) {
-            return ToolExecutionResult.failure("save", "新增工作流失败: " + e.getMessage());
+            return ToolExecutionResult.failure("operation", "创建工作流失败: " + e.getMessage());
         }
     }
     

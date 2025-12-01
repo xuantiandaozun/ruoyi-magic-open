@@ -23,6 +23,7 @@ import com.ruoyi.project.ai.service.IAiWorkflowStepService;
 import com.ruoyi.project.ai.service.IWorkflowExecutionService;
 import com.ruoyi.project.ai.tool.LangChain4jToolRegistry;
 import com.ruoyi.project.ai.util.PromptVariableProcessor;
+import com.ruoyi.project.ai.util.ToolResultProcessor;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
@@ -200,16 +201,27 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
             
             log.info("Agent执行成功: stepId={}, resultType={}", 
                     step.getId(), agentResult != null ? agentResult.getClass().getSimpleName() : "null");
-            log.debug("Agent执行结果: {}", agentResult);
+            // 不再打印完整结果，避免日志过大
             
-            // 检查是否触发了工具失败规则
+            // 基于工具统一返回结构进行失败判断，避免完全依赖模型文本
+            if (ToolResultProcessor.isEmpty(agentResult)) {
+                log.warn("步骤 {} 工具返回标记为失败或空数据(success=false)，停止工作流。", step.getStepName());
+                throw new ServiceException("工具执行失败或没有查询到数据，工作流已停止");
+            }
+            
+            // 兼容旧逻辑：如果模型仍然直接返回特殊标记，也视为失败，但只在完全匹配时触发
             if ("TOOL_EXECUTION_FAILED".equals(agentResult)) {
-                log.warn("步骤 {} 工具执行失败，停止工作流", step.getStepName());
+                log.warn("步骤 {} 工具执行失败，收到模型返回的 TOOL_EXECUTION_FAILED 标记，停止工作流", step.getStepName());
                 throw new ServiceException("工具执行失败或没有查询到数据，工作流已停止");
             }
             
             if (agentResult == null) {
                 log.warn("Agent执行结果为null: stepId={}", step.getId());
+            }
+            
+            // 对于成功结果，仅记录精简日志
+            if (!ToolResultProcessor.isEmpty(agentResult)) {
+                log.info("步骤执行成功，工具结果标记为success=true: stepId={}, stepName={}", step.getId(), step.getStepName());
             }
             
             Map<String, Object> result = new HashMap<>();
