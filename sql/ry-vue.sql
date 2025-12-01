@@ -11,7 +11,7 @@
  Target Server Version : 80036 (8.0.36)
  File Encoding         : 65001
 
- Date: 16/10/2025 11:22:41
+ Date: 27/11/2025 14:51:38
 */
 
 SET NAMES utf8mb4;
@@ -51,7 +51,70 @@ CREATE TABLE `ai_blog_production_record`  (
   INDEX `idx_target_date`(`target_date` ASC) USING BTREE,
   INDEX `idx_blog_id`(`blog_id` ASC) USING BTREE,
   INDEX `idx_production_time`(`production_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 383 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI博客生产记录表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 396 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI博客生产记录表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for ai_chat_message
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_chat_message`;
+CREATE TABLE `ai_chat_message`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '消息ID',
+  `session_id` bigint NOT NULL COMMENT '会话ID',
+  `parent_message_id` bigint NULL DEFAULT NULL COMMENT '父消息ID（用于消息树结构）',
+  `message_role` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '消息角色（user=用户, assistant=AI助手, system=系统）',
+  `message_content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '消息内容',
+  `message_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'text' COMMENT '消息类型（text=文本, image=图片, file=文件, tool_call=工具调用）',
+  `model_config_id` bigint NULL DEFAULT NULL COMMENT '使用的模型配置ID',
+  `token_count` int NULL DEFAULT 0 COMMENT 'Token数量',
+  `tool_calls` json NULL COMMENT '工具调用信息（JSON格式）',
+  `metadata` json NULL COMMENT '元数据（JSON格式，存储额外信息）',
+  `message_order` int NOT NULL DEFAULT 0 COMMENT '消息顺序',
+  `is_deleted` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '是否删除（0=否 1=是）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_session_id`(`session_id` ASC) USING BTREE,
+  INDEX `idx_parent_message_id`(`parent_message_id` ASC) USING BTREE,
+  INDEX `idx_message_role`(`message_role` ASC) USING BTREE,
+  INDEX `idx_message_type`(`message_type` ASC) USING BTREE,
+  INDEX `idx_model_config_id`(`model_config_id` ASC) USING BTREE,
+  INDEX `idx_message_order`(`message_order` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_is_deleted`(`is_deleted` ASC) USING BTREE,
+  CONSTRAINT `fk_chat_message_session` FOREIGN KEY (`session_id`) REFERENCES `ai_chat_session` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 95 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI聊天消息表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for ai_chat_session
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_chat_session`;
+CREATE TABLE `ai_chat_session`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '会话ID',
+  `session_name` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '会话名称',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `model_config_id` bigint NULL DEFAULT NULL COMMENT '使用的模型配置ID',
+  `system_prompt` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '系统提示词',
+  `session_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'chat' COMMENT '会话类型（chat=普通聊天, workflow=工作流）',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '状态（0=正常 1=已结束 2=已删除）',
+  `message_count` int NULL DEFAULT 0 COMMENT '消息数量',
+  `last_message_time` datetime NULL DEFAULT NULL COMMENT '最后消息时间',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
+  INDEX `idx_model_config_id`(`model_config_id` ASC) USING BTREE,
+  INDEX `idx_session_type`(`session_type` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE,
+  INDEX `idx_last_message_time`(`last_message_time` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 32 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI聊天会话表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for ai_cover_generation_record
@@ -84,7 +147,7 @@ CREATE TABLE `ai_cover_generation_record`  (
   INDEX `idx_generation_status`(`generation_status` ASC) USING BTREE,
   INDEX `idx_is_used`(`is_used` ASC) USING BTREE,
   INDEX `idx_generation_time`(`generation_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 272 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI生图记录表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 273 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI生图记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for ai_model_config
@@ -107,11 +170,12 @@ CREATE TABLE `ai_model_config`  (
   `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
   `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `tool_call_delay` int NULL DEFAULT NULL COMMENT '工具调用后延时（毫秒），防止频率限制',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_provider_capability`(`provider` ASC, `capability` ASC) USING BTREE,
   INDEX `idx_enabled_status`(`enabled` ASC, `status` ASC) USING BTREE,
   INDEX `idx_is_default`(`is_default` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 22 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI模型配置表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 25 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI模型配置表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for ai_workflow
@@ -124,6 +188,16 @@ CREATE TABLE `ai_workflow`  (
   `workflow_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'sequential' COMMENT '工作流类型（sequential=顺序执行）',
   `workflow_version` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1.0' COMMENT '工作流版本',
   `enabled` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '启用状态（0=禁用 1=启用）',
+  `schedule_enabled` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '定时调度启用状态（0=禁用 1=启用）',
+  `cron_expression` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT 'cron执行表达式',
+  `next_execution_time` datetime NULL DEFAULT NULL COMMENT '下次执行时间',
+  `last_execution_time` datetime NULL DEFAULT NULL COMMENT '上次执行时间',
+  `execution_count` bigint NULL DEFAULT 0 COMMENT '执行次数统计',
+  `max_execution_count` bigint NULL DEFAULT NULL COMMENT '最大执行次数（NULL表示无限制）',
+  `schedule_start_time` datetime NULL DEFAULT NULL COMMENT '调度开始时间',
+  `schedule_end_time` datetime NULL DEFAULT NULL COMMENT '调度结束时间',
+  `misfire_policy` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '3' COMMENT '计划执行错误策略（1立即执行 2执行一次 3放弃执行）',
+  `concurrent` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '是否并发执行（0允许 1禁止）',
   `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '状态（0=正常 1=停用）',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
@@ -136,8 +210,11 @@ CREATE TABLE `ai_workflow`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_workflow_name`(`workflow_name` ASC) USING BTREE,
   INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
-  INDEX `idx_enabled`(`enabled` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流配置表' ROW_FORMAT = Dynamic;
+  INDEX `idx_enabled`(`enabled` ASC) USING BTREE,
+  INDEX `idx_schedule_enabled`(`schedule_enabled` ASC) USING BTREE,
+  INDEX `idx_next_execution_time`(`next_execution_time` ASC) USING BTREE,
+  INDEX `idx_cron_expression`(`cron_expression` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流配置表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for ai_workflow_execution
@@ -146,6 +223,10 @@ DROP TABLE IF EXISTS `ai_workflow_execution`;
 CREATE TABLE `ai_workflow_execution`  (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '执行记录ID',
   `workflow_id` bigint NOT NULL COMMENT '工作流ID',
+  `schedule_id` bigint NULL DEFAULT NULL COMMENT '调度配置ID（NULL表示手动执行）',
+  `trigger_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'manual' COMMENT '触发类型（manual=手动 schedule=定时 retry=重试）',
+  `scheduled_time` datetime NULL DEFAULT NULL COMMENT '计划执行时间',
+  `execution_duration` bigint NULL DEFAULT NULL COMMENT '执行耗时（毫秒）',
   `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'running' COMMENT '执行状态（running=运行中, completed=已完成, failed=失败）',
   `input_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '输入数据（JSON格式）',
   `output_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '输出数据（JSON格式）',
@@ -160,8 +241,100 @@ CREATE TABLE `ai_workflow_execution`  (
   INDEX `idx_workflow_id`(`workflow_id` ASC) USING BTREE,
   INDEX `idx_status`(`status` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_schedule_id`(`schedule_id` ASC) USING BTREE,
+  INDEX `idx_trigger_type`(`trigger_type` ASC) USING BTREE,
+  INDEX `idx_scheduled_time`(`scheduled_time` ASC) USING BTREE,
+  CONSTRAINT `fk_execution_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `ai_workflow_schedule` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_workflow_execution_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流执行记录表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 139 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流执行记录表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for ai_workflow_schedule
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_workflow_schedule`;
+CREATE TABLE `ai_workflow_schedule`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '调度配置ID',
+  `workflow_id` bigint NOT NULL COMMENT '工作流ID',
+  `schedule_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '调度任务名称',
+  `schedule_description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '调度任务描述',
+  `cron_expression` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT 'cron执行表达式',
+  `timezone` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'Asia/Shanghai' COMMENT '时区设置',
+  `enabled` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '启用状态（0=禁用 1=启用）',
+  `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '状态（0=正常 1=暂停）',
+  `input_data_template` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '输入数据模板（JSON格式）',
+  `execution_timeout` int NULL DEFAULT 3600 COMMENT '执行超时时间（秒）',
+  `retry_count` int NULL DEFAULT 0 COMMENT '失败重试次数',
+  `retry_interval` int NULL DEFAULT 60 COMMENT '重试间隔（秒）',
+  `max_execution_count` bigint NULL DEFAULT NULL COMMENT '最大执行次数（NULL表示无限制）',
+  `execution_count` bigint NULL DEFAULT 0 COMMENT '已执行次数',
+  `schedule_start_time` datetime NULL DEFAULT NULL COMMENT '调度开始时间',
+  `schedule_end_time` datetime NULL DEFAULT NULL COMMENT '调度结束时间',
+  `last_execution_time` datetime NULL DEFAULT NULL COMMENT '上次执行时间',
+  `next_execution_time` datetime NULL DEFAULT NULL COMMENT '下次执行时间',
+  `last_execution_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '上次执行状态',
+  `last_execution_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '上次执行消息',
+  `misfire_policy` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '3' COMMENT '计划执行错误策略（1立即执行 2执行一次 3放弃执行）',
+  `concurrent` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '是否并发执行（0允许 1禁止）',
+  `priority` int NULL DEFAULT 5 COMMENT '优先级（1-10，数字越大优先级越高）',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  `user_id` bigint NULL DEFAULT NULL COMMENT '创建者用户ID',
+  `workflow_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '工作流名称（关联查询字段）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  `config_json` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '扩展配置JSON',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_workflow_schedule_name`(`workflow_id` ASC, `schedule_name` ASC) USING BTREE,
+  INDEX `idx_workflow_id`(`workflow_id` ASC) USING BTREE,
+  INDEX `idx_enabled`(`enabled` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE,
+  INDEX `idx_next_execution_time`(`next_execution_time` ASC) USING BTREE,
+  INDEX `idx_cron_expression`(`cron_expression` ASC) USING BTREE,
+  INDEX `idx_priority`(`priority` ASC) USING BTREE,
+  CONSTRAINT `fk_workflow_schedule_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流定时调度配置表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for ai_workflow_schedule_log
+-- ----------------------------
+DROP TABLE IF EXISTS `ai_workflow_schedule_log`;
+CREATE TABLE `ai_workflow_schedule_log`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+  `schedule_id` bigint NOT NULL COMMENT '调度配置ID',
+  `workflow_id` bigint NOT NULL COMMENT '工作流ID',
+  `execution_id` bigint NULL DEFAULT NULL COMMENT '工作流执行记录ID',
+  `trigger_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'schedule' COMMENT '触发类型（schedule=定时触发 manual=手动触发 retry=重试触发）',
+  `scheduled_time` datetime NOT NULL COMMENT '计划执行时间',
+  `actual_start_time` datetime NULL DEFAULT NULL COMMENT '实际开始时间',
+  `actual_end_time` datetime NULL DEFAULT NULL COMMENT '实际结束时间',
+  `execution_duration` bigint NULL DEFAULT NULL COMMENT '执行耗时（毫秒）',
+  `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'running' COMMENT '执行状态（running=运行中 completed=已完成 failed=失败 timeout=超时 cancelled=已取消）',
+  `result_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '执行结果消息',
+  `error_message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '错误信息',
+  `input_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '输入数据（JSON格式）',
+  `output_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '输出数据（JSON格式）',
+  `retry_count` int NULL DEFAULT 0 COMMENT '重试次数',
+  `max_retry_count` int NULL DEFAULT 0 COMMENT '最大重试次数',
+  `server_info` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '执行服务器信息',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_schedule_id`(`schedule_id` ASC) USING BTREE,
+  INDEX `idx_workflow_id`(`workflow_id` ASC) USING BTREE,
+  INDEX `idx_execution_id`(`execution_id` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE,
+  INDEX `idx_scheduled_time`(`scheduled_time` ASC) USING BTREE,
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  CONSTRAINT `fk_schedule_log_execution` FOREIGN KEY (`execution_id`) REFERENCES `ai_workflow_execution` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
+  CONSTRAINT `fk_schedule_log_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `ai_workflow_schedule` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
+  CONSTRAINT `fk_schedule_log_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 106 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流定时调度执行日志表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for ai_workflow_step
@@ -175,6 +348,7 @@ CREATE TABLE `ai_workflow_step`  (
   `step_order` int NOT NULL COMMENT '步骤顺序',
   `model_config_id` bigint NULL DEFAULT NULL COMMENT 'AI模型配置ID',
   `system_prompt` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '系统提示词',
+  `user_prompt` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '用户提示词（支持变量占位符，如：请帮我整理下面的文案{{input_variable}}）',
   `input_variable` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '输入变量名',
   `output_variable` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '输出变量名',
   `enabled` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '1' COMMENT '启用状态（0=禁用 1=启用）',
@@ -187,7 +361,6 @@ CREATE TABLE `ai_workflow_step`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
   `config_json` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '配置JSON（扩展配置参数）',
   `tool_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '工具类型（如github_trending、database_query等）',
-  `tool_parameters` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '工具参数JSON（存储工具执行所需的参数）',
   `tool_enabled` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'N' COMMENT '是否启用工具（Y=启用工具 N=不启用工具，默认为N）',
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_workflow_id`(`workflow_id` ASC) USING BTREE,
@@ -195,8 +368,9 @@ CREATE TABLE `ai_workflow_step`  (
   INDEX `idx_enabled`(`enabled` ASC) USING BTREE,
   INDEX `idx_tool_type`(`tool_type` ASC) USING BTREE,
   INDEX `idx_tool_enabled`(`tool_enabled` ASC) USING BTREE,
+  INDEX `idx_user_prompt_length`((char_length(`user_prompt`)) ASC) USING BTREE COMMENT '用户提示词长度索引',
   CONSTRAINT `fk_workflow_step_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流步骤表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 41 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流步骤表 - 已优化：支持用户提示词和变量占位符功能' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for blog
@@ -240,7 +414,7 @@ CREATE TABLE `blog`  (
   INDEX `idx_view_count`(`view_count` ASC) USING BTREE,
   INDEX `idx_is_top_publish_time`(`is_top` ASC, `publish_time` DESC) USING BTREE,
   INDEX `idx_seo_keywords`(`seo_keywords`(191) ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 308 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '个人博客表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 425 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '个人博客表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for blog_comment
@@ -272,7 +446,7 @@ CREATE TABLE `blog_comment`  (
   INDEX `idx_status`(`status` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   INDEX `idx_user_ip`(`user_ip` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '博客评论表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '博客评论表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for blog_en
@@ -317,7 +491,7 @@ CREATE TABLE `blog_en`  (
   INDEX `idx_view_count`(`view_count` ASC) USING BTREE,
   INDEX `idx_is_top_publish_time`(`is_top` ASC, `publish_time` DESC) USING BTREE,
   INDEX `idx_seo_keywords`(`seo_keywords`(191) ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 260 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '英文博客表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 314 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '英文博客表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for blog_like_record
@@ -341,7 +515,7 @@ CREATE TABLE `blog_like_record`  (
   INDEX `idx_blog_id`(`blog_id` ASC) USING BTREE,
   INDEX `idx_user_id`(`user_id` ASC) USING BTREE,
   INDEX `idx_user_ip`(`user_ip` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 97 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '博客点赞记录表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 99 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '博客点赞记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for feishu_doc
@@ -359,6 +533,7 @@ CREATE TABLE `feishu_doc`  (
   `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '文档内容(缓存)',
   `feishu_created_time` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '飞书创建时间(时间戳)',
   `feishu_modified_time` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '飞书修改时间(时间戳)',
+  `key_id` bigint NULL DEFAULT NULL COMMENT '关联的密钥ID',
   `key_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '关联的密钥名称',
   `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
   `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
@@ -372,8 +547,34 @@ CREATE TABLE `feishu_doc`  (
   INDEX `idx_type`(`type` ASC) USING BTREE,
   INDEX `idx_parent_token`(`parent_token` ASC) USING BTREE,
   INDEX `idx_key_name`(`key_name` ASC) USING BTREE,
-  INDEX `idx_create_time`(`create_time` ASC) USING BTREE
+  INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
+  INDEX `idx_key_id`(`key_id` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 208 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '飞书文档信息表' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for feishu_message_record
+-- ----------------------------
+DROP TABLE IF EXISTS `feishu_message_record`;
+CREATE TABLE `feishu_message_record`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `receive_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '接收者ID',
+  `receive_id_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '接收者ID类型',
+  `msg_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '消息类型',
+  `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '消息内容',
+  `uuid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '消息UUID',
+  `status` int NULL DEFAULT NULL COMMENT '发送状态：0-失败，1-成功',
+  `result` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '发送结果',
+  `key_id` bigint NULL DEFAULT NULL COMMENT '使用的密钥ID',
+  `key_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '使用的密钥名称',
+  `send_time` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '发送时间',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '飞书消息发送记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for feishu_users
@@ -389,11 +590,14 @@ CREATE TABLE `feishu_users`  (
   `mobile` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '飞书用户手机号',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '修改时间',
+  `key_id` bigint NULL DEFAULT NULL COMMENT '关联的密钥ID',
+  `key_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '关联的密钥名称',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `open_id`(`open_id` ASC) USING BTREE,
   UNIQUE INDEX `mobile`(`mobile` ASC) USING BTREE,
   INDEX `idx_mobile`(`mobile` ASC) USING BTREE,
-  INDEX `idx_open_id`(`open_id` ASC) USING BTREE
+  INDEX `idx_open_id`(`open_id` ASC) USING BTREE,
+  INDEX `idx_key_id`(`key_id` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '飞书用户表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
@@ -705,7 +909,7 @@ CREATE TABLE `social_media_article`  (
   INDEX `idx_generation_date`(`generation_date` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   INDEX `idx_target_platform`(`target_platform` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 29 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体文章表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 100 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体文章表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for sys_config
@@ -724,7 +928,7 @@ CREATE TABLE `sys_config`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`config_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 120 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '参数配置表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 123 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '参数配置表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_data_source
@@ -794,7 +998,7 @@ CREATE TABLE `sys_dict_data`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`dict_code`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 305 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '字典数据表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 338 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '字典数据表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_dict_type
@@ -813,7 +1017,7 @@ CREATE TABLE `sys_dict_type`  (
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`dict_id`) USING BTREE,
   UNIQUE INDEX `dict_type`(`dict_type` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 113 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '字典类型表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 121 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '字典类型表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_file_upload_record
@@ -848,7 +1052,7 @@ CREATE TABLE `sys_file_upload_record`  (
   INDEX `idx_upload_status`(`upload_status` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   INDEX `idx_create_by`(`create_by` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 271 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '文件上传记录表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 276 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '文件上传记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for sys_job
@@ -870,7 +1074,7 @@ CREATE TABLE `sys_job`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '备注信息',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`job_id`, `job_name`, `job_group`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 100 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 123 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_job_log
@@ -883,10 +1087,14 @@ CREATE TABLE `sys_job_log`  (
   `invoke_target` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '调用目标字符串',
   `job_message` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '日志信息',
   `status` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '执行状态（0正常 1失败）',
+  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '创建者',
   `exception_info` varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '异常信息',
   `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
+  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`job_log_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度日志表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 14 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度日志表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_logininfor
@@ -910,7 +1118,7 @@ CREATE TABLE `sys_logininfor`  (
   PRIMARY KEY (`info_id`) USING BTREE,
   INDEX `idx_sys_logininfor_s`(`status` ASC) USING BTREE,
   INDEX `idx_sys_logininfor_lt`(`login_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 269 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '系统访问记录' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 325 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '系统访问记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_menu
@@ -939,7 +1147,7 @@ CREATE TABLE `sys_menu`  (
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '' COMMENT '备注',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   PRIMARY KEY (`menu_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2081 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '菜单权限表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 2085 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '菜单权限表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_notice
@@ -991,7 +1199,7 @@ CREATE TABLE `sys_oper_log`  (
   INDEX `idx_sys_oper_log_bt`(`business_type` ASC) USING BTREE,
   INDEX `idx_sys_oper_log_s`(`status` ASC) USING BTREE,
   INDEX `idx_sys_oper_log_ot`(`oper_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 649 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '操作日志记录' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 972 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '操作日志记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_post
