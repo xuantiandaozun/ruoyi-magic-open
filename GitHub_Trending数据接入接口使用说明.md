@@ -59,7 +59,7 @@ signContent = method + path + timestamp + nonce
 
 假设：
 - `method` = `POST`
-- `path` = `/github/trending/ingest`
+- `path` = `https://ai.zhoudw.vip/github/trending/ingest`
 - `timestamp` = `1733126400000`
 - `nonce` = `abc123xyz`
 - `secret` = `my-secret-key-123`
