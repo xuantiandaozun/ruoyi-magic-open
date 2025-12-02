@@ -1,7 +1,5 @@
 package com.ruoyi.project.feishu.service.impl;
 
-import static com.ruoyi.project.feishu.domain.table.FeishuUsersTableDef.FEISHU_USERS;
-
 import java.util.Date;
 
 import org.springframework.stereotype.Service;
@@ -24,13 +22,15 @@ public class FeishuUsersServiceImpl extends ServiceImpl<FeishuUsersMapper, Feish
     @Override
     public FeishuUsers selectByOpenId(String openId) {
         return getOne(QueryWrapper.create()
-                .where(FEISHU_USERS.OPEN_ID.eq(openId)));
+                .from("feishu_users")
+                .where("open_id = ?", openId));
     }
 
     @Override
     public FeishuUsers selectByMobile(String mobile) {
         return getOne(QueryWrapper.create()
-                .where(FEISHU_USERS.MOBILE.eq(mobile)));
+                .from("feishu_users")
+                .where("mobile = ?", mobile));
     }
 
     @Override

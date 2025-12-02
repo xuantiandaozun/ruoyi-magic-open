@@ -173,6 +173,20 @@ sa-token:
   is-share: true
   # 是否输出操作日志
   is-log: false
+
+# API签名配置
+api:
+  sign:
+    # 是否启用签名验证（默认关闭，开发环境可设为false，生产环境建议设为true）
+    enabled: false
+    # 时间戳允许的误差（毫秒），默认5分钟
+    timestamp-tolerance: 300000
+    # 客户端密钥配置（clientId: secret）
+    secrets:
+      # 云函数客户端（示例）
+      cloud-function: your-secret-key-here
+      # 其他客户端（可添加多个）
+      # client-id-2: secret-key-2
       
 # MyBatis-Flex配置
 mybatis-flex:

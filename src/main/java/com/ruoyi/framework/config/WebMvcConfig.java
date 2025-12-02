@@ -1,10 +1,13 @@
 package com.ruoyi.framework.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import com.ruoyi.framework.security.sign.ApiSignInterceptor;
 
 import cn.dev33.satoken.interceptor.SaInterceptor;
 
@@ -13,6 +16,9 @@ import cn.dev33.satoken.interceptor.SaInterceptor;
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
+
+        @Autowired
+        private ApiSignInterceptor apiSignInterceptor;
 
         @SuppressWarnings("null")
         @Override
@@ -47,6 +53,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
         @SuppressWarnings("null")
         @Override
         public void addInterceptors(InterceptorRegistry registry) {
+                // 注册 API 签名拦截器（优先级最高，在登录校验之前）
+                registry.addInterceptor(apiSignInterceptor)
+                        .addPathPatterns("/github/trending/ingest")  // 只对数据接入接口启用
+                        .order(1);  // 优先级1，最先执行
+
                 // 注册 Sa-Token 拦截器，校验规则为 StpUtil.checkLogin() 登录校验。
                 registry.addInterceptor(new SaInterceptor(handle -> {
                         // 登录校验拦截
@@ -76,7 +87,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/doc.html",
                         // magic-api 接口
                         "/magic/**",
-                        "/api/**"
-                );
+                        "/api/**",
+                        // GitHub Trending 数据接入接口（使用签名验证，不需要登录）
+                        "/github/trending/ingest"
+                )
+                .order(2);  // 优先级2，在签名拦截器之后执行
         }
 }
