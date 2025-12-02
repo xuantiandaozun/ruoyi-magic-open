@@ -1,26 +1,9 @@
 package com.ruoyi.project.feishu.controller;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
-import java.util.ArrayList;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.RequestParam;
-
-import com.google.gson.JsonParser;
-import com.lark.oapi.Client;
-import com.lark.oapi.core.request.RequestOptions;
-import com.lark.oapi.core.utils.Jsons;
-import com.lark.oapi.service.drive.v1.model.ListFileReq;
-import com.lark.oapi.service.drive.v1.model.ListFileResp;
-import com.lark.oapi.service.drive.v1.model.File;
-import com.ruoyi.common.utils.FeishuConfigUtils;
-import com.ruoyi.project.system.config.FeishuConfig;
-import com.ruoyi.project.system.service.IFeishuOAuthService;
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONUtil;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mybatisflex.core.paginate.Page;
@@ -47,6 +31,7 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 飞书文档信息Controller
@@ -63,8 +48,7 @@ public class FeishuDocController extends BaseController
     @Autowired
     private IFeishuDocService feishuDocService;
     
-    @Autowired
-    private IFeishuOAuthService feishuOAuthService;
+
 
 
     
@@ -260,11 +244,5 @@ public class FeishuDocController extends BaseController
             return error("创建导入任务异常: " + e.getMessage());
         }
     }
-    
-    /**
-     * 获取飞书配置
-     */
-    private FeishuConfig getFeishuConfig(String keyName) {
-        return FeishuConfigUtils.getFeishuConfig(keyName);
-    }
+
 }
