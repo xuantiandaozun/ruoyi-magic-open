@@ -4,6 +4,55 @@
 
 > **说明**：本文档侧重于直接使用 `Db`、`QueryWrapper`、`DbChain` 进行数据库操作。如需了解 `IService`、`BaseMapper` 的业务层标准模式，请参阅 [MyBatis-Flex 开发规范.md](./MyBatis-Flex%20开发规范.md)。
 
+---
+
+## ⚠️ 重要提醒：QueryWrapper 条件语法
+
+> **🚨 特别注意**：MyBatis-Flex 的 `QueryWrapper` 条件语法与 MyBatis-Plus **完全不同**！
+
+### ❌ 错误用法（MyBatis-Plus 风格，不适用于 MyBatis-Flex）
+
+```java
+// 错误！MyBatis-Flex 不支持这种链式语法
+QueryWrapper.create()
+    .where("del_flag").eq("0")      // ❌ 错误
+    .and("status").eq("1");          // ❌ 错误
+```
+
+### ✅ 正确用法（MyBatis-Flex 风格）
+
+```java
+// 方式一：直接使用 SQL 占位符（推荐）
+QueryWrapper.create()
+    .where("del_flag = ?", "0")
+    .and("status = ?", "1");
+
+// 方式二：使用 eq 方法（注意参数格式）
+QueryWrapper.create()
+    .eq("del_flag", "0")             // ✅ 正确：eq("字段名", 值)
+    .eq("status", "1");              // ✅ 正确
+
+// 方式三：混合使用
+QueryWrapper.create()
+    .where("del_flag = '0'")
+    .and("status = '1'")
+    .and("name LIKE ?", "%" + keyword + "%");
+```
+
+### 📝 语法对比表
+
+| 操作 | MyBatis-Plus (不适用) | MyBatis-Flex (正确) |
+|------|----------------------|---------------------|
+| 等于 | `.where("field").eq(value)` | `.eq("field", value)` 或 `.where("field = ?", value)` |
+| 不等于 | `.where("field").ne(value)` | `.ne("field", value)` 或 `.where("field <> ?", value)` |
+| 大于 | `.where("field").gt(value)` | `.gt("field", value)` 或 `.where("field > ?", value)` |
+| 小于 | `.where("field").lt(value)` | `.lt("field", value)` 或 `.where("field < ?", value)` |
+| LIKE | `.where("field").like(value)` | `.like("field", value)` 或 `.where("field LIKE ?", value)` |
+| IN | `.where("field").in(list)` | `.in("field", list)` 或 `.where("field IN (?)", list)` |
+| IS NULL | `.where("field").isNull()` | `.isNull("field")` 或 `.where("field IS NULL")` |
+
+---
+
 ## 目录
 
 - [1. 单表基础操作（CRUD）](#1-单表基础操作crud)

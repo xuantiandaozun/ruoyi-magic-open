@@ -11,7 +11,7 @@
  Target Server Version : 80036 (8.0.36)
  File Encoding         : 65001
 
- Date: 04/12/2025 09:31:01
+ Date: 04/12/2025 11:26:42
 */
 
 SET NAMES utf8mb4;
@@ -51,7 +51,7 @@ CREATE TABLE `ai_blog_production_record`  (
   INDEX `idx_target_date`(`target_date` ASC) USING BTREE,
   INDEX `idx_blog_id`(`blog_id` ASC) USING BTREE,
   INDEX `idx_production_time`(`production_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 399 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI博客生产记录表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 400 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI博客生产记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for ai_chat_message
@@ -246,7 +246,7 @@ CREATE TABLE `ai_workflow_execution`  (
   INDEX `idx_scheduled_time`(`scheduled_time` ASC) USING BTREE,
   CONSTRAINT `fk_execution_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `ai_workflow_schedule` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_workflow_execution_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 152 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流执行记录表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 153 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流执行记录表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for ai_workflow_schedule
@@ -334,7 +334,7 @@ CREATE TABLE `ai_workflow_schedule_log`  (
   CONSTRAINT `fk_schedule_log_execution` FOREIGN KEY (`execution_id`) REFERENCES `ai_workflow_execution` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_schedule_log_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `ai_workflow_schedule` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_schedule_log_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 117 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流定时调度执行日志表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 118 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流定时调度执行日志表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for ai_workflow_step
@@ -415,7 +415,7 @@ CREATE TABLE `blog`  (
   INDEX `idx_view_count`(`view_count` ASC) USING BTREE,
   INDEX `idx_is_top_publish_time`(`is_top` ASC, `publish_time` DESC) USING BTREE,
   INDEX `idx_seo_keywords`(`seo_keywords`(191) ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 428 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '个人博客表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 429 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '个人博客表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for blog_comment
@@ -492,7 +492,7 @@ CREATE TABLE `blog_en`  (
   INDEX `idx_view_count`(`view_count` ASC) USING BTREE,
   INDEX `idx_is_top_publish_time`(`is_top` ASC, `publish_time` DESC) USING BTREE,
   INDEX `idx_seo_keywords`(`seo_keywords`(191) ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 317 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '英文博客表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 318 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '英文博客表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for blog_like_record
@@ -910,7 +910,7 @@ CREATE TABLE `social_media_article`  (
   INDEX `idx_generation_date`(`generation_date` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   INDEX `idx_target_platform`(`target_platform` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 103 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体文章表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 105 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体文章表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for sys_config
@@ -1095,7 +1095,7 @@ CREATE TABLE `sys_job_log`  (
   `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`job_log_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 16 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度日志表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度日志表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_logininfor
@@ -1119,7 +1119,7 @@ CREATE TABLE `sys_logininfor`  (
   PRIMARY KEY (`info_id`) USING BTREE,
   INDEX `idx_sys_logininfor_s`(`status` ASC) USING BTREE,
   INDEX `idx_sys_logininfor_lt`(`login_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 337 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '系统访问记录' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 338 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '系统访问记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_menu
@@ -1200,7 +1200,7 @@ CREATE TABLE `sys_oper_log`  (
   INDEX `idx_sys_oper_log_bt`(`business_type` ASC) USING BTREE,
   INDEX `idx_sys_oper_log_s`(`status` ASC) USING BTREE,
   INDEX `idx_sys_oper_log_ot`(`oper_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1019 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '操作日志记录' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1028 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '操作日志记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_post
