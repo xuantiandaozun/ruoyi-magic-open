@@ -340,12 +340,6 @@
             <scope>provided</scope>
         </dependency>        
         
-        <!-- Spring AI Alibaba 集成 -->
-        <dependency>
-            <groupId>com.alibaba.cloud.ai</groupId>
-            <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
-        </dependency>
-        
         <!-- 集成MCP -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
@@ -466,6 +460,7 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
             <plugin>
@@ -487,30 +482,6 @@
                 <configuration>
                     <skipTests>true</skipTests>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <echo>删除旧的JAR文件和.original文件，只保留最新的一个</echo>
-                                <delete>
-                                    <fileset dir="${project.build.directory}" includes="${project.artifactId}-*.jar,${project.artifactId}-*.jar.original">
-                                        <exclude name="${project.build.finalName}.jar"/>
-                                        <exclude name="${project.build.finalName}.jar.original"/>
-                                    </fileset>
-                                </delete>
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

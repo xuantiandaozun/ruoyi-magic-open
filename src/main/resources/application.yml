@@ -184,7 +184,7 @@ api:
     # 客户端密钥配置（clientId: secret）
     secrets:
       # 云函数客户端（示例）
-      cloud-function: your-secret-key-here
+      cloud-function: ZmZiY2ViZTAtYWQ3MC00ZWI2LTg0YjUtMzhmOGFjZDFkZGQxMzNlZWFiOTktNTg3Ny00OGJlLTkzYjAtMGY4ZjFhMDMxZWZl
       # 其他客户端（可添加多个）
       # client-id-2: secret-key-2
       

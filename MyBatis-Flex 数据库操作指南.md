@@ -1,21 +1,29 @@
-# MyBatis-Flex 数据库操作完整指南
+# MyBatis-Flex 数据库操作指南
 
-基于 `Db`、`QueryWrapper`、`DbChain` 三个核心类的使用说明，适合喜欢直接写SQL的开发者。
+基于 `Db`、`QueryWrapper`、`DbChain` 三个核心类的使用说明，适合喜欢直接写 SQL 的开发者。
+
+> **说明**：本文档侧重于直接使用 `Db`、`QueryWrapper`、`DbChain` 进行数据库操作。如需了解 `IService`、`BaseMapper` 的业务层标准模式，请参阅 [MyBatis-Flex 开发规范.md](./MyBatis-Flex%20开发规范.md)。
 
 ## 目录
 
 - [1. 单表基础操作（CRUD）](#1-单表基础操作crud)
 - [2. 单表查询操作](#2-单表查询操作)
 - [3. 连表查询](#3-连表查询)
-  - [3.1 简单连表](#31-简单连表---推荐直接写sql)
-  - [3.2 动态连表](#32-动态连表---使用-querywrapper)
-  - [3.3 表别名设置](#33-表别名设置---使用-querywrapper)
+  - [3.1 简单连表 - 推荐直接写SQL](#31-简单连表---推荐直接写sql)
+  - [3.2 动态连表 - 使用 QueryWrapper](#32-动态连表---使用-querywrapper)
+  - [3.3 表别名设置 - 使用 QueryWrapper](#33-表别名设置---使用-querywrapper)
 - [4. 复杂查询](#4-复杂查询)
 - [5. 分页查询](#5-分页查询)
+  - [5.1 简单分页 - 使用 Db.paginate](#51-简单分页---使用-dbpaginate)
+  - [5.2 链式分页 - 使用 DbChain](#52-链式分页---使用-dbchain)
+  - [5.3 复杂连表分页](#53-复杂连表分页)
+  - [5.4 分页方式选择建议](#54-分页方式选择建议)
+  - [5.5 分页查询重要优化](#55-分页查询重要优化)
 - [6. 事务操作](#6-事务操作)
 - [7. 批量操作](#7-批量操作)
-- [8. 推荐使用场景总结](#8-推荐使用场景总结)
-- [9. 最佳实践建议](#9-最佳实践建议)
+- [8. 部分字段更新 - UpdateEntity](#8-部分字段更新---updateentity)
+- [9. 推荐使用场景总结](#9-推荐使用场景总结)
+- [10. 最佳实践建议](#10-最佳实践建议)
 
 ## 1. 单表基础操作（CRUD）
 
@@ -52,6 +60,14 @@ int result = Db.updateBySql("UPDATE user SET status = ? WHERE age > ?", 1, 18);
 // 根据条件更新
 Map<String, Object> whereCondition = Map.of("status", 0);
 int result = Db.updateByMap("user", updateData, whereCondition);
+
+// 使用 UpdateEntity 进行部分字段更新（包括null字段）
+// 适用于只更新某些字段的场景，特别是需要将字段设置为null时
+Account account = UpdateEntity.of(Account.class, 100);
+account.setUserName(null);  // 将userName字段更新为null
+account.setAge(10);  // 更新age字段为10
+account.setBalance(99.99);  // 选择性更新
+int result = Db.updateById("account", account);
 ```
 
 #### 删除操作
@@ -592,7 +608,47 @@ page.setRecords(data);
 
 1. **优先使用方式一**：对于大多数查询场景，特别是单表查询或简单连表查询
 2. **复杂查询使用方式二**：当查询包含多表连接、子查询、窗口函数等复杂SQL时
-3. **性能优先场景**：如果对性能要求极高，可以考虑手动分页并缓存总数
+
+### 5.5 分页查询重要优化
+
+在使用 `QueryWrapper` 进行分页查询时，如果 `QueryWrapper` 使用了左连接（`leftJoin`、`innerJoin` 等），**必须** 设置 `Page` 对象的 `setOptimizeCountQuery(false)`。
+
+#### 问题描述
+MyBatis-Flex 默认会在分页查询时自动优化 COUNT 查询语句，以提高性能。当 COUNT 查询被优化时，会自动去掉 JOIN 操作，只统计主表记录数。但是，如果后续在查询条件中包含子表字段的过滤条件，会导致 COUNT 查询与实际数据查询不一致，引发错误。
+
+#### 正确示例
+```java
+// 构建包含左连接的查询
+QueryWrapper queryWrapper = QueryWrapper.create()
+    .select("tpdo.*, dc.company_name as deliveryCompanyName")
+    .from("third_party_delivery_order").as("tpdo")
+    .leftJoin("sys_user").as("su").on("su.user_name = tpdo.create_by and su.status = '0' and su.del_flag = '0'")
+    .leftJoin("delivery_company").as("dc").on("dc.user_id = su.user_id and dc.status = '0' and dc.del_flag = '0'")
+    .where("tpdo.del_flag = '0'");
+
+// 使用分页方法时必须设置不优化COUNT查询
+Page<ThirdPartyDeliveryOrder> pageQuery = new Page<>(pageNum, pageSize);
+// 设置不自动优化 COUNT 查询语句。重要：避免连表被优化导致后续子表字段查询条件报错
+pageQuery.setOptimizeCountQuery(false);
+Page<ThirdPartyDeliveryOrder> page = thirdPartyDeliveryOrderService.page(pageQuery, queryWrapper);
+```
+
+#### 错误示例
+```java
+// ❌ 错误：未设置 setOptimizeCountQuery(false)
+// 如果后续有基于 dc.company_name 的查询条件，会报错
+Page<ThirdPartyDeliveryOrder> page = new Page<>(pageNum, pageSize);
+// page.setOptimizeCountQuery(false); // 忘记设置会导致问题
+Page<ThirdPartyDeliveryOrder> result = service.page(page, queryWrapper);
+```
+
+#### 适用场景
+- 使用 `QueryWrapper` 进行分页查询
+- 查询条件包含 JOIN 操作（`leftJoin`、`innerJoin` 等）
+- 后续可能添加基于子表字段的查询条件
+
+#### 最佳实践
+在 Controller 的分页查询方法中，如果 `QueryWrapper` 包含 JOIN 操作，务必添加 `page.setOptimizeCountQuery(false);` 注释说明原因，确保代码可维护性。
 
 ## 6. 事务操作
 
@@ -737,7 +793,241 @@ public void processBigData(List<Row> bigDataList) {
 }
 ```
 
-## 8. 推荐使用场景总结
+## 8. 部分字段更新 - UpdateEntity
+
+### 8.1 UpdateEntity 概述
+
+在实际业务中，我们经常需要只更新实体的某些字段，而保留其他字段不变。这种场景下，不能简单地创建一个新实体对象并设置要更新的字段，因为其他字段会被设置为 `null`。
+
+MyBatis-Flex 提供的 `UpdateEntity` 工具类可以解决这个问题，它能够准确地记录哪些字段被设置过，只更新被设置过的字段，包括那些被设置为 `null` 的字段。
+
+### 8.2 基本用法
+
+#### 8.2.1 创建 UpdateEntity 实例
+
+```java
+// 方式一：指定ID创建（推荐）
+BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, 100);
+
+// 方式二：创建后再设置ID
+BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class);
+warehouse.setId(100);
+```
+
+#### 8.2.2 设置要更新的字段
+
+```java
+// 创建 UpdateEntity 实例
+BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, 100);
+
+// 设置要更新的字段
+warehouse.setUserId(null);  // 将userId字段更新为null
+warehouse.setUpdateTime(new Date());  // 更新updateTime字段
+warehouse.setStatus("0");  // 更新status字段
+
+// 未设置的字段不会被更新
+// 例如：如果没有调用 setWarehouseName()，该字段不会被修改
+```
+
+#### 8.2.3 执行更新
+
+```java
+// 使用继承的 updateById 方法
+boolean result = updateById(warehouse);
+
+// 或使用 Db 的方法
+int result = Db.updateById(BizWarehouse.class, warehouse);
+```
+
+### 8.3 常见应用场景
+
+#### 8.3.1 解除用户绑定
+
+```java
+/**
+ * 解除用户仓库绑定
+ */
+@Transactional
+public int unbindUserFromWarehouse(Long warehouseId) {
+    // 创建 UpdateEntity，只更新userId和updateTime字段
+    BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, warehouseId);
+    warehouse.setUserId(null);  // 将用户ID设置为null
+    warehouse.setUpdateTime(new Date());  // 更新修改时间
+    
+    return updateById(warehouse) ? 1 : 0;
+}
+```
+
+#### 8.3.2 部分状态更新
+
+```java
+/**
+ * 更新订单状态和备注
+ */
+@Transactional
+public int updateOrderStatus(Long orderId, String status, String remark) {
+    Order order = UpdateEntity.of(Order.class, orderId);
+    order.setStatus(status);
+    order.setRemark(remark);
+    order.setUpdateTime(new Date());
+    
+    return updateById(order) ? 1 : 0;
+}
+```
+
+#### 8.3.3 清空可选字段
+
+```java
+/**
+ * 清空用户的联系方式
+ */
+@Transactional
+public int clearUserContact(Long userId) {
+    SysUser user = UpdateEntity.of(SysUser.class, userId);
+    user.setPhone(null);  // 清空手机号
+    user.setEmail(null);  // 清空邮箱
+    user.setUpdateTime(new Date());
+    
+    return updateById(user) ? 1 : 0;
+}
+```
+
+#### 8.3.4 批量字段更新
+
+```java
+/**
+ * 更新多个字段
+ */
+@Transactional
+public int updateUserProfile(Long userId, String nickName, String avatar, Integer age) {
+    SysUser user = UpdateEntity.of(SysUser.class, userId);
+    user.setNickName(nickName);
+    user.setAvatar(avatar);
+    user.setAge(age);
+    user.setUpdateTime(new Date());
+    
+    return updateById(user) ? 1 : 0;
+}
+```
+
+### 8.4 注意事项
+
+#### 8.4.1 主键必须指定
+
+```java
+// ✅ 正确：指定主键
+BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, 100);
+warehouse.setUserId(null);
+
+// ❌ 错误：未指定主键，更新会失败
+BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class);
+warehouse.setUserId(null);
+// 必须调用 warehouse.setId(100) 或在创建时指定
+```
+
+#### 8.4.2 UpdateEntity 只能用于 updateById
+
+```java
+// ✅ 正确：使用 updateById
+BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, 100);
+warehouse.setUserId(null);
+updateById(warehouse);
+
+// ❌ 错误：不能与 QueryWrapper 的 update() 方法配合
+// UpdateEntity 是为了精确控制更新字段，与条件查询更新不兼容
+```
+
+#### 8.4.3 所有字段都未设置的情况
+
+```java
+// 虽然可以创建，但通常没有意义
+BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, 100);
+// 没有调用任何 setter 方法
+updateById(warehouse);  // 这会导致没有任何字段被更新
+```
+
+### 8.5 UpdateEntity vs 普通更新的对比
+
+#### 普通更新方式（全字段更新）
+
+```java
+/**
+ * 普通方式：更新所有字段
+ * 问题：所有未设置的字段都会被设置为null
+ */
+BizWarehouse warehouse = new BizWarehouse();
+warehouse.setId(100);
+warehouse.setUserId(null);
+warehouse.setUpdateTime(new Date());
+// 其他字段如 warehouseName, status 等都会被设置为null
+
+updateById(warehouse);  // 导致这些字段被意外清空
+```
+
+#### UpdateEntity 方式（部分字段更新）
+
+```java
+/**
+ * UpdateEntity 方式：只更新指定字段
+ * 优点：只有明确设置过的字段才会被更新
+ */
+BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, 100);
+warehouse.setUserId(null);
+warehouse.setUpdateTime(new Date());
+// 其他字段保持不变
+
+updateById(warehouse);  // 只更新userId和updateTime，其他字段不动
+```
+
+| 比较项 | 普通更新 | UpdateEntity |
+|--------|---------|--------------|
+| **创建方式** | `new Entity()` | `UpdateEntity.of(Entity.class, id)` |
+| **字段更新** | 所有字段 | 仅设置过的字段 |
+| **null处理** | 未设置的字段默认为null | null值会被更新到数据库 |
+| **使用场景** | 全量更新 | 部分字段更新 |
+| **安全性** | 容易误删数据 | 更安全，不会意外修改 |
+
+### 8.6 最佳实践
+
+```java
+// ✅ 推荐：在Service层使用UpdateEntity进行部分更新
+@Service
+@Transactional
+public class BizWarehouseServiceImpl extends ServiceImpl<BizWarehouseMapper, BizWarehouse> {
+    
+    /**
+     * 只更新仓库的用户绑定信息
+     */
+    public int bindUserToWarehouse(Long warehouseId, Long userId) {
+        BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, warehouseId);
+        warehouse.setUserId(userId);
+        warehouse.setUpdateTime(new Date());
+        return updateById(warehouse) ? 1 : 0;
+    }
+    
+    /**
+     * 清空仓库的用户绑定
+     */
+    public int unbindUserFromWarehouse(Long warehouseId) {
+        BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, warehouseId);
+        warehouse.setUserId(null);  // 允许将字段更新为null
+        warehouse.setUpdateTime(new Date());
+        return updateById(warehouse) ? 1 : 0;
+    }
+    
+    /**
+     * 只更新仓库状态
+     */
+    public int updateWarehouseStatus(Long warehouseId, String status) {
+        BizWarehouse warehouse = UpdateEntity.of(BizWarehouse.class, warehouseId);
+        warehouse.setStatus(status);
+        warehouse.setUpdateTime(new Date());
+        return updateById(warehouse) ? 1 : 0;
+    }
+}
+```
+
+## 9. 推荐使用场景总结
 
 | 操作类型 | 推荐方案 | 适用场景 | 优势 |
 |---------|----------|----------|------|
@@ -747,10 +1037,11 @@ public void processBigData(List<Row> bigDataList) {
 | **复杂SQL** | 直接写SQL + `Db.selectListBySql` | 连表、子查询、窗口函数 | SQL可控，性能最优 |
 | **简单分页** | `Db.paginate` 或 `DbChain.page` | 单表分页 | 自动处理分页逻辑 |
 | **复杂分页** | 手动分页 | 连表分页、复杂统计 | 灵活控制查询逻辑 |
+| **部分字段更新** | `UpdateEntity` | 只更新某些字段，包括设置为null | 精确控制，避免数据意外修改 |
 | **批量操作** | `Db` 批量方法 | 大量数据处理 | 性能优化 |
 | **事务处理** | `Db.tx` / `Db.txWithResult` | 需要事务保证 | 简化事务管理 |
 
-## 9. 最佳实践建议
+## 10. 最佳实践建议
 
 ### 9.1 性能优化
 
@@ -851,3 +1142,35 @@ public class UserDao {
 }
 ```
 
+### 9.7 部分字段更新最佳实践
+
+```java
+// ✅ 推荐：使用 UpdateEntity 进行部分字段更新
+@Transactional
+public int updateUserStatus(Long userId, String status) {
+    SysUser user = UpdateEntity.of(SysUser.class, userId);
+    user.setStatus(status);
+    user.setUpdateTime(new Date());
+    return updateById(user) ? 1 : 0;
+}
+
+// ✅ 推荐：需要设置字段为null时必须使用 UpdateEntity
+@Transactional
+public int clearUserPhone(Long userId) {
+    SysUser user = UpdateEntity.of(SysUser.class, userId);
+    user.setPhone(null);  // 这样才能真正将字段更新为null
+    user.setUpdateTime(new Date());
+    return updateById(user) ? 1 : 0;
+}
+
+// ❌ 避免：使用普通对象进行部分更新
+@Transactional
+public int updateUserStatusWrong(Long userId, String status) {
+    SysUser user = new SysUser();
+    user.setId(userId);
+    user.setStatus(status);
+    user.setUpdateTime(new Date());
+    // 其他字段会被设置为null，导致数据被意外清空
+    return updateById(user) ? 1 : 0;
+}
+```

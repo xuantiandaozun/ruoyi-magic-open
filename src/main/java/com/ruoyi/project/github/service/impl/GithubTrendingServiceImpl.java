@@ -71,77 +71,51 @@ public class GithubTrendingServiceImpl extends ServiceImpl<GithubTrendingMapper,
         int newInserted = 0;
         int updated = 0;
         int skipped = 0;
-        int failed = 0;
         
         // 批量查询已存在的仓库（根据 URL 去重）
         List<String> urls = request.getRepos().stream()
                 .map(GithubTrendingRepoDTO::getUrl)
                 .collect(Collectors.toList());
         
+        // 使用 QueryWrapper 构建 IN 查询
         QueryWrapper queryWrapper = QueryWrapper.create()
-                .where("url IN (?)", urls);
+                .from("github_trending")
+                .in("url", urls);
         List<GithubTrending> existingRepos = this.list(queryWrapper);
         Map<String, GithubTrending> existingRepoMap = existingRepos.stream()
                 .collect(Collectors.toMap(GithubTrending::getUrl, repo -> repo));
         
         // 处理每个仓库
         for (GithubTrendingRepoDTO repoDTO : request.getRepos()) {
-            try {
-                // 补充 full_name
-                if (StrUtil.isBlank(repoDTO.getFullName())) {
-                    repoDTO.setFullName(repoDTO.getOwner() + "/" + repoDTO.getTitle());
-                }
+            // 补充 full_name
+            if (StrUtil.isBlank(repoDTO.getFullName())) {
+                repoDTO.setFullName(repoDTO.getOwner() + "/" + repoDTO.getTitle());
+            }
+            
+            GithubTrending existing = existingRepoMap.get(repoDTO.getUrl());
+            
+            if (existing == null) {
+                // 新增
+                GithubTrending newRepo = convertToEntity(repoDTO);
+                newRepo.setId(IdUtil.fastSimpleUUID());
                 
-                GithubTrending existing = existingRepoMap.get(repoDTO.getUrl());
+                // 设置上榜统计
+                newRepo.setTrendingDays("1");
+                newRepo.setContinuousTrendingDays("1");
+                newRepo.setFirstTrendingDate(parseTrendingDate(repoDTO.getTrendingDate()));
+                newRepo.setLastTrendingDate(parseTrendingDate(repoDTO.getTrendingDate()));
+                newRepo.setCreatedAt(new Date());
+                newRepo.setUpdateAt(new Date());
                 
-                if (existing == null) {
-                    // 新增
-                    GithubTrending newRepo = convertToEntity(repoDTO);
-                    newRepo.setId(IdUtil.fastSimpleUUID());
-                    
-                    // 设置上榜统计
-                    newRepo.setTrendingDays("1");
-                    newRepo.setContinuousTrendingDays("1");
-                    newRepo.setFirstTrendingDate(parseTrendingDate(repoDTO.getTrendingDate()));
-                    newRepo.setLastTrendingDate(parseTrendingDate(repoDTO.getTrendingDate()));
-                    newRepo.setCreatedAt(new Date());
-                    newRepo.setUpdateAt(new Date());
-                    
-                    this.save(newRepo);
-                    newInserted++;
-                    log.info("新增 Trending 仓库: {}", repoDTO.getFullName());
-                } else {
-                    // 更新
-                    Date trendingDate = parseTrendingDate(repoDTO.getTrendingDate());
-                    Date lastTrendingDate = existing.getLastTrendingDate();
-                    
-                    // 更新基础信息
-                    existing.setDescription(repoDTO.getDescription());
-                    existing.setLanguage(repoDTO.getLanguage());
-                    existing.setStarsCount(String.valueOf(repoDTO.getStarsCount()));
-                    existing.setForksCount(String.valueOf(repoDTO.getForksCount()));
-                    existing.setLastTrendingDate(trendingDate);
-                    existing.setUpdateAt(new Date());
-                    
-                    // 更新上榜天数统计
-                    int totalDays = Integer.parseInt(existing.getTrendingDays() == null ? "0" : existing.getTrendingDays());
-                    existing.setTrendingDays(String.valueOf(totalDays + 1));
-                    
-                    // 计算连续上榜天数
-                    if (lastTrendingDate != null && isConsecutiveDay(lastTrendingDate, trendingDate)) {
-                        int continuousDays = Integer.parseInt(existing.getContinuousTrendingDays() == null ? "0" : existing.getContinuousTrendingDays());
-                        existing.setContinuousTrendingDays(String.valueOf(continuousDays + 1));
-                    } else {
-                        existing.setContinuousTrendingDays("1");
-                    }
-                    
-                    this.updateById(existing);
-                    updated++;
-                    log.info("更新 Trending 仓库: {}", repoDTO.getFullName());
-                }
-            } catch (Exception e) {
-                failed++;
-                log.error("处理仓库失败: {}, 错误: {}", repoDTO.getFullName(), e.getMessage(), e);
+                this.save(newRepo);
+                newInserted++;
+                log.info("新增 Trending 仓库: {}", repoDTO.getFullName());
+            } else {
+                // 更新
+                handleUpdateRepo(existing, repoDTO);
+                this.updateById(existing);
+                updated++;
+                log.info("更新 Trending 仓库: {}", repoDTO.getFullName());
             }
         }
         
@@ -149,8 +123,7 @@ public class GithubTrendingServiceImpl extends ServiceImpl<GithubTrendingMapper,
         response.setNewInserted(newInserted);
         response.setUpdated(updated);
         response.setSkipped(skipped);
-        response.setFailed(failed);
-        response.setMessage(String.format("处理完成: 新增 %d, 更新 %d, 失败 %d", newInserted, updated, failed));
+        response.setMessage(String.format("处理完成: 新增 %d, 更新 %d", newInserted, updated));
         
         log.info("GitHub Trending 数据接入完成: {}", response.getMessage());
         return response;
@@ -171,6 +144,34 @@ public class GithubTrendingServiceImpl extends ServiceImpl<GithubTrendingMapper,
         entity.setIsTranDes("0");
         entity.setIsNeedUpdate("1");
         return entity;
+    }
+    
+    /**
+     * 处理记录更新逻辑
+     */
+    private void handleUpdateRepo(GithubTrending existing, GithubTrendingRepoDTO repoDTO) {
+        Date trendingDate = parseTrendingDate(repoDTO.getTrendingDate());
+        Date lastTrendingDate = existing.getLastTrendingDate();
+        
+        // 更新基础信息
+        existing.setDescription(repoDTO.getDescription());
+        existing.setLanguage(repoDTO.getLanguage());
+        existing.setStarsCount(String.valueOf(repoDTO.getStarsCount()));
+        existing.setForksCount(String.valueOf(repoDTO.getForksCount()));
+        existing.setLastTrendingDate(trendingDate);
+        existing.setUpdateAt(new Date());
+        
+        // 更新上榜天数统计
+        int totalDays = Integer.parseInt(existing.getTrendingDays() == null ? "0" : existing.getTrendingDays());
+        existing.setTrendingDays(String.valueOf(totalDays + 1));
+        
+        // 计算连续上榜天数
+        if (lastTrendingDate != null && isConsecutiveDay(lastTrendingDate, trendingDate)) {
+            int continuousDays = Integer.parseInt(existing.getContinuousTrendingDays() == null ? "0" : existing.getContinuousTrendingDays());
+            existing.setContinuousTrendingDays(String.valueOf(continuousDays + 1));
+        } else {
+            existing.setContinuousTrendingDays("1");
+        }
     }
     
     /**

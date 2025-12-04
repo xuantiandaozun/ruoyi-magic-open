@@ -98,4 +98,9 @@ public class AiWorkflowStep extends BaseEntity {
     @Excel(name = "是否启用工具", readConverterExp = "Y=是,N=否")
     @Column("tool_enabled")
     private String toolEnabled;
+
+    /** 是否异步执行（0=同步 1=异步，默认为0） */
+    @Excel(name = "是否异步执行", readConverterExp = "0=同步,1=异步")
+    @Column("is_async")
+    private String isAsync;
 }

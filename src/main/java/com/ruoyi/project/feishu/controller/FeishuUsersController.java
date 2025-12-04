@@ -1,6 +1,5 @@
 package com.ruoyi.project.feishu.controller;
 
-import static com.ruoyi.project.feishu.domain.table.FeishuUsersTableDef.FEISHU_USERS;
 
 import java.util.List;
 
@@ -15,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.framework.aspectj.lang.annotation.Log;
 import com.ruoyi.framework.aspectj.lang.enums.BusinessType;
 import com.ruoyi.framework.web.controller.BaseController;
@@ -45,7 +43,7 @@ public class FeishuUsersController extends BaseController {
     @SaCheckPermission("feishu:users:list")
     @GetMapping("/list")
     public TableDataInfo list(FeishuUsers feishuUsers) {
-        Page<FeishuUsers> page = feishuUsersService.page(getPage(), buildQueryWrapper(feishuUsers));
+        Page<FeishuUsers> page = feishuUsersService.page(getPage(), buildFlexQueryWrapper(feishuUsers));
         return getDataTable(page);
     }
 
@@ -106,15 +104,5 @@ public class FeishuUsersController extends BaseController {
         return toAjax(feishuUsersService.removeByIds(List.of(ids)));
     }
 
-    /**
-     * 构建查询条件
-     */
-    private QueryWrapper buildQueryWrapper(FeishuUsers feishuUsers) {
-        return QueryWrapper.create()
-                .where(FEISHU_USERS.OPEN_ID.like(feishuUsers.getOpenId()))
-                .and(FEISHU_USERS.NAME.like(feishuUsers.getName()))
-                .and(FEISHU_USERS.MOBILE.like(feishuUsers.getMobile()))
-                .and(FEISHU_USERS.EMAIL.like(feishuUsers.getEmail()))
-                .orderBy(FEISHU_USERS.CREATED_AT.desc());
-    }
+
 }

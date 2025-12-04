@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -77,8 +76,7 @@ public class GenController extends BaseController {
     @Autowired
     private IGenTableColumnService genTableColumnService;
 
-    @Autowired
-    private ChatClient chatClient;
+
 
     @Autowired
     private ISysDataSourceService sysDataSourceService;

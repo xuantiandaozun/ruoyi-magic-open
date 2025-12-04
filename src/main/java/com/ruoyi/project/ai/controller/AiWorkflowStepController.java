@@ -235,10 +235,12 @@ public class AiWorkflowStepController extends BaseController {
         try {
             List<String> toolTypes = Arrays.asList(
                 "github_trending",
+                "blog_history_query",
                 "database_query", 
                 "blog_save",
                 "blog_en_save",
-                "social_media_article_save"
+                "social_media_article_save",
+                "oss_file_read"
             );
             return success(toolTypes);
         } catch (Exception e) {

@@ -1,5 +1,7 @@
 package com.ruoyi.project.ai.service.impl;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -328,10 +330,21 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
     private String processUserPromptWithVariables(AiWorkflowStep step, Map<String, Object> inputData) {
         String userPrompt = StrUtil.isNotEmpty(step.getUserPrompt()) ? step.getUserPrompt() : "请根据输入数据和系统提示完成任务";
         
-        // 使用 PromptVariableProcessor 进行变量处理
+        // 创建包含系统变量的变量映射
+        Map<String, Object> allVariables = new HashMap<>();
+        
+        // 添加系统内置变量
+        addSystemVariables(allVariables);
+        
+        // 添加输入数据变量
         if (inputData != null && !inputData.isEmpty()) {
+            allVariables.putAll(inputData);
+        }
+        
+        // 使用 PromptVariableProcessor 进行变量处理
+        if (!allVariables.isEmpty()) {
             try {
-                userPrompt = PromptVariableProcessor.processVariables(userPrompt, inputData);
+                userPrompt = PromptVariableProcessor.processVariables(userPrompt, allVariables);
                 log.debug("处理后的用户提示词: {}", userPrompt);
             } catch (Exception e) {
                 log.warn("处理用户提示词变量时出错: {}, 使用原始提示词", e.getMessage());
@@ -367,6 +380,36 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
             return "{}";
         }
         return JSONUtil.toJsonStr(map);
+    }
+    
+    /**
+     * 添加系统内置变量
+     * 这些变量在每次工作流执行时自动注入，无需用户手动传递
+     * 
+     * @param variables 变量映射表
+     */
+    private void addSystemVariables(Map<String, Object> variables) {
+        // 当前日期（格式：2025-12-04）
+        variables.put("current_date", LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE));
+        
+        // 当前日期（中文格式：2025年12月04日）
+        variables.put("current_date_cn", LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")));
+        
+        // 当前年份
+        variables.put("current_year", String.valueOf(LocalDate.now().getYear()));
+        
+        // 当前月份
+        variables.put("current_month", String.valueOf(LocalDate.now().getMonthValue()));
+        
+        // 当前日
+        variables.put("current_day", String.valueOf(LocalDate.now().getDayOfMonth()));
+        
+        // 当前星期（中文）
+        String[] weekDays = {"星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"};
+        variables.put("current_weekday", weekDays[LocalDate.now().getDayOfWeek().getValue() - 1]);
+        
+        log.debug("已注入系统变量: current_date={}, current_date_cn={}", 
+            variables.get("current_date"), variables.get("current_date_cn"));
     }
 
 }

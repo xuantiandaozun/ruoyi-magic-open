@@ -57,6 +57,8 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
             .addStringProperty("isOriginal", "是否原创：0=转载，1=原创，默认为原创")
             .addStringProperty("feishuDocToken", "关联的飞书文档token，可选")
             .addStringProperty("feishuDocName", "关联的飞书文档名称，可选")
+            .addStringProperty("repoUrl", "关联的GitHub仓库完整URL，可选，用于记录博客来源")
+            .addStringProperty("repoName", "关联的GitHub仓库名称（如owner/repo），可选")
             .build();
         
         return ToolSpecification.builder()
@@ -140,9 +142,26 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
             boolean success = blogService.save(blog);
             
             if (success) {
+                // 获取GitHub仓库关联信息（用于生产记录）
+                String repoUrl = (String) parameters.get("repoUrl");
+                String repoName = (String) parameters.get("repoName");
+                
                 // 保存生产记录
                 AiBlogProductionRecord productionRecord = new AiBlogProductionRecord();
-                productionRecord.setRepoUrl(""); // 非仓库相关博客，设置为空字符串
+                // 设置仓库URL（如果有传入则使用，否则为空字符串）
+                productionRecord.setRepoUrl(StrUtil.isNotBlank(repoUrl) ? repoUrl : "");
+                
+                // 解析仓库名称（格式：owner/repo）
+                if (StrUtil.isNotBlank(repoName)) {
+                    if (repoName.contains("/")) {
+                        String[] parts = repoName.split("/", 2);
+                        productionRecord.setRepoOwner(parts[0]);
+                        productionRecord.setRepoTitle(parts.length > 1 ? parts[1] : repoName);
+                    } else {
+                        productionRecord.setRepoTitle(repoName);
+                    }
+                }
+                
                 if (StrUtil.isNotBlank(blog.getBlogId())) {
                     productionRecord.setBlogId(Long.parseLong(blog.getBlogId()));
                 }
@@ -224,6 +243,9 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
         
         4. 保存置顶原创文章：
            {"title": "重要公告", "content": "重要内容...", "isTop": "1", "isOriginal": "1", "status": "1"}
+        
+        5. 保存GitHub项目相关博客（推荐）：
+           {"title": "开源项目解析", "content": "项目分析内容...", "category": "开源项目", "tags": "GitHub,开源", "status": "1", "repoUrl": "https://github.com/owner/repo", "repoName": "owner/repo"}
         """;
     }
     
