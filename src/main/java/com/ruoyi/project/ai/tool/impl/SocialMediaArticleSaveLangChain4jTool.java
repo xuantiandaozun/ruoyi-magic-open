@@ -49,7 +49,7 @@ public class SocialMediaArticleSaveLangChain4jTool implements LangChain4jTool {
             .addStringProperty("contentEn", "英文完整内容，可选")
             .addStringProperty("keywordsZh", "中文关键词，多个用逗号分隔，可选")
             .addStringProperty("keywordsEn", "英文关键词，多个用逗号分隔，可选")
-            .addStringProperty("articleType", "文章类型：GITHUB_RANKING-GitHub排行榜，PROJECT_ANALYSIS-项目分析等，可选")
+            .addStringProperty("articleType", "文章类型：GITHUB_RANKING-GitHub排行榜，PROJECT_ANALYSIS-项目分析等，可选；不填默认为 TECH_NEWS")
             .addStringProperty("contentAngle", "内容角度，可选")
             .addStringProperty("targetPlatform", "目标平台：toutiao-今日头条，twitter-推特，medium-Medium等，可选")
             .addStringProperty("publishStatus", "发布状态：0-草稿，1-已发布，2-已下线，默认为草稿")
@@ -116,9 +116,7 @@ public class SocialMediaArticleSaveLangChain4jTool implements LangChain4jTool {
             }
             
             String articleType = (String) parameters.get("articleType");
-            if (StrUtil.isNotBlank(articleType)) {
-                article.setArticleType(articleType);
-            }
+            article.setArticleType(StrUtil.isNotBlank(articleType) ? articleType : "TECH_NEWS");
             
             String contentAngle = (String) parameters.get("contentAngle");
             if (StrUtil.isNotBlank(contentAngle)) {
@@ -253,8 +251,10 @@ public class SocialMediaArticleSaveLangChain4jTool implements LangChain4jTool {
         4. 保存完整的自媒体文章：
            {"titleZh": "技术分享", "titleEn": "Tech Sharing", "contentZh": "详细的中文内容...", "contentEn": "Detailed English content...", "keywordsZh": "技术,分享,开源", "keywordsEn": "tech,sharing,opensource", "articleType": "TUTORIAL", "targetPlatform": "medium", "publishStatus": "1", "blogName": "我的技术博客"}
         
-        5. 保存关联博客的文章：
-           {"titleZh": "项目推荐", "relatedBlogIds": "1,2,3", "targetPlatform": "zhihu", "publishStatus": "0"}
+          5. 保存关联博客的文章：
+              {"titleZh": "项目推荐", "relatedBlogIds": "1,2,3", "targetPlatform": "zhihu", "publishStatus": "0"}
+
+          默认 articleType 值为 TECH_NEWS，当未传入时系统会自动设置
         """;
     }
     

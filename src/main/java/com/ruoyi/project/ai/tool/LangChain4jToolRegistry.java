@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.project.ai.util.ToolResultProcessor;
 
 import cn.hutool.json.JSONUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -96,13 +97,18 @@ public class LangChain4jToolRegistry {
         
         long start = System.currentTimeMillis();
         try {
-            String result = tool.execute(params);
-            long cost = System.currentTimeMillis() - start;
-            int length = result != null ? result.length() : 0;
-            // 成功时只打印精简信息，不输出具体结果内容
-            log.info("[LangChain4jToolRegistry] 工具执行成功: name={}, cost={}ms, resultLength={}",
+                String result = tool.execute(params);
+                long cost = System.currentTimeMillis() - start;
+                int length = result != null ? result.length() : 0;
+                // 成功时只打印精简信息，不输出具体结果内容
+                log.info("[LangChain4jToolRegistry] 工具执行成功: name={}, cost={}ms, resultLength={}",
                     toolName, cost, length);
-            return result;
+                ToolExecutionResult parsedResult = ToolResultProcessor.parse(result);
+                if (parsedResult != null && Boolean.FALSE.equals(parsedResult.getSuccess())) {
+                log.warn("[LangChain4jToolRegistry] 工具返回失败状态: name={}, operationType={}, message={}",
+                    toolName, parsedResult.getOperationType(), parsedResult.getMessage());
+                }
+                return result;
         } catch (IllegalArgumentException e) {
             long cost = System.currentTimeMillis() - start;
             log.warn("[LangChain4jToolRegistry] 工具参数错误: name={}, cost={}ms, params={}, error={}",

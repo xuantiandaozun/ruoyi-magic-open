@@ -11,7 +11,7 @@ import com.ruoyi.project.ai.dto.WorkflowExecuteRequest;
  * @date 2024-12-15
  */
 public interface IWorkflowExecutionService {
-    
+
     /**
      * 执行工作流
      * 
@@ -19,12 +19,12 @@ public interface IWorkflowExecutionService {
      * @return 执行结果
      */
     Map<String, Object> executeWorkflow(WorkflowExecuteRequest request);
-    
+
     /**
      * 根据工作流ID执行工作流
      * 
      * @param workflowId 工作流ID
-     * @param inputData 输入数据
+     * @param inputData  输入数据
      * @return 执行结果
      */
     Map<String, Object> executeWorkflow(Long workflowId, Map<String, Object> inputData);
