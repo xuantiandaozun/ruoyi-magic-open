@@ -5,7 +5,7 @@
 | 参数 | 值 |
 |------|-----|
 | **方法** | POST |
-| **路径** | /article/social-media-asset/upload/script |
+| **路径** | https://ai.zhoudw.vip/api/article/social-media-asset/upload/script |
 | **认证** | HMAC-SHA256签名验证 |
 | **登录** | 否 |
 
