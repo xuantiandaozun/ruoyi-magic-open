@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 
 
@@ -18,6 +19,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class })
 @MapperScan(basePackages = {"com.ruoyi.project.**.mapper"})
 @EnableAsync
+@EnableScheduling
 public class RuoYiApplication
 {
     public static void main(String[] args)
