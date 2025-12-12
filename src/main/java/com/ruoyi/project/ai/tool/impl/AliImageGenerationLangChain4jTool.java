@@ -63,7 +63,8 @@ public class AliImageGenerationLangChain4jTool implements LangChain4jTool {
         JsonObjectSchema parametersSchema = JsonObjectSchema.builder()
                 .addStringProperty("prompt", "图片生成的提示词，描述要生成的图片内容，必填")
                 .addStringProperty("model", "使用的模型名称，默认为qwen-image-plus，可选")
-                .addStringProperty("size", "图片尺寸，格式为宽*高，如1328*1328，默认为1328*1328，可选")
+                .addStringProperty("size",
+                        "图片尺寸，仅支持以下值: 1664*928, 1472*1140, 1328*1328, 1140*1472, 928*1664。默认为1328*1328，可选")
                 .addStringProperty("negativePrompt", "反向提示词，描述不希望在画面中看到的内容，可选")
                 .addBooleanProperty("promptExtend", "是否启用提示词扩展，默认为true，可选")
                 .addBooleanProperty("watermark", "是否添加水印，默认为false，可选")
@@ -296,7 +297,10 @@ public class AliImageGenerationLangChain4jTool implements LangChain4jTool {
         // 验证size参数格式
         if (parameters.containsKey("size")) {
             String size = parameters.get("size").toString();
-            if (!size.matches("\\d+\\*\\d+")) {
+            // 允许的尺寸列表
+            java.util.List<String> allowedSizes = java.util.Arrays.asList(
+                    "1664*928", "1472*1140", "1328*1328", "1140*1472", "928*1664");
+            if (!allowedSizes.contains(size)) {
                 return false;
             }
         }

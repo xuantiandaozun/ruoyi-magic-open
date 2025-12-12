@@ -11,7 +11,7 @@
  Target Server Version : 80036 (8.0.36)
  File Encoding         : 65001
 
- Date: 09/12/2025 10:14:02
+ Date: 10/12/2025 12:01:03
 */
 
 SET NAMES utf8mb4;
@@ -51,7 +51,7 @@ CREATE TABLE `ai_blog_production_record`  (
   INDEX `idx_target_date`(`target_date` ASC) USING BTREE,
   INDEX `idx_blog_id`(`blog_id` ASC) USING BTREE,
   INDEX `idx_production_time`(`production_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 408 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI博客生产记录表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 409 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI博客生产记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for ai_chat_message
@@ -147,7 +147,7 @@ CREATE TABLE `ai_cover_generation_record`  (
   INDEX `idx_generation_status`(`generation_status` ASC) USING BTREE,
   INDEX `idx_is_used`(`is_used` ASC) USING BTREE,
   INDEX `idx_generation_time`(`generation_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 279 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI生图记录表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 280 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI生图记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for ai_model_config
@@ -246,7 +246,7 @@ CREATE TABLE `ai_workflow_execution`  (
   INDEX `idx_scheduled_time`(`scheduled_time` ASC) USING BTREE,
   CONSTRAINT `fk_execution_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `ai_workflow_schedule` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_workflow_execution_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 167 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流执行记录表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 169 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流执行记录表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for ai_workflow_schedule
@@ -334,7 +334,7 @@ CREATE TABLE `ai_workflow_schedule_log`  (
   CONSTRAINT `fk_schedule_log_execution` FOREIGN KEY (`execution_id`) REFERENCES `ai_workflow_execution` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_schedule_log_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `ai_workflow_schedule` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_schedule_log_workflow` FOREIGN KEY (`workflow_id`) REFERENCES `ai_workflow` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 126 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流定时调度执行日志表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 128 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = 'AI工作流定时调度执行日志表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for ai_workflow_step
@@ -415,7 +415,7 @@ CREATE TABLE `blog`  (
   INDEX `idx_view_count`(`view_count` ASC) USING BTREE,
   INDEX `idx_is_top_publish_time`(`is_top` ASC, `publish_time` DESC) USING BTREE,
   INDEX `idx_seo_keywords`(`seo_keywords`(191) ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 437 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '个人博客表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 438 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '个人博客表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for blog_comment
@@ -492,7 +492,7 @@ CREATE TABLE `blog_en`  (
   INDEX `idx_view_count`(`view_count` ASC) USING BTREE,
   INDEX `idx_is_top_publish_time`(`is_top` ASC, `publish_time` DESC) USING BTREE,
   INDEX `idx_seo_keywords`(`seo_keywords`(191) ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 326 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '英文博客表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 327 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '英文博客表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for blog_like_record
@@ -606,7 +606,7 @@ CREATE TABLE `feishu_message_record`  (
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志（0代表存在 2代表删除）',
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 20 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '飞书消息发送记录' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 22 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '飞书消息发送记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for feishu_users
@@ -941,7 +941,7 @@ CREATE TABLE `social_media_article`  (
   INDEX `idx_generation_date`(`generation_date` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   INDEX `idx_target_platform`(`target_platform` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 110 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体文章表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 111 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体文章表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for social_media_asset
@@ -975,6 +975,7 @@ CREATE TABLE `social_media_asset`  (
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '更新者',
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注',
   `del_flag` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '0' COMMENT '删除标志(0存在 2删除)',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_source_url`(`source_url` ASC) USING BTREE,
@@ -982,7 +983,7 @@ CREATE TABLE `social_media_asset`  (
   INDEX `idx_platform_type_status_time`(`platform` ASC, `content_type` ASC, `status` ASC, `capture_time` ASC) USING BTREE,
   INDEX `idx_publish_time`(`publish_time` ASC) USING BTREE,
   INDEX `idx_title`(`title`(191) ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体素材表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 546 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体素材表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_config
@@ -1125,7 +1126,7 @@ CREATE TABLE `sys_file_upload_record`  (
   INDEX `idx_upload_status`(`upload_status` ASC) USING BTREE,
   INDEX `idx_create_time`(`create_time` ASC) USING BTREE,
   INDEX `idx_create_by`(`create_by` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 947 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '文件上传记录表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 958 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '文件上传记录表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for sys_job
@@ -1167,7 +1168,7 @@ CREATE TABLE `sys_job_log`  (
   `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
   `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '备注信息',
   PRIMARY KEY (`job_log_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 22 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度日志表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 23 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '定时任务调度日志表' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_logininfor
@@ -1191,7 +1192,7 @@ CREATE TABLE `sys_logininfor`  (
   PRIMARY KEY (`info_id`) USING BTREE,
   INDEX `idx_sys_logininfor_s`(`status` ASC) USING BTREE,
   INDEX `idx_sys_logininfor_lt`(`login_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 351 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '系统访问记录' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 354 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '系统访问记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_menu
@@ -1272,7 +1273,7 @@ CREATE TABLE `sys_oper_log`  (
   INDEX `idx_sys_oper_log_bt`(`business_type` ASC) USING BTREE,
   INDEX `idx_sys_oper_log_s`(`status` ASC) USING BTREE,
   INDEX `idx_sys_oper_log_ot`(`oper_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1068 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '操作日志记录' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 1618 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '操作日志记录' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for sys_post
@@ -1437,45 +1438,5 @@ CREATE TABLE `sys_user_role`  (
   `role_id` bigint NOT NULL COMMENT '角色ID',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_bin COMMENT = '用户和角色关联表' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- Table structure for social_media_asset
--- ----------------------------
-DROP TABLE IF EXISTS `social_media_asset`;
-CREATE TABLE `social_media_asset`  (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `platform` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '平台(toutiao/douyin/bilibili/weibo/twitter/medium/other)',
-  `content_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '内容类型(article/video/image_set/audio/short_post/live_replay/other)',
-  `source_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '原始链接，唯一去重',
-  `external_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '平台内容ID，可空，配合平台去重',
-  `author` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '作者/账号名',
-  `author_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '作者在平台的ID',
-  `publish_time` datetime NULL DEFAULT NULL COMMENT '平台发布时间',
-  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '标题/首句',
-  `summary` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '摘要/笔记',
-  `content_snapshot` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '正文/口播稿/文本快照（内容核心）',
-  `cover_url` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '封面/首图',
-  `media_urls` json NULL COMMENT '媒体链接(JSON: 视频/图集/音频直链或存储Key)',
-  `duration_seconds` int NULL DEFAULT NULL COMMENT '时长(秒，视频/音频可填)',
-  `tags` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '标签(逗号或JSON字符串，可选)',
-  `quality_level` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '质量等级(high/medium/low，可选)',
-  `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '状态(active/archived/invalid)',
-  `license_note` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '版权/授权备注',
-  `note` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '运营备注',
-  `capture_method` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '采集方式(manual/spider/api)',
-  `capture_time` datetime NULL DEFAULT NULL COMMENT '采集时间',
-  `metrics_snapshot` json NULL COMMENT '指标快照(JSON: read/like/comment/share等)',
-  `last_check_time` datetime NULL DEFAULT NULL COMMENT '最近一次校验/补数时间',
-  `create_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '创建者',
-  `create_time` datetime NULL DEFAULT NULL COMMENT '创建时间',
-  `update_by` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT '' COMMENT '更新者',
-  `update_time` datetime NULL DEFAULT NULL COMMENT '更新时间',
-  PRIMARY KEY (`id`) USING BTREE,
-  INDEX `idx_platform`(`platform` ASC) USING BTREE,
-  INDEX `idx_source_url`(`source_url` ASC) USING BTREE,
-  INDEX `idx_publish_time`(`publish_time` ASC) USING BTREE,
-  INDEX `idx_status`(`status` ASC) USING BTREE,
-  INDEX `idx_create_time`(`create_time` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '自媒体素材表' ROW_FORMAT = DYNAMIC;
 
 SET FOREIGN_KEY_CHECKS = 1;
