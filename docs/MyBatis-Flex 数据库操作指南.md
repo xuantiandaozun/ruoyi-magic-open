@@ -9,6 +9,33 @@
 
 ---
 
+## 📦 常用类的导入包名
+
+在使用MyBatis-Flex进行数据库操作时，需要导入以下核心类：
+
+```java
+// 核心数据库操作类
+import com.mybatisflex.core.row.Db;          // 用于执行原生SQL、复杂查询
+import com.mybatisflex.core.row.Row;         // 数据行对象，用于接收查询结果
+
+// 查询构建器
+import com.mybatisflex.core.query.QueryWrapper;  // 动态构建查询条件
+
+// Service层基类（用于继承）
+import com.mybatisflex.core.service.IService;           // Service接口
+import com.mybatisflex.spring.service.impl.ServiceImpl; // Service实现基类
+
+// 实体更新工具
+import com.mybatisflex.core.update.UpdateEntity;  // 部分字段更新
+```
+
+**重要提示**：
+- `Db` 和 `Row` 的包路径是 `com.mybatisflex.core.row.*`
+- 不要与其他框架的 `Db` 类混淆
+- 使用IDE的自动导入功能时，请确认导入的是正确的包
+
+---
+
 ## ⚠️ 重要提醒：QueryWrapper 条件语法
 
 > **🚨 特别注意**：MyBatis-Flex 的 `QueryWrapper` 条件语法与 MyBatis-Plus **完全不同**！

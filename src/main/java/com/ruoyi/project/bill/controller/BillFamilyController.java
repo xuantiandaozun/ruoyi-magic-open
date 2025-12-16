@@ -25,7 +25,9 @@ import com.ruoyi.framework.web.page.PageDomain;
 import com.ruoyi.framework.web.page.TableDataInfo;
 import com.ruoyi.framework.web.page.TableSupport;
 import com.ruoyi.project.bill.domain.BillFamily;
+import com.ruoyi.project.bill.domain.BillUserProfile;
 import com.ruoyi.project.bill.service.IBillFamilyService;
+import com.ruoyi.project.bill.service.IBillUserProfileService;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,6 +47,9 @@ public class BillFamilyController extends BaseController {
 
     @Autowired
     private IBillFamilyService billFamilyService;
+
+    @Autowired
+    private IBillUserProfileService billUserProfileService;
 
     /**
      * 查询家庭组列表
@@ -108,12 +113,29 @@ public class BillFamilyController extends BaseController {
     @Log(title = "家庭组", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody BillFamily billFamily) {
+        // 获取当前用户ID
+        Long userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
+
         // 生成邀请码
         String inviteCode = billFamilyService.generateInviteCode();
         billFamily.setFamilyCode(inviteCode);
+        billFamily.setCreatorId(userId); // 设置创建者ID
         billFamily.setMemberCount(1); // 创建者为第一个成员
 
-        return toAjax(billFamilyService.save(billFamily) ? 1 : 0);
+        boolean saved = billFamilyService.save(billFamily);
+        if (saved) {
+            // 更新创建者的用户扩展信息，关联到该家庭组
+            BillUserProfile profile = billUserProfileService.selectByUserId(userId);
+            if (profile == null) {
+                profile = new BillUserProfile();
+                profile.setUserId(userId);
+            }
+            profile.setFamilyId(billFamily.getFamilyId());
+            profile.setFamilyRole("2"); // 创建者为管理员
+            billUserProfileService.saveOrUpdateByUserId(profile);
+        }
+
+        return toAjax(saved ? 1 : 0);
     }
 
     /**
@@ -152,6 +174,21 @@ public class BillFamilyController extends BaseController {
             return error("邀请码无效或家庭组不存在");
         }
 
+        // 检查用户是否已经在其他家庭组
+        BillUserProfile existProfile = billUserProfileService.selectByUserId(userId);
+        if (existProfile != null && existProfile.getFamilyId() != null) {
+            return error("您已经在其他家庭组中，请先退出后再加入");
+        }
+
+        // 更新用户的家庭组信息
+        BillUserProfile profile = existProfile != null ? existProfile : new BillUserProfile();
+        if (existProfile == null) {
+            profile.setUserId(userId);
+        }
+        profile.setFamilyId(family.getFamilyId());
+        profile.setFamilyRole("1"); // 普通成员
+        billUserProfileService.saveOrUpdateByUserId(profile);
+
         // 更新成员数量
         billFamilyService.updateMemberCount(family.getFamilyId(), 1);
 
@@ -177,10 +214,68 @@ public class BillFamilyController extends BaseController {
             return error("创建者不能退出,请先转让家庭组或解散家庭组");
         }
 
+        // 清除用户的家庭组信息
+        BillUserProfile profile = billUserProfileService.selectByUserId(userId);
+        if (profile != null) {
+            profile.setFamilyId(null);
+            profile.setFamilyRole(null);
+            billUserProfileService.updateById(profile);
+        }
+
         // 更新成员数量
         billFamilyService.updateMemberCount(familyId, -1);
 
         return success("退出家庭组成功");
+    }
+
+    /**
+     * 获取家庭组成员列表
+     */
+    @Operation(summary = "获取家庭组成员列表")
+    @GetMapping("/members/{familyId}")
+    public AjaxResult getMembers(@PathVariable Long familyId) {
+        BillFamily family = billFamilyService.getById(familyId);
+        if (family == null) {
+            return error("家庭组不存在");
+        }
+
+        // 查询该家庭组的所有成员
+        List<BillUserProfile> members = billUserProfileService.selectByFamilyId(familyId);
+
+        return success(members);
+    }
+
+    /**
+     * 移除家庭组成员
+     */
+    @Operation(summary = "移除家庭组成员")
+    @Log(title = "家庭组", businessType = BusinessType.UPDATE)
+    @DeleteMapping("/{familyId}/member/{userId}")
+    public AjaxResult removeMember(
+            @PathVariable Long familyId,
+            @PathVariable Long userId) {
+        BillFamily family = billFamilyService.getById(familyId);
+        if (family == null) {
+            return error("家庭组不存在");
+        }
+
+        // 检查是否是创建者
+        if (userId.equals(family.getCreatorId())) {
+            return error("不能移除创建者");
+        }
+
+        // 清除用户的家庭组信息
+        BillUserProfile profile = billUserProfileService.selectByUserId(userId);
+        if (profile != null) {
+            profile.setFamilyId(null);
+            profile.setFamilyRole(null);
+            billUserProfileService.updateById(profile);
+        }
+
+        // 更新成员数量
+        billFamilyService.updateMemberCount(familyId, -1);
+
+        return success("成员已移除");
     }
 
     /**

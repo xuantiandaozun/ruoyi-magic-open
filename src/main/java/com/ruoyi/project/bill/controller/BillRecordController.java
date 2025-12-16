@@ -28,7 +28,9 @@ import com.ruoyi.framework.web.page.PageDomain;
 import com.ruoyi.framework.web.page.TableDataInfo;
 import com.ruoyi.framework.web.page.TableSupport;
 import com.ruoyi.project.bill.domain.BillRecord;
+import com.ruoyi.project.bill.domain.BillUserProfile;
 import com.ruoyi.project.bill.service.IBillRecordService;
+import com.ruoyi.project.bill.service.IBillUserProfileService;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,6 +49,9 @@ import jakarta.servlet.http.HttpServletResponse;
 public class BillRecordController extends BaseController {
     @Autowired
     private IBillRecordService billRecordService;
+
+    @Autowired
+    private IBillUserProfileService billUserProfileService;
 
     /**
      * 查询账单记录列表
@@ -132,6 +137,18 @@ public class BillRecordController extends BaseController {
     @Log(title = "账单记录", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody BillRecord billRecord) {
+        // 设置当前登录用户ID
+        billRecord.setUserId(getUserId());
+
+        // 设置家庭组ID（如果用户有家庭组）
+        BillUserProfile userProfile = billUserProfileService.selectByUserId(getUserId());
+        if (userProfile != null && userProfile.getFamilyId() != null) {
+            billRecord.setFamilyId(userProfile.getFamilyId());
+        } else {
+            // 用户没有家庭组，设置为0表示个人记账
+            billRecord.setFamilyId(0L);
+        }
+
         return toAjax(billRecordService.save(billRecord) ? 1 : 0);
     }
 

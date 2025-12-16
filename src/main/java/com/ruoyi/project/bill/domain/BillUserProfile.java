@@ -65,4 +65,18 @@ public class BillUserProfile extends BaseEntity {
     /** 删除标志（0正常 1删除） */
     @Column(isLogicDelete = true)
     private String delFlag;
+
+    // ========== 以下为临时字段，不映射到数据库 ==========
+
+    /** 用户昵称（临时字段，从sys_user关联查询） */
+    @Column(ignore = true)
+    private String nickName;
+
+    /** 用户头像（临时字段，从sys_user关联查询） */
+    @Column(ignore = true)
+    private String avatar;
+
+    /** 用户手机号（临时字段，从sys_user关联查询） */
+    @Column(ignore = true)
+    private String phonenumber;
 }

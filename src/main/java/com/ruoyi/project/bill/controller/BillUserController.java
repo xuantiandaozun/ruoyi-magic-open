@@ -188,6 +188,88 @@ public class BillUserController extends BaseController {
     }
 
     /**
+     * 更新用户信息（昵称、性别、头像等）
+     */
+    @Operation(summary = "更新用户信息")
+    @PostMapping("/update")
+    public AjaxResult updateUserInfo(@RequestBody SysUser user) {
+        try {
+            LoginUser loginUser = SecurityUtils.getLoginUser();
+            SysUser currentUser = loginUser.getUser();
+
+            // 只允许更新当前登录用户的信息
+            user.setUserId(currentUser.getUserId());
+
+            // 只允许更新昵称、性别、头像等基本信息
+            SysUser updateUser = new SysUser();
+            updateUser.setUserId(currentUser.getUserId());
+
+            if (StrUtil.isNotEmpty(user.getNickName())) {
+                updateUser.setNickName(user.getNickName());
+            }
+            if (user.getSex() != null) {
+                updateUser.setSex(user.getSex());
+            }
+            if (StrUtil.isNotEmpty(user.getAvatar())) {
+                updateUser.setAvatar(user.getAvatar());
+            }
+
+            boolean result = userService.updateById(updateUser);
+            if (result) {
+                return success("更新成功");
+            } else {
+                return error("更新失败");
+            }
+        } catch (Exception e) {
+            logger.error("更新用户信息失败", e);
+            return error("更新失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 修改密码
+     */
+    @Operation(summary = "修改密码")
+    @PostMapping("/password")
+    public AjaxResult updatePassword(@RequestBody java.util.Map<String, String> params) {
+        try {
+            LoginUser loginUser = SecurityUtils.getLoginUser();
+            SysUser currentUser = loginUser.getUser();
+
+            String oldPassword = params.get("oldPassword");
+            String newPassword = params.get("newPassword");
+
+            if (StrUtil.isEmpty(oldPassword) || StrUtil.isEmpty(newPassword)) {
+                return error("旧密码和新密码不能为空");
+            }
+
+            if (newPassword.length() < 6 || newPassword.length() > 20) {
+                return error("新密码长度必须在6到20个字符之间");
+            }
+
+            // 验证旧密码
+            if (!passwordEncoder.matches(oldPassword, currentUser.getPassword())) {
+                return error("旧密码不正确");
+            }
+
+            // 更新密码
+            SysUser updateUser = new SysUser();
+            updateUser.setUserId(currentUser.getUserId());
+            updateUser.setPassword(passwordEncoder.encode(newPassword));
+
+            boolean result = userService.updateById(updateUser);
+            if (result) {
+                return success("密码修改成功");
+            } else {
+                return error("密码修改失败");
+            }
+        } catch (Exception e) {
+            logger.error("修改密码失败", e);
+            return error("修改密码失败：" + e.getMessage());
+        }
+    }
+
+    /**
      * 用户登录（账单系统专用）
      */
     @Operation(summary = "账单用户登录")

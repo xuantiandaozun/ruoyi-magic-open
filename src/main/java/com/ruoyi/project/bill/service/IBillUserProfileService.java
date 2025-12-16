@@ -33,4 +33,12 @@ public interface IBillUserProfileService extends IService<BillUserProfile> {
      * @return 是否成功
      */
     boolean saveOrUpdateByUserId(BillUserProfile profile);
+
+    /**
+     * 根据家庭组ID查询成员列表
+     * 
+     * @param familyId 家庭组ID
+     * @return 成员列表
+     */
+    java.util.List<BillUserProfile> selectByFamilyId(Long familyId);
 }

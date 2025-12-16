@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mybatisflex.core.paginate.Page;
@@ -68,6 +69,17 @@ public class BillCategoryController extends BaseController {
     @SaCheckPermission("bill:category:list")
     @GetMapping("/tree/{categoryType}")
     public AjaxResult tree(@PathVariable String categoryType) {
+        List<BillCategory> list = billCategoryService.selectCategoryTree(categoryType);
+        return success(list);
+    }
+
+    /**
+     * 根据类型获取分类列表（使用查询参数）
+     */
+    @Operation(summary = "根据类型获取分类列表")
+    @SaCheckPermission("bill:category:list")
+    @GetMapping("/byType")
+    public AjaxResult byType(@RequestParam String categoryType) {
         List<BillCategory> list = billCategoryService.selectCategoryTree(categoryType);
         return success(list);
     }

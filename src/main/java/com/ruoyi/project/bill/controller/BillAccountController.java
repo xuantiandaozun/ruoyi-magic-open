@@ -107,6 +107,9 @@ public class BillAccountController extends BaseController {
     @Log(title = "账户管理", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody BillAccount billAccount) {
+        // 设置当前登录用户ID
+        billAccount.setUserId(getUserId());
+
         // 默认余额为0
         if (billAccount.getBalance() == null) {
             billAccount.setBalance(BigDecimal.ZERO);
