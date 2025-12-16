@@ -1,8 +1,11 @@
 # MyBatis-Flex 数据库操作指南
 
-基于 `Db`、`QueryWrapper`、`DbChain` 三个核心类的使用说明，适合喜欢直接写 SQL 的开发者。
+基于 `IService`、`Db`、`QueryWrapper`、`DbChain` 的使用说明，适合不同场景的数据库操作。
 
-> **说明**：本文档侧重于直接使用 `Db`、`QueryWrapper`、`DbChain` 进行数据库操作。如需了解 `IService`、`BaseMapper` 的业务层标准模式，请参阅 [MyBatis-Flex 开发规范.md](./MyBatis-Flex%20开发规范.md)。
+> **说明**：
+> - **简单的CRUD操作**：推荐使用 `IService` 接口提供的标准方法，代码简洁且符合规范。
+> - **复杂的自定义SQL**：使用 `Db`、`QueryWrapper`、`DbChain` 进行灵活的数据库操作。
+> - 详细的业务层标准模式，请参阅 [MyBatis-Flex 开发规范.md](./MyBatis-Flex%20开发规范.md)。
 
 ---
 
@@ -55,7 +58,14 @@ QueryWrapper.create()
 
 ## 目录
 
-- [1. 单表基础操作（CRUD）](#1-单表基础操作crud)
+- [0. 顶级 Service 接口（IService）- 简单CRUD推荐](#0-顶级-service-接口iservice--简单crud推荐)
+  - [0.1 IService 接口说明](#01-iservice-接口说明)
+  - [0.2 保存数据](#02-保存数据)
+  - [0.3 删除数据](#03-删除数据)
+  - [0.4 更新数据](#04-更新数据)
+  - [0.5 查询数据](#05-查询数据)
+  - [0.6 分页查询](#06-分页查询)
+- [1. 单表基础操作（CRUD）- Db用于复杂场景](#1-单表基础操作crud--db用于复杂场景)
 - [2. 单表查询操作](#2-单表查询操作)
 - [3. 连表查询](#3-连表查询)
   - [3.1 简单连表 - 推荐直接写SQL](#31-简单连表---推荐直接写sql)
@@ -74,9 +84,217 @@ QueryWrapper.create()
 - [9. 推荐使用场景总结](#9-推荐使用场景总结)
 - [10. 最佳实践建议](#10-最佳实践建议)
 
-## 1. 单表基础操作（CRUD）
+## 0. 顶级 Service 接口（IService）- 简单CRUD推荐
 
-### 1.1 简单插入/更新/删除 - 推荐使用 `Db` 类
+### 0.1 IService 接口说明
+
+MyBatis-Flex 提供了一个名为 `IService` 的接口，及其默认实现类 `ServiceImpl`，用于简化在「Service」层重复定义「Mapper」层的方法。
+
+`IService` 接口提供了简单且常用的 "增删改查" 方法，**推荐用于简单的CRUD操作**。更多细节以及复杂的业务，可以使用 Mapper 或 Db 进行处理。
+
+#### 示例代码
+
+接口定义：
+
+```java
+public interface IAccountService extends IService<Account> {
+    // 你的自定义方法
+    List<Account> customMethod();
+}
+```
+
+实现类：
+
+```java
+@Service
+public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account>
+        implements IAccountService {
+
+    @Override
+    public List<Account> customMethod() {
+       // 返回 id >= 100 的数据
+       // 使用静态 ACCOUNT 类引用字段（推荐）
+       return list(ACCOUNT.ID.ge(100));
+    }
+}
+```
+
+### 0.2 保存数据
+
+IService 提供了 `save`、`saveOrUpdate`、`saveBatch` 方法，用于保存数据：
+
+```java
+// 1. 保存一条数据，忽略 null 值的字段
+Account account = new Account();
+account.setUserName("张三");
+account.setAge(25);
+boolean success = accountService.save(account);
+
+// 2. 保存或更新数据（如果数据存在则更新）
+Account account = new Account();
+account.setId(100L);
+account.setUserName("李四");
+boolean success = accountService.saveOrUpdate(account);
+
+// 3. 批量保存多条数据
+List<Account> accounts = Arrays.asList(account1, account2, account3);
+boolean success = accountService.saveBatch(accounts);
+
+// 4. 批量保存，按指定数量切分
+boolean success = accountService.saveBatch(accounts, 500);
+```
+
+### 0.3 删除数据
+
+IService 提供了 `remove`、`removeById`、`removeByIds`、`removeByMap` 方法，用于删除数据：
+
+```java
+// 1. 根据主键删除数据
+boolean success = accountService.removeById(100L);
+
+// 2. 根据实体主键删除数据（适用于复合主键）
+Account account = new Account();
+account.setId(100L);
+boolean success = accountService.removeById(account);
+
+// 3. 根据主键集合批量删除
+List<Long> ids = Arrays.asList(100L, 101L, 102L);
+boolean success = accountService.removeByIds(ids);
+
+// 4. 根据 Map 构建的条件删除数据
+Map<String, Object> condition = new HashMap<>();
+condition.put("status", "0");
+boolean success = accountService.removeByMap(condition);
+
+// 5. 根据 QueryWrapper 构建的条件删除数据
+QueryWrapper query = QueryWrapper.create()
+    .where(ACCOUNT.STATUS.eq("0"))
+    .and(ACCOUNT.AGE.lt(18));
+boolean success = accountService.remove(query);
+```
+
+### 0.4 更新数据
+
+IService 提供了 `update`、`updateById`、`updateBatch` 方法，用于更新数据：
+
+```java
+// 1. 根据主键更新数据（null 字段不会更新）
+Account account = new Account();
+account.setId(100L);
+account.setUserName("王五");
+account.setAge(30);
+boolean success = accountService.updateById(account);
+
+// 2. 根据主键更新数据，设置是否忽略 null 值
+boolean success = accountService.updateById(account, true); // true 表示忽略 null
+
+// 3. 根据 QueryWrapper 构建的条件更新数据
+Account updateData = new Account();
+updateData.setStatus("1");
+QueryWrapper query = QueryWrapper.create()
+    .where(ACCOUNT.AGE.ge(18));
+boolean success = accountService.update(updateData, query);
+
+// 4. 批量更新多条数据（要求主键不能为空）
+List<Account> accounts = Arrays.asList(account1, account2, account3);
+boolean success = accountService.updateBatch(accounts);
+
+// 5. 批量更新，按指定数量切分
+boolean success = accountService.updateBatch(accounts, 500);
+```
+
+### 0.5 查询数据
+
+#### 0.5.1 查询一条数据
+
+IService 提供了 `getById`、`getOne`、`getOneOpt` 方法，用于查询一条数据：
+
+```java
+// 1. 根据主键查询数据
+Account account = accountService.getById(100L);
+
+// 2. 根据主键查询数据，并封装为 Optional 返回
+Optional<Account> accountOpt = accountService.getByIdOpt(100L);
+
+// 3. 根据 QueryWrapper 构建的条件查询一条数据
+QueryWrapper query = QueryWrapper.create()
+    .where(ACCOUNT.USER_NAME.eq("张三"));
+Account account = accountService.getOne(query);
+
+// 4. 根据 QueryWrapper 查询一条数据，并封装为 Optional 返回
+Optional<Account> accountOpt = accountService.getOneOpt(query);
+```
+
+#### 0.5.2 查询多条数据
+
+IService 提供了 `list`、`listByIds`、`listByMap` 方法，用于查询多条数据：
+
+```java
+// 1. 查询所有数据
+List<Account> allAccounts = accountService.list();
+
+// 2. 根据 QueryWrapper 构建的条件查询多条数据
+QueryWrapper query = QueryWrapper.create()
+    .where(ACCOUNT.STATUS.eq("1"))
+    .and(ACCOUNT.AGE.ge(18));
+List<Account> accounts = accountService.list(query);
+
+// 3. 根据主键集合查询多条数据
+List<Long> ids = Arrays.asList(100L, 101L, 102L);
+List<Account> accounts = accountService.listByIds(ids);
+
+// 4. 根据 Map 构建的条件查询多条数据
+Map<String, Object> condition = new HashMap<>();
+condition.put("status", "1");
+List<Account> accounts = accountService.listByMap(condition);
+```
+
+#### 0.5.3 查询数据数量
+
+IService 提供了 `count`、`exists` 方法，用于查询数据数量：
+
+```java
+// 1. 查询所有数据数量
+long count = accountService.count();
+
+// 2. 根据 QueryWrapper 构建的条件查询数据数量
+QueryWrapper query = QueryWrapper.create()
+    .where(ACCOUNT.STATUS.eq("1"));
+long count = accountService.count(query);
+
+// 3. 根据 QueryWrapper 构建的条件判断数据是否存在
+boolean exists = accountService.exists(query);
+```
+
+### 0.6 分页查询
+
+IService 提供了 `page` 方法，用于分页查询数据：
+
+```java
+// 1. 分页查询所有数据
+Page<Account> page = new Page<>(1, 20); // 第1页，每页20条
+Page<Account> result = accountService.page(page);
+
+// 2. 根据 QueryWrapper 构建的条件分页查询数据
+QueryWrapper query = QueryWrapper.create()
+    .where(ACCOUNT.STATUS.eq("1"))
+    .and(ACCOUNT.AGE.ge(18))
+    .orderBy(ACCOUNT.CREATE_TIME.desc());
+Page<Account> result = accountService.page(page, query);
+
+// 3. 获取分页结果
+List<Account> records = result.getRecords(); // 当前页数据
+long totalRow = result.getTotalRow(); // 总记录数
+long totalPage = result.getTotalPage(); // 总页数
+```
+
+---
+
+## 1. 单表基础操作（CRUD）- Db用于复杂场景
+
+> **说明**：本章节介绍的 `Db` 类适用于**复杂的自定义SQL场景**。对于简单的CRUD操作，推荐使用 [第0章 IService接口](#0-顶级-service-接口iservice--简单crud推荐)。
+
+### 1.1 简单插入/更新/删除 - 适用于复杂场景
 
 #### 插入操作
 ```java
@@ -1080,19 +1298,109 @@ public class BizWarehouseServiceImpl extends ServiceImpl<BizWarehouseMapper, Biz
 
 | 操作类型 | 推荐方案 | 适用场景 | 优势 |
 |---------|----------|----------|------|
-| **简单CRUD** | `Db` 类静态方法 | 单表增删改查 | 代码简洁，性能好 |
-| **链式操作** | `DbChain` | 需要链式调用的场景 | API统一，可读性好 |
-| **动态查询** | `QueryWrapper` | 条件动态变化 | 灵活构建查询条件 |
-| **复杂SQL** | 直接写SQL + `Db.selectListBySql` | 连表、子查询、窗口函数 | SQL可控，性能最优 |
-| **简单分页** | `Db.paginate` 或 `DbChain.page` | 单表分页 | 自动处理分页逻辑 |
-| **复杂分页** | 手动分页 | 连表分页、复杂统计 | 灵活控制查询逻辑 |
+| **简单CRUD** | `IService` 接口方法 | 单表增删改查、简单条件查询 | 规范统一，代码简洁，易于维护 |
+| **复杂SQL** | `Db` 类静态方法 | 复杂的自定义SQL、特殊业务逻辑 | 灵活性高，直接操作SQL |
+| **链式操作** | `DbChain` | 需要链式调用的特殊场景 | API统一，可读性好 |
+| **动态查询** | `QueryWrapper` | 条件动态变化的复杂查询 | 灵活构建查询条件 |
+| **复杂连表** | 直接写SQL + `Db.selectListBySql` | 连表、子查询、窗口函数 | SQL可控，性能最优 |
+| **简单分页** | `IService.page` | 单表分页、简单条件分页 | 自动处理分页逻辑，代码简洁 |
+| **复杂分页** | 手动分页 | 复杂连表分页、复杂统计 | 灵活控制查询逻辑 |
 | **部分字段更新** | `UpdateEntity` | 只更新某些字段，包括设置为null | 精确控制，避免数据意外修改 |
-| **批量操作** | `Db` 批量方法 | 大量数据处理 | 性能优化 |
-| **事务处理** | `Db.tx` / `Db.txWithResult` | 需要事务保证 | 简化事务管理 |
+| **批量操作** | `IService.saveBatch/updateBatch` 或 `Db` 批量方法 | 大量数据处理 | 性能优化 |
+| **事务处理** | `@Transactional` 注解 或 `Db.tx` | 需要事务保证 | 简化事务管理 |
 
 ## 10. 最佳实践建议
 
-### 9.1 性能优化
+### 10.1 优先使用 IService - 简单CRUD
+
+```java
+// ✅ 推荐：简单CRUD操作使用 IService
+@Service
+public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
+    
+    /**
+     * 根据ID查询用户
+     */
+    public User getUserById(Long userId) {
+        return getById(userId);
+    }
+    
+    /**
+     * 根据条件查询用户列表
+     */
+    public List<User> getActiveUsers() {
+        QueryWrapper query = QueryWrapper.create()
+            .where(USER.STATUS.eq("1"))
+            .and(USER.DEL_FLAG.eq("0"));
+        return list(query);
+    }
+    
+    /**
+     * 更新用户状态
+     */
+    @Transactional
+    public boolean updateUserStatus(Long userId, String status) {
+        User user = new User();
+        user.setId(userId);
+        user.setStatus(status);
+        return updateById(user);
+    }
+}
+
+// ❌ 避免：简单操作使用 Db
+// 这会增加代码复杂度，不利于维护
+public User getUserByIdWrong(Long userId) {
+    Row row = Db.selectOneById("user", "id", userId);
+    // 还需要手动转换为实体对象...
+}
+```
+
+### 10.2 Db 用于复杂自定义SQL
+
+```java
+// ✅ 推荐：复杂自定义SQL使用 Db
+@Service
+public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
+    
+    /**
+     * 复杂的统计查询
+     */
+    public List<Row> getUserStatistics(String startDate, String endDate) {
+        String sql = """
+            SELECT 
+                d.dept_name,
+                COUNT(u.id) as user_count,
+                AVG(u.salary) as avg_salary,
+                SUM(CASE WHEN u.status = '1' THEN 1 ELSE 0 END) as active_count
+            FROM user u
+            LEFT JOIN department d ON u.dept_id = d.id
+            WHERE u.create_time BETWEEN ? AND ?
+            GROUP BY d.id, d.dept_name
+            HAVING COUNT(u.id) > 10
+            ORDER BY avg_salary DESC
+            """;
+        return Db.selectListBySql(sql, startDate, endDate);
+    }
+    
+    /**
+     * 使用窗口函数的复杂查询
+     */
+    public List<Row> getRankedUsers() {
+        String sql = """
+            SELECT 
+                name,
+                salary,
+                dept_id,
+                ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC) as dept_rank
+            FROM user
+            WHERE status = '1'
+            """;
+        return Db.selectListBySql(sql);
+    }
+}
+```
+
+### 10.3 性能优化
 
 ```java
 // ✅ 推荐：使用批量操作
@@ -1105,7 +1413,7 @@ for (Row user : users) {
 }
 ```
 
-### 9.2 SQL安全
+### 10.4 SQL安全
 
 ```java
 // ✅ 推荐：使用参数化查询
@@ -1119,7 +1427,7 @@ List<Row> users = Db.selectListBySql(
 String sql = "SELECT * FROM user WHERE name LIKE '%" + keyword + "%'";  // SQL注入风险
 ```
 
-### 9.3 事务管理
+### 10.5 事务管理
 
 ```java
 // ✅ 推荐：保持事务范围小
@@ -1134,7 +1442,7 @@ boolean success = Db.tx(() -> {
 sendNotification(order);  // 发送通知不需要事务
 ```
 
-### 9.4 分页优化
+### 10.6 分页优化
 
 ```java
 // ✅ 推荐：已知总数时避免重复查询
@@ -1149,7 +1457,7 @@ List<Row> data = Db.selectListBySql(dataSql + " LIMIT ? OFFSET ?",
     ArrayUtil.concat(params, new Object[]{pageSize, offset}));
 ```
 
-### 9.5 错误处理
+### 10.7 错误处理
 
 ```java
 // ✅ 推荐：适当的异常处理
@@ -1170,7 +1478,7 @@ try {
 }
 ```
 
-### 9.6 代码组织
+### 10.8 代码组织
 
 ```java
 // ✅ 推荐：将复杂SQL抽取为常量或方法
@@ -1191,7 +1499,7 @@ public class UserDao {
 }
 ```
 
-### 9.7 部分字段更新最佳实践
+### 10.9 部分字段更新最佳实践
 
 ```java
 // ✅ 推荐：使用 UpdateEntity 进行部分字段更新

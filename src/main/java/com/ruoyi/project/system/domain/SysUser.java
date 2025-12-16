@@ -34,8 +34,7 @@ import lombok.NoArgsConstructor;
 @Table("sys_user")
 @AllArgsConstructor
 @NoArgsConstructor
-public class SysUser extends BaseEntity
-{
+public class SysUser extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /** 用户ID */
@@ -59,6 +58,10 @@ public class SysUser extends BaseEntity
     @Xss(message = "用户昵称不能包含脚本字符")
     @Size(min = 0, max = 30, message = "用户昵称长度不能超过30个字符")
     private String nickName;
+
+    /** 用户类型(00系统用户 01注册用户) */
+    @Excel(name = "用户类型", readConverterExp = "00=系统用户,01=注册用户")
+    private String userType;
 
     /** 用户邮箱 */
     @Excel(name = "用户邮箱")
@@ -105,8 +108,8 @@ public class SysUser extends BaseEntity
 
     /** 部门对象 */
     @Excels({
-        @Excel(name = "部门名称", targetAttr = "deptName", type = Type.EXPORT),
-        @Excel(name = "部门负责人", targetAttr = "leader", type = Type.EXPORT)
+            @Excel(name = "部门名称", targetAttr = "deptName", type = Type.EXPORT),
+            @Excel(name = "部门负责人", targetAttr = "leader", type = Type.EXPORT)
     })
     @RelationManyToOne(selfField = "deptId", targetField = "deptId")
     private SysDept dept;
@@ -126,14 +129,12 @@ public class SysUser extends BaseEntity
     /** 角色ID */
     @Column(ignore = true)
     private Long roleId;
-    
-    public boolean isAdmin()
-    {
+
+    public boolean isAdmin() {
         return isAdmin(this.userId);
     }
 
-    public static boolean isAdmin(Long userId)
-    {
+    public static boolean isAdmin(Long userId) {
         return userId != null && 1L == userId;
     }
 }

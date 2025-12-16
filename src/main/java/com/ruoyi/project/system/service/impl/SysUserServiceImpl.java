@@ -43,8 +43,7 @@ import jakarta.validation.Validator;
  * @author ruoyi
  */
 @Service
-public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements ISysUserService
-{
+public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements ISysUserService {
     private static final Logger log = LoggerFactory.getLogger(SysUserServiceImpl.class);
 
     @Autowired
@@ -74,17 +73,18 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      */
     @Override
     @DataScope(deptAlias = "d", userAlias = "u")
-    public List<SysUser> selectUserList(SysUser user, Page<SysUser> page)
-    {
+    public List<SysUser> selectUserList(SysUser user, Page<SysUser> page) {
         QueryWrapper queryWrapper = QueryWrapper.create()
-            .from("sys_user") 
-            .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
-            .and(new QueryColumn("status").eq(user.getStatus(), StrUtil.isNotEmpty(user.getStatus())))
-            .and(new QueryColumn("phonenumber").like(user.getPhonenumber(), StrUtil.isNotEmpty(user.getPhonenumber())))
-            .and(new QueryColumn("create_time").between(user.getParams().get("beginTime"), user.getParams().get("endTime"), 
+                .from("sys_user")
+                .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
+                .and(new QueryColumn("status").eq(user.getStatus(), StrUtil.isNotEmpty(user.getStatus())))
+                .and(new QueryColumn("phonenumber").like(user.getPhonenumber(),
+                        StrUtil.isNotEmpty(user.getPhonenumber())))
+                .and(new QueryColumn("create_time").between(user.getParams().get("beginTime"),
+                        user.getParams().get("endTime"),
                         user.getParams().get("beginTime") != null && user.getParams().get("endTime") != null))
-            .and(new QueryColumn("dept_id").eq(user.getDeptId(), ObjectUtil.isNotNull(user.getDeptId())))
-            .orderBy(new QueryColumn("create_time").desc());
+                .and(new QueryColumn("dept_id").eq(user.getDeptId(), ObjectUtil.isNotNull(user.getDeptId())))
+                .orderBy(new QueryColumn("create_time").desc());
         Page<SysUser> result = page(new Page<>(page.getPageNumber(), page.getPageSize()), queryWrapper);
         return result.getRecords();
     }
@@ -98,14 +98,15 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      */
     @Override
     @DataScope(deptAlias = "d", userAlias = "u")
-    public com.mybatisflex.core.paginate.Page<SysUser> selectAllocatedList(com.mybatisflex.core.paginate.Page<SysUser> page, SysUser user)
-    {
+    public com.mybatisflex.core.paginate.Page<SysUser> selectAllocatedList(
+            com.mybatisflex.core.paginate.Page<SysUser> page, SysUser user) {
         QueryWrapper queryWrapper = QueryWrapper.create()
-            .from("sys_user")
-            .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
-            .and(new QueryColumn("phonenumber").like(user.getPhonenumber(), StrUtil.isNotEmpty(user.getPhonenumber())))
-            .and(new QueryColumn("del_flag").eq("0"))
-            .and("user_id IN (SELECT user_id FROM sys_user_role WHERE role_id = " + user.getRoleId() + ")");
+                .from("sys_user")
+                .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
+                .and(new QueryColumn("phonenumber").like(user.getPhonenumber(),
+                        StrUtil.isNotEmpty(user.getPhonenumber())))
+                .and(new QueryColumn("del_flag").eq("0"))
+                .and("user_id IN (SELECT user_id FROM sys_user_role WHERE role_id = " + user.getRoleId() + ")");
         return page(page, queryWrapper);
     }
 
@@ -118,14 +119,15 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      */
     @Override
     @DataScope(deptAlias = "d", userAlias = "u")
-    public com.mybatisflex.core.paginate.Page<SysUser> selectUnallocatedList(com.mybatisflex.core.paginate.Page<SysUser> page, SysUser user)
-    {
+    public com.mybatisflex.core.paginate.Page<SysUser> selectUnallocatedList(
+            com.mybatisflex.core.paginate.Page<SysUser> page, SysUser user) {
         QueryWrapper queryWrapper = QueryWrapper.create()
-            .from("sys_user")
-            .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
-            .and(new QueryColumn("phonenumber").like(user.getPhonenumber(), StrUtil.isNotEmpty(user.getPhonenumber())))
-            .and(new QueryColumn("del_flag").eq("0"))
-            .and("user_id NOT IN (SELECT user_id FROM sys_user_role WHERE role_id = " + user.getRoleId() + ")");
+                .from("sys_user")
+                .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
+                .and(new QueryColumn("phonenumber").like(user.getPhonenumber(),
+                        StrUtil.isNotEmpty(user.getPhonenumber())))
+                .and(new QueryColumn("del_flag").eq("0"))
+                .and("user_id NOT IN (SELECT user_id FROM sys_user_role WHERE role_id = " + user.getRoleId() + ")");
         return page(page, queryWrapper);
     }
 
@@ -138,14 +140,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      */
     @Override
     @DataScope(deptAlias = "d", userAlias = "u")
-    public List<SysUser> selectAllocatedList(SysUser user)
-    {
+    public List<SysUser> selectAllocatedList(SysUser user) {
         QueryWrapper queryWrapper = QueryWrapper.create()
-            .from("sys_user")
-            .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
-            .and(new QueryColumn("phonenumber").like(user.getPhonenumber(), StrUtil.isNotEmpty(user.getPhonenumber())))
-            .and(new QueryColumn("del_flag").eq("0"))
-            .and("user_id IN (SELECT user_id FROM sys_user_role WHERE role_id = " + user.getRoleId() + ")");
+                .from("sys_user")
+                .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
+                .and(new QueryColumn("phonenumber").like(user.getPhonenumber(),
+                        StrUtil.isNotEmpty(user.getPhonenumber())))
+                .and(new QueryColumn("del_flag").eq("0"))
+                .and("user_id IN (SELECT user_id FROM sys_user_role WHERE role_id = " + user.getRoleId() + ")");
         return list(queryWrapper);
     }
 
@@ -157,14 +159,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      */
     @Override
     @DataScope(deptAlias = "d", userAlias = "u")
-    public List<SysUser> selectUnallocatedList(SysUser user)
-    {
+    public List<SysUser> selectUnallocatedList(SysUser user) {
         QueryWrapper queryWrapper = QueryWrapper.create()
-            .from("sys_user")
-            .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
-            .and(new QueryColumn("phonenumber").like(user.getPhonenumber(), StrUtil.isNotEmpty(user.getPhonenumber())))
-            .and(new QueryColumn("del_flag").eq("0"))
-            .and("user_id NOT IN (SELECT user_id FROM sys_user_role WHERE role_id = " + user.getRoleId() + ")");
+                .from("sys_user")
+                .where(new QueryColumn("user_name").like(user.getUserName(), StrUtil.isNotEmpty(user.getUserName())))
+                .and(new QueryColumn("phonenumber").like(user.getPhonenumber(),
+                        StrUtil.isNotEmpty(user.getPhonenumber())))
+                .and(new QueryColumn("del_flag").eq("0"))
+                .and("user_id NOT IN (SELECT user_id FROM sys_user_role WHERE role_id = " + user.getRoleId() + ")");
         return list(queryWrapper);
     }
 
@@ -175,9 +177,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 用户对象信息
      */
     @Override
-    public SysUser selectUserByUserName(String userName)
-    {
-        return getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("user_name").eq(userName)).and(new QueryColumn("del_flag").eq("0")));
+    public SysUser selectUserByUserName(String userName) {
+        return getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("user_name").eq(userName))
+                .and(new QueryColumn("del_flag").eq("0")));
     }
 
     /**
@@ -187,17 +189,16 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果
      */
     @Override
-    public String selectUserRoleGroup(String userName)
-    {
-        SysUser user = getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("user_name").eq(userName)).and(new QueryColumn("del_flag").eq("0")));
+    public String selectUserRoleGroup(String userName) {
+        SysUser user = getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("user_name").eq(userName))
+                .and(new QueryColumn("del_flag").eq("0")));
         if (ObjectUtil.isNull(user)) {
             return "";
         }
         List<SysRole> list = roleMapper.selectListByQuery(QueryWrapper.create()
-            .from("sys_role") 
-            .where("role_id IN (SELECT role_id FROM sys_user_role WHERE user_id = " + user.getUserId() + ")"));
-        if (CollectionUtils.isEmpty(list))
-        {
+                .from("sys_role")
+                .where("role_id IN (SELECT role_id FROM sys_user_role WHERE user_id = " + user.getUserId() + ")"));
+        if (CollectionUtils.isEmpty(list)) {
             return "";
         }
         return list.stream().map(SysRole::getRoleName).collect(Collectors.joining(","));
@@ -210,23 +211,23 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果
      */
     @Override
-    public String selectUserPostGroup(String userName)
-    {
-        SysUser user = getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("user_name").eq(userName)).and(new QueryColumn("del_flag").eq("0")));
+    public String selectUserPostGroup(String userName) {
+        SysUser user = getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("user_name").eq(userName))
+                .and(new QueryColumn("del_flag").eq("0")));
         if (ObjectUtil.isNull(user)) {
             return "";
         }
         List<Long> postIds = postMapper.selectListByQuery(QueryWrapper.create()
-            .from("sys_post") 
-            .where("post_id IN (SELECT post_id FROM sys_user_post WHERE user_id = " + user.getUserId() + ")"))
-            .stream()
-            .map(SysPost::getPostId)
-            .collect(Collectors.toList());
-        if (CollectionUtils.isEmpty(postIds))
-        {
+                .from("sys_post")
+                .where("post_id IN (SELECT post_id FROM sys_user_post WHERE user_id = " + user.getUserId() + ")"))
+                .stream()
+                .map(SysPost::getPostId)
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(postIds)) {
             return "";
         }
-        List<SysPost> list = postMapper.selectListByQuery(QueryWrapper.create().from("sys_post").where(new QueryColumn("post_id").in(postIds)));
+        List<SysPost> list = postMapper.selectListByQuery(
+                QueryWrapper.create().from("sys_post").where(new QueryColumn("post_id").in(postIds)));
         return list.stream().map(SysPost::getPostName).collect(Collectors.joining(","));
     }
 
@@ -237,17 +238,15 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果 true 表示唯一，false 表示不唯一
      */
     @Override
-    public boolean checkUserNameUnique(SysUser user)
-    {
+    public boolean checkUserNameUnique(SysUser user) {
         Long userId = ObjectUtil.isNull(user.getUserId()) ? -1L : user.getUserId();
         QueryWrapper queryWrapper = QueryWrapper.create();
         queryWrapper.from("sys_user").where(new QueryColumn("user_name")
-        .eq(user.getUserName()))
-        .and(new QueryColumn("del_flag")
-        .eq("0"));
+                .eq(user.getUserName()))
+                .and(new QueryColumn("del_flag")
+                        .eq("0"));
         SysUser info = getOne(queryWrapper);
-        if (ObjectUtil.isNotNull(info) && info.getUserId().longValue() != userId.longValue())
-        {
+        if (ObjectUtil.isNotNull(info) && info.getUserId().longValue() != userId.longValue()) {
             return false;
         }
         return true;
@@ -260,12 +259,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果 true 表示唯一，false 表示不唯一
      */
     @Override
-    public boolean checkPhoneUnique(SysUser user)
-    {
+    public boolean checkPhoneUnique(SysUser user) {
         Long userId = ObjectUtil.isNull(user.getUserId()) ? -1L : user.getUserId();
-        SysUser info = getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("phonenumber").eq(user.getPhonenumber())).and(new QueryColumn("del_flag").eq("0")).limit(1));
-        if (ObjectUtil.isNotNull(info) && info.getUserId().longValue() != userId.longValue())
-        {
+        SysUser info = getOne(
+                QueryWrapper.create().from("sys_user").where(new QueryColumn("phonenumber").eq(user.getPhonenumber()))
+                        .and(new QueryColumn("del_flag").eq("0")).limit(1));
+        if (ObjectUtil.isNotNull(info) && info.getUserId().longValue() != userId.longValue()) {
             return false;
         }
         return true;
@@ -278,12 +277,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果 true 表示唯一，false 表示不唯一
      */
     @Override
-    public boolean checkEmailUnique(SysUser user)
-    {
+    public boolean checkEmailUnique(SysUser user) {
         Long userId = ObjectUtil.isNull(user.getUserId()) ? -1L : user.getUserId();
-        SysUser info = getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("email").eq(user.getEmail())).and(new QueryColumn("del_flag").eq("0")).limit(1));
-        if (ObjectUtil.isNotNull(info) && info.getUserId().longValue() != userId.longValue())
-        {
+        SysUser info = getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("email").eq(user.getEmail()))
+                .and(new QueryColumn("del_flag").eq("0")).limit(1));
+        if (ObjectUtil.isNotNull(info) && info.getUserId().longValue() != userId.longValue()) {
             return false;
         }
         return true;
@@ -295,10 +293,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @param user 用户信息
      */
     @Override
-    public void checkUserAllowed(SysUser user)
-    {
-        if (ObjectUtil.isNotNull(user.getUserId()) && user.isAdmin())
-        {
+    public void checkUserAllowed(SysUser user) {
+        if (ObjectUtil.isNotNull(user.getUserId()) && user.isAdmin()) {
             throw new ServiceException("不允许操作超级管理员用户");
         }
     }
@@ -309,13 +305,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @param userId 用户id
      */
     @Override
-    public void checkUserDataScope(Long userId)
-    {
-        if (!SysUser.isAdmin(SecurityUtils.getUserId()))
-        {
-             List<SysUser> users = list(QueryWrapper.create().from("sys_user").where(new QueryColumn("user_id").eq(userId)));
-            if (CollUtil.isEmpty(users))
-            {
+    public void checkUserDataScope(Long userId) {
+        if (!SysUser.isAdmin(SecurityUtils.getUserId())) {
+            List<SysUser> users = list(
+                    QueryWrapper.create().from("sys_user").where(new QueryColumn("user_id").eq(userId)));
+            if (CollUtil.isEmpty(users)) {
                 throw new ServiceException("没有权限访问用户数据！");
             }
         }
@@ -328,22 +322,27 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果
      */
     @Override
-    public boolean registerUser(SysUser user)
-    {
-        return save(user);
+    @Transactional
+    public boolean registerUser(SysUser user) {
+        boolean result = save(user);
+        if (result && ObjectUtil.isNotNull(user.getRoleIds())) {
+            // 保存用户成功后，绑定角色
+            insertUserRole(user.getUserId(), user.getRoleIds());
+        }
+        return result;
     }
 
     /**
      * 用户授权角色
      * 
-     * @param userId 用户ID
+     * @param userId  用户ID
      * @param roleIds 角色组
      */
     @Override
     @Transactional
-    public void insertUserAuth(Long userId, Long[] roleIds)
-    {
-        userRoleMapper.deleteByQuery(QueryWrapper.create().from("sys_user_role").where(new QueryColumn("user_id").eq(userId)));
+    public void insertUserAuth(Long userId, Long[] roleIds) {
+        userRoleMapper.deleteByQuery(
+                QueryWrapper.create().from("sys_user_role").where(new QueryColumn("user_id").eq(userId)));
         insertUserRole(userId, roleIds);
     }
 
@@ -354,12 +353,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果
      */
     @Override
-    public boolean updateUserStatus(SysUser user)
-    {
+    public boolean updateUserStatus(SysUser user) {
         return DbChain.table("sys_user")
-            .where("user_id = ?", user.getUserId())
-            .set("status", user.getStatus())
-            .update();
+                .where("user_id = ?", user.getUserId())
+                .set("status", user.getStatus())
+                .update();
     }
 
     /**
@@ -369,31 +367,29 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果
      */
     @Override
-    public boolean updateUserProfile(SysUser user)
-    {
+    public boolean updateUserProfile(SysUser user) {
         return DbChain.table("sys_user")
-            .where("user_id = ?", user.getUserId())
-            .set("nick_name", user.getNickName())
-            .set("email", user.getEmail())
-            .set("phonenumber", user.getPhonenumber())
-            .set("sex", user.getSex())
-            .update();
+                .where("user_id = ?", user.getUserId())
+                .set("nick_name", user.getNickName())
+                .set("email", user.getEmail())
+                .set("phonenumber", user.getPhonenumber())
+                .set("sex", user.getSex())
+                .update();
     }
 
     /**
      * 修改用户头像
      * 
      * @param userName 用户名
-     * @param avatar 头像地址
+     * @param avatar   头像地址
      * @return 结果
      */
     @Override
-    public boolean updateUserAvatar(String userName, String avatar)
-    {
+    public boolean updateUserAvatar(String userName, String avatar) {
         return DbChain.table("sys_user")
-            .where("user_name = ?", userName)
-            .set("avatar", avatar)
-            .update();
+                .where("user_name = ?", userName)
+                .set("avatar", avatar)
+                .update();
     }
 
     /**
@@ -403,12 +399,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果
      */
     @Override
-    public boolean resetPwd(SysUser user)
-    {
+    public boolean resetPwd(SysUser user) {
         return DbChain.table("sys_user")
-            .where("user_id = ?", user.getUserId())
-            .set("password", user.getPassword())
-            .update();
+                .where("user_id = ?", user.getUserId())
+                .set("password", user.getPassword())
+                .update();
     }
 
     /**
@@ -419,37 +414,32 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * @return 结果
      */
     @Override
-    public boolean resetUserPwd(String userName, String password)
-    {
+    public boolean resetUserPwd(String userName, String password) {
         return DbChain.table("sys_user")
-            .where("user_name = ?", userName)
-            .set("password", password)
-            .update();
+                .where("user_name = ?", userName)
+                .set("password", password)
+                .update();
     }
 
     /**
      * 新增用户角色信息
      * 
-     * @param userId 用户ID
+     * @param userId  用户ID
      * @param roleIds 角色组
      */
-    public void insertUserRole(Long userId, Long[] roleIds)
-    {
-        if (ObjectUtil.isNotNull(roleIds))
-        {
+    public void insertUserRole(Long userId, Long[] roleIds) {
+        if (ObjectUtil.isNotNull(roleIds)) {
             // 新增用户与角色管理
             List<SysUserRole> list = new ArrayList<SysUserRole>();
-            for (Long roleId : roleIds)
-            {
+            for (Long roleId : roleIds) {
                 SysUserRole ur = new SysUserRole();
                 ur.setUserId(userId);
                 ur.setRoleId(roleId);
                 list.add(ur);
             }
-            if (list.size() > 0)
-            {
-                 for (SysUserRole ur : list) {
-                    userRoleMapper.insert(ur); 
+            if (list.size() > 0) {
+                for (SysUserRole ur : list) {
+                    userRoleMapper.insert(ur);
                 }
             }
         }
@@ -458,16 +448,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     /**
      * 导入用户数据
      * 
-     * @param userList 用户数据列表
+     * @param userList        用户数据列表
      * @param isUpdateSupport 是否更新支持，如果已存在，则进行更新数据
-     * @param operName 操作用户
+     * @param operName        操作用户
      * @return 结果
      */
     @Override
-    public String importUser(List<SysUser> userList, Boolean isUpdateSupport, String operName)
-    {
-        if (ObjectUtil.isNull(userList) || userList.size() == 0)
-        {
+    public String importUser(List<SysUser> userList, Boolean isUpdateSupport, String operName) {
+        if (ObjectUtil.isNull(userList) || userList.size() == 0) {
             throw new ServiceException("导入用户数据不能为空！");
         }
         int successNum = 0;
@@ -475,52 +463,42 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         StringBuilder successMsg = new StringBuilder();
         StringBuilder failureMsg = new StringBuilder();
         String password = configService.selectConfigByKey("sys.user.initPassword");
-        for (SysUser user : userList)
-        {
-            try
-            {
+        for (SysUser user : userList) {
+            try {
                 // 验证是否存在这个用户
-                SysUser u = getOne(QueryWrapper.create().from("sys_user").where(new QueryColumn("user_name").eq(user.getUserName())).and(new QueryColumn("del_flag").eq("0")));
-                if (ObjectUtil.isNull(u))
-                {
+                SysUser u = getOne(QueryWrapper.create().from("sys_user")
+                        .where(new QueryColumn("user_name").eq(user.getUserName()))
+                        .and(new QueryColumn("del_flag").eq("0")));
+                if (ObjectUtil.isNull(u)) {
                     BeanValidators.validateWithException(validator, user);
                     user.setPassword(passwordEncoder.encode(password));
                     user.setCreateBy(operName);
                     save(user);
                     successNum++;
                     successMsg.append("<br/>" + successNum + "、账号 " + user.getUserName() + " 导入成功");
-                }
-                else if (isUpdateSupport)
-                {
+                } else if (isUpdateSupport) {
                     BeanValidators.validateWithException(validator, user);
                     checkUserAllowed(user);
-                    checkUserDataScope(user.getUserId()); 
+                    checkUserDataScope(user.getUserId());
                     user.setUpdateBy(operName);
                     updateById(user);
                     successNum++;
                     successMsg.append("<br/>" + successNum + "、账号 " + user.getUserName() + " 更新成功");
-                }
-                else
-                {
+                } else {
                     failureNum++;
                     failureMsg.append("<br/>" + failureNum + "、账号 " + user.getUserName() + " 已存在");
                 }
-            }
-            catch (Exception e)
-            {
+            } catch (Exception e) {
                 failureNum++;
                 String msg = "<br/>" + failureNum + "、账号 " + user.getUserName() + " 导入失败：";
                 failureMsg.append(msg + e.getMessage());
                 log.error(msg, e);
             }
         }
-        if (failureNum > 0)
-        {
+        if (failureNum > 0) {
             failureMsg.insert(0, "很抱歉，导入失败！共 " + failureNum + " 条数据格式不正确，错误如下：");
             throw new ServiceException(failureMsg.toString());
-        }
-        else
-        {
+        } else {
             successMsg.insert(0, "恭喜您，数据已全部导入成功！共 " + successNum + " 条，数据如下：");
         }
         return successMsg.toString();
