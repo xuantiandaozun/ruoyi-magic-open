@@ -27,41 +27,34 @@ import cn.hutool.core.date.DateUtil;
  * 
  * @author ruoyi
  */
-public class BaseController
-{
+public class BaseController {
     protected final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     /**
      * 将前台传递过来的日期格式的字符串，自动转化为Date类型
      */
     @InitBinder
-    public void initBinder(WebDataBinder binder)
-    {
+    public void initBinder(WebDataBinder binder) {
         // Date 类型转换
-        binder.registerCustomEditor(Date.class, new PropertyEditorSupport()
-        {
+        binder.registerCustomEditor(Date.class, new PropertyEditorSupport() {
             @Override
-            public void setAsText(String text)
-            {
+            public void setAsText(String text) {
                 setValue(DateUtil.parseDate(text));
             }
         });
     }
 
-
     /**
      * 清理分页的线程变量
      */
-    protected void clearPage()
-    {
+    protected void clearPage() {
         PageUtils.clearPage();
     }
 
     /**
      * 响应请求分页数据
      */
-    protected <T> TableDataInfo getDataTable(Page<T> page)
-    {
+    protected <T> TableDataInfo getDataTable(Page<T> page) {
         TableDataInfo rspData = new TableDataInfo();
         rspData.setCode(HttpStatus.SUCCESS);
         rspData.setMsg("查询成功");
@@ -70,61 +63,52 @@ public class BaseController
         return rspData;
     }
 
-  
-
     /**
      * 返回成功
      */
-    public AjaxResult success()
-    {
+    public AjaxResult success() {
         return AjaxResult.success();
     }
 
     /**
      * 返回成功消息
      */
-    public AjaxResult success(String message)
-    {
+    public AjaxResult success(String message) {
         return AjaxResult.success(message);
     }
 
-      /**
+    /**
      * 返回成功消息
      */
-    public AjaxResult success(String message,Object data)
-    {
+    public AjaxResult success(String message, Object data) {
         return AjaxResult.success(message, data);
     }
 
     /**
      * 返回成功消息
      */
-    public AjaxResult success(Object data)
-    {
+    public AjaxResult success(Object data) {
         return AjaxResult.success(data);
     }
 
     /**
      * 返回失败消息
      */
-    public AjaxResult error()
-    {
+    public AjaxResult error() {
         return AjaxResult.error();
     }
 
     /**
      * 返回失败消息
      */
-    public AjaxResult error(String message)
-    {
+    public AjaxResult error(String message) {
         return AjaxResult.error(message);
     }
 
     /**
      * 返回警告消息
      */
-    public AjaxResult warn(String message)
-    {
+    public AjaxResult warn(String message) {
         return AjaxResult.warn(message);
     }
 
@@ -134,8 +118,7 @@ public class BaseController
      * @param rows 影响行数
      * @return 操作结果
      */
-    protected AjaxResult toAjax(int rows)
-    {
+    protected AjaxResult toAjax(int rows) {
         return rows > 0 ? AjaxResult.success() : AjaxResult.error();
     }
 
@@ -145,65 +128,62 @@ public class BaseController
      * @param result 结果
      * @return 操作结果
      */
-    protected AjaxResult toAjax(boolean result)
-    {
+    protected AjaxResult toAjax(boolean result) {
         return result ? success() : error();
     }
 
     /**
      * 获取用户缓存信息
      */
-    public LoginUser getLoginUser()
-    {
+    public LoginUser getLoginUser() {
         return SecurityUtils.getLoginUser();
     }
 
     /**
      * 获取登录用户id
      */
-    public Long getUserId()
-    {
+    public Long getUserId() {
         return getLoginUser().getUserId();
     }
 
     /**
      * 获取登录部门id
      */
-    public Long getDeptId()
-    {
+    public Long getDeptId() {
         return getLoginUser().getUser().getDeptId();
     }
 
     /**
      * 获取登录用户名
      */
-    public String getUsername()
-    {
+    public String getUsername() {
         return getLoginUser().getUser().getUserName();
     }
 
     /**
      * 获取分页对象
      */
-    protected <T> Page<T> getPage()
-    {
+    protected <T> Page<T> getPage() {
         return new Page<>();
     }
-
-
 
     /**
      * 构建查询条件 (MyBatisFlex版本)
      * 自动处理字符串类型使用LIKE查询，其他类型使用EQ查询
      * 支持 params 参数中的时间范围查询：
      * beginTime, endTime - 创建时间范围
+     * startDate, endDate - 记账日期范围（用于账单记录）
      */
     protected <T> com.mybatisflex.core.query.QueryWrapper buildFlexQueryWrapper(T entity) {
         com.mybatisflex.core.query.QueryWrapper queryWrapper = com.mybatisflex.core.query.QueryWrapper.create();
         if (entity == null) {
             return queryWrapper;
         }
-        
+
+        // 用于存储日期范围查询参数
+        String startDateValue = null;
+        String endDateValue = null;
+
         // 如果是BaseEntity类型，处理时间范围查询
         if (entity instanceof BaseEntity) {
             BaseEntity baseEntity = (BaseEntity) entity;
@@ -230,20 +210,34 @@ public class BaseController
                 field.setAccessible(true);
                 String fieldName = field.getName();
                 Object value = field.get(entity);
-                  // 跳过serialVersionUID字段、null值字段，以及标记为ignore的字段
+                // 跳过serialVersionUID字段、null值字段，以及标记为ignore的字段
                 if ("serialVersionUID".equals(fieldName) || value == null) {
                     continue;
                 }
-                
+
                 // 检查是否有@Column注解，以及是否标记为ignore
                 Column columnAnnotation = field.getAnnotation(Column.class);
                 if (columnAnnotation != null && columnAnnotation.ignore()) {
+                    // 特殊处理日期范围参数
+                    if ("startDate".equals(fieldName) && value instanceof String) {
+                        String dateStr = (String) value;
+                        // 只有在字符串不为空且不是空白字符串时才保存
+                        if (dateStr != null && !dateStr.trim().isEmpty()) {
+                            startDateValue = dateStr;
+                        }
+                    } else if ("endDate".equals(fieldName) && value instanceof String) {
+                        String dateStr = (String) value;
+                        // 只有在字符串不为空且不是空白字符串时才保存
+                        if (dateStr != null && !dateStr.trim().isEmpty()) {
+                            endDateValue = dateStr;
+                        }
+                    }
                     continue;
                 }
 
                 // 获取字段对应的数据库列名
                 String columnName = camelToUnderline(fieldName);
-                
+
                 // 根据字段类型构建不同的查询条件
                 if (field.getType() == String.class) {
                     if (!((String) value).isEmpty()) {
@@ -256,10 +250,19 @@ public class BaseController
                 logger.error("构建查询条件异常", e);
             }
         }
-        
+
+        // 处理日期范围查询（针对record_date字段）
+        if (startDateValue != null && endDateValue != null) {
+            queryWrapper.between("record_date", startDateValue, endDateValue);
+        } else if (startDateValue != null) {
+            queryWrapper.ge("record_date", startDateValue);
+        } else if (endDateValue != null) {
+            queryWrapper.le("record_date", endDateValue);
+        }
+
         return queryWrapper;
     }
-    
+
     /**
      * 驼峰命名转下划线命名
      */

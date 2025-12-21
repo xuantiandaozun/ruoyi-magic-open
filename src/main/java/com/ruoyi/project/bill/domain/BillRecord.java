@@ -71,4 +71,12 @@ public class BillRecord extends BaseEntity {
     /** 删除标志（0正常 1删除） */
     @Column(isLogicDelete = true)
     private String delFlag;
+
+    /** 查询参数：开始日期（不映射到数据库） */
+    @Column(ignore = true)
+    private String startDate;
+
+    /** 查询参数：结束日期（不映射到数据库） */
+    @Column(ignore = true)
+    private String endDate;
 }
