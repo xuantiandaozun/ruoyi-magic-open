@@ -45,4 +45,17 @@ public interface IBillRecordService extends IService<BillRecord> {
      */
     java.util.List<Map<String, Object>> selectCategoryStatistics(Long userId, String recordType, LocalDate startDate,
             LocalDate endDate);
+
+    /**
+     * 查询家庭组分类统计
+     * 
+     * @param familyId   家庭组ID
+     * @param recordType 记录类型（0支出 1收入）
+     * @param startDate  开始日期
+     * @param endDate    结束日期
+     * @return 分类统计列表
+     */
+    java.util.List<Map<String, Object>> selectFamilyCategoryStatistics(Long familyId, String recordType,
+            LocalDate startDate,
+            LocalDate endDate);
 }

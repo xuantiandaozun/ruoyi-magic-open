@@ -64,6 +64,26 @@ public class BillRecordController extends BaseController {
         Integer pageNum = pageDomain.getPageNum();
         Integer pageSize = pageDomain.getPageSize();
 
+        // 只对记账用户（userType=01）设置过滤条件
+        // 管理员等其他类型用户可以查看所有账单
+        if ("01".equals(getLoginUser().getUser().getUserType())) {
+            Long userId = getUserId();
+
+            // 查询用户的家庭组信息
+            BillUserProfile userProfile = billUserProfileService.selectByUserId(userId);
+
+            if (userProfile != null && userProfile.getFamilyId() != null && userProfile.getFamilyId() > 0) {
+                // 用户属于家庭组，查询该家庭组的所有账单（实现家庭组共享查看）
+                billRecord.setFamilyId(userProfile.getFamilyId());
+                // 清除userId过滤，允许查看家庭组内所有成员的账单
+                billRecord.setUserId(null);
+            } else {
+                // 用户不属于家庭组，只查询自己的个人账单
+                billRecord.setUserId(userId);
+                billRecord.setFamilyId(0L);
+            }
+        }
+
         QueryWrapper queryWrapper = buildFlexQueryWrapper(billRecord);
 
         Page<BillRecord> page = billRecordService.page(new Page<>(pageNum, pageSize), queryWrapper);

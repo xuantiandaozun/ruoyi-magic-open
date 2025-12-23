@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mybatisflex.core.paginate.Page;
@@ -166,9 +165,15 @@ public class BillFamilyController extends BaseController {
     @Operation(summary = "加入家庭组")
     @Log(title = "家庭组", businessType = BusinessType.UPDATE)
     @PostMapping("/join")
-    public AjaxResult joinFamily(
-            @RequestParam String familyCode,
-            @RequestParam Long userId) {
+    public AjaxResult joinFamily(@RequestBody java.util.Map<String, String> params) {
+        String familyCode = params.get("familyCode");
+        if (familyCode == null || familyCode.trim().isEmpty()) {
+            return error("邀请码不能为空");
+        }
+
+        // 获取当前登录用户ID
+        Long userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
+
         BillFamily family = billFamilyService.selectByInviteCode(familyCode);
         if (family == null) {
             return error("邀请码无效或家庭组不存在");
@@ -200,10 +205,11 @@ public class BillFamilyController extends BaseController {
      */
     @Operation(summary = "退出家庭组")
     @Log(title = "家庭组", businessType = BusinessType.UPDATE)
-    @PostMapping("/leave")
-    public AjaxResult leaveFamily(
-            @RequestParam Long familyId,
-            @RequestParam Long userId) {
+    @PostMapping("/leave/{familyId}")
+    public AjaxResult leaveFamily(@PathVariable Long familyId) {
+        // 获取当前登录用户ID
+        Long userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
+
         BillFamily family = billFamilyService.getById(familyId);
         if (family == null) {
             return error("家庭组不存在");

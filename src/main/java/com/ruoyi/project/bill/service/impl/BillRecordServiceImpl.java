@@ -148,4 +148,66 @@ public class BillRecordServiceImpl extends ServiceImpl<BillRecordMapper, BillRec
 
                 return results;
         }
+
+        @Override
+        public List<Map<String, Object>> selectFamilyCategoryStatistics(Long familyId, String recordType,
+                        LocalDate startDate,
+                        LocalDate endDate) {
+                // 使用Db.selectListBySql执行原生SQL查询（按家庭组ID查询）
+                String sql = "SELECT " +
+                                "c.category_id AS categoryId, " +
+                                "c.category_name AS categoryName, " +
+                                "c.icon AS categoryIcon, " +
+                                "c.color AS categoryColor, " +
+                                "SUM(r.amount) AS amount, " +
+                                "COUNT(r.record_id) AS count " +
+                                "FROM bill_record r " +
+                                "LEFT JOIN bill_category c ON r.category_id = c.category_id " +
+                                "WHERE r.family_id = ? " +
+                                "AND r.record_type = ? " +
+                                "AND r.record_date BETWEEN ? AND ? " +
+                                "AND r.del_flag = '0' " +
+                                "GROUP BY c.category_id, c.category_name, c.icon, c.color " +
+                                "ORDER BY amount DESC";
+
+                // 使用Db执行SQL查询
+                List<Row> rows = Db.selectListBySql(sql,
+                                familyId, recordType, startDate, endDate);
+
+                if (rows == null || rows.isEmpty()) {
+                        return new java.util.ArrayList<>();
+                }
+
+                // 将Row转换为Map
+                List<Map<String, Object>> results = new java.util.ArrayList<>();
+                for (com.mybatisflex.core.row.Row row : rows) {
+                        Map<String, Object> map = new java.util.HashMap<>();
+                        map.put("categoryId", row.get("categoryId"));
+                        map.put("categoryName", row.get("categoryName"));
+                        map.put("categoryIcon", row.get("categoryIcon"));
+                        map.put("categoryColor", row.get("categoryColor"));
+                        map.put("amount", row.get("amount"));
+                        map.put("count", row.get("count"));
+                        results.add(map);
+                }
+
+                // 计算总金额
+                BigDecimal totalAmount = results.stream()
+                                .map(item -> (BigDecimal) item.get("amount"))
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                // 计算百分比
+                for (Map<String, Object> item : results) {
+                        BigDecimal amount = (BigDecimal) item.get("amount");
+                        if (totalAmount.compareTo(BigDecimal.ZERO) > 0) {
+                                BigDecimal percent = amount.divide(totalAmount, 4, java.math.RoundingMode.HALF_UP)
+                                                .multiply(new BigDecimal("100"));
+                                item.put("percent", percent.setScale(2, java.math.RoundingMode.HALF_UP));
+                        } else {
+                                item.put("percent", BigDecimal.ZERO);
+                        }
+                }
+
+                return results;
+        }
 }

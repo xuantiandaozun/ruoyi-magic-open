@@ -140,6 +140,31 @@ spring:
   # 默认的profile为dev
   profiles:
     active: dev
+  # 邮件配置
+  mail:
+    # SMTP服务器地址（示例：smtp.qq.com, smtp.163.com, smtp.gmail.com）
+    host: smtp.qq.com
+    # SMTP服务器端口（通常为465或587）
+    port: 465
+    # 发件人邮箱账号
+    username: test
+    # 发件人邮箱密码或授权码（QQ邮箱、163邮箱等需要使用授权码）
+    password: test
+    # 默认编码
+    default-encoding: UTF-8
+    # 其他配置
+    properties:
+      mail:
+        smtp:
+          # 开启SSL加密
+          ssl:
+            enable: true
+          # 开启认证
+          auth: true
+          # 连接超时时间
+          timeout: 5000
+          # 写入超时时间
+          writetimeout: 5000
   # 数据源配置
   datasource:
     hikari:

@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
+import com.ruoyi.project.bill.domain.BillUserProfile;
 import com.ruoyi.project.bill.service.IBillRecordService;
+import com.ruoyi.project.bill.service.IBillUserProfileService;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,6 +34,35 @@ public class BillRecordStatController extends BaseController {
     @Autowired
     private IBillRecordService billRecordService;
 
+    @Autowired
+    private IBillUserProfileService billUserProfileService;
+
+    /**
+     * 获取查询范围信息（个人或家庭组）
+     * 返回Map包含：isFamilyMode(是否家庭组模式), queryId(查询ID), queryType("user"或"family")
+     */
+    private Map<String, Object> getQueryScope() {
+        Map<String, Object> scope = new HashMap<>();
+        Long userId = getUserId();
+
+        // 查询用户的家庭组信息
+        BillUserProfile userProfile = billUserProfileService.selectByUserId(userId);
+
+        if (userProfile != null && userProfile.getFamilyId() != null && userProfile.getFamilyId() > 0) {
+            // 用户属于家庭组，统计家庭组数据
+            scope.put("isFamilyMode", true);
+            scope.put("queryId", userProfile.getFamilyId());
+            scope.put("queryType", "family");
+        } else {
+            // 用户不属于家庭组，统计个人数据
+            scope.put("isFamilyMode", false);
+            scope.put("queryId", userId);
+            scope.put("queryType", "user");
+        }
+
+        return scope;
+    }
+
     /**
      * 首页概览统计
      */
@@ -39,19 +70,33 @@ public class BillRecordStatController extends BaseController {
     @SaCheckPermission("bill:record:query")
     @GetMapping("/overview")
     public AjaxResult overview() {
-        Long userId = getUserId();
+        Map<String, Object> scope = getQueryScope();
+        boolean isFamilyMode = (boolean) scope.get("isFamilyMode");
+        Long queryId = (Long) scope.get("queryId");
 
         // 今日统计
         LocalDate today = LocalDate.now();
-        Map<String, BigDecimal> todayStats = billRecordService.selectStatisticsByDateRange(userId, today, today);
+        Map<String, BigDecimal> todayStats;
 
         // 本月统计
         LocalDate monthStart = today.withDayOfMonth(1);
-        Map<String, BigDecimal> monthStats = billRecordService.selectStatisticsByDateRange(userId, monthStart, today);
+        Map<String, BigDecimal> monthStats;
 
         // 本年统计
         LocalDate yearStart = today.withDayOfYear(1);
-        Map<String, BigDecimal> yearStats = billRecordService.selectStatisticsByDateRange(userId, yearStart, today);
+        Map<String, BigDecimal> yearStats;
+
+        if (isFamilyMode) {
+            // 家庭组模式：统计家庭组数据
+            todayStats = billRecordService.selectFamilyStatisticsByDateRange(queryId, today, today);
+            monthStats = billRecordService.selectFamilyStatisticsByDateRange(queryId, monthStart, today);
+            yearStats = billRecordService.selectFamilyStatisticsByDateRange(queryId, yearStart, today);
+        } else {
+            // 个人模式：统计个人数据
+            todayStats = billRecordService.selectStatisticsByDateRange(queryId, today, today);
+            monthStats = billRecordService.selectStatisticsByDateRange(queryId, monthStart, today);
+            yearStats = billRecordService.selectStatisticsByDateRange(queryId, yearStart, today);
+        }
 
         Map<String, Object> result = new HashMap<>();
 
@@ -85,7 +130,9 @@ public class BillRecordStatController extends BaseController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month,
             @RequestParam(required = false) String recordType) {
-        Long userId = getUserId();
+        Map<String, Object> scope = getQueryScope();
+        boolean isFamilyMode = (boolean) scope.get("isFamilyMode");
+        Long queryId = (Long) scope.get("queryId");
 
         // 设置时间范围
         LocalDate now = LocalDate.now();
@@ -96,8 +143,14 @@ public class BillRecordStatController extends BaseController {
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
 
         // 调用Service获取分类统计
-        java.util.List<Map<String, Object>> statistics = billRecordService.selectCategoryStatistics(
-                userId, recordType, start, end);
+        java.util.List<Map<String, Object>> statistics;
+        if (isFamilyMode) {
+            statistics = billRecordService.selectFamilyCategoryStatistics(
+                    queryId, recordType, start, end);
+        } else {
+            statistics = billRecordService.selectCategoryStatistics(
+                    queryId, recordType, start, end);
+        }
 
         return success(statistics);
     }
@@ -111,7 +164,9 @@ public class BillRecordStatController extends BaseController {
     public AjaxResult trendStats(
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month) {
-        Long userId = getUserId();
+        Map<String, Object> scope = getQueryScope();
+        boolean isFamilyMode = (boolean) scope.get("isFamilyMode");
+        Long queryId = (Long) scope.get("queryId");
 
         // 设置时间范围
         LocalDate now = LocalDate.now();
@@ -134,13 +189,15 @@ public class BillRecordStatController extends BaseController {
 
         // 执行趋势统计SQL
         String sql;
+        String queryField = isFamilyMode ? "family_id" : "user_id";
+
         if ("day".equals(groupBy)) {
             sql = "SELECT " +
                     "DAY(record_date) as day, " +
                     "SUM(CASE WHEN record_type = '0' THEN amount ELSE 0 END) as expense, " +
                     "SUM(CASE WHEN record_type = '1' THEN amount ELSE 0 END) as income " +
                     "FROM bill_record " +
-                    "WHERE user_id = ? " +
+                    "WHERE " + queryField + " = ? " +
                     "AND record_date BETWEEN ? AND ? " +
                     "AND del_flag = '0' " +
                     "GROUP BY DAY(record_date) " +
@@ -151,7 +208,7 @@ public class BillRecordStatController extends BaseController {
                     "SUM(CASE WHEN record_type = '0' THEN amount ELSE 0 END) as expense, " +
                     "SUM(CASE WHEN record_type = '1' THEN amount ELSE 0 END) as income " +
                     "FROM bill_record " +
-                    "WHERE user_id = ? " +
+                    "WHERE " + queryField + " = ? " +
                     "AND record_date BETWEEN ? AND ? " +
                     "AND del_flag = '0' " +
                     "GROUP BY MONTH(record_date) " +
@@ -160,7 +217,7 @@ public class BillRecordStatController extends BaseController {
 
         // 使用Db执行SQL查询
         java.util.List<com.mybatisflex.core.row.Row> rows = com.mybatisflex.core.row.Db.selectListBySql(sql,
-                userId, start, end);
+                queryId, start, end);
 
         // 转换为Map列表
         java.util.List<Map<String, Object>> results = new java.util.ArrayList<>();
@@ -224,7 +281,9 @@ public class BillRecordStatController extends BaseController {
     public AjaxResult monthStats(
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) Integer month) {
-        Long userId = getUserId();
+        Map<String, Object> scope = getQueryScope();
+        boolean isFamilyMode = (boolean) scope.get("isFamilyMode");
+        Long queryId = (Long) scope.get("queryId");
 
         LocalDate now = LocalDate.now();
         int targetYear = year != null ? year : now.getYear();
@@ -233,7 +292,12 @@ public class BillRecordStatController extends BaseController {
         LocalDate start = LocalDate.of(targetYear, targetMonth, 1);
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
 
-        Map<String, BigDecimal> statistics = billRecordService.selectStatisticsByDateRange(userId, start, end);
+        Map<String, BigDecimal> statistics;
+        if (isFamilyMode) {
+            statistics = billRecordService.selectFamilyStatisticsByDateRange(queryId, start, end);
+        } else {
+            statistics = billRecordService.selectStatisticsByDateRange(queryId, start, end);
+        }
         return success(statistics);
     }
 
@@ -244,14 +308,21 @@ public class BillRecordStatController extends BaseController {
     @SaCheckPermission("bill:record:query")
     @GetMapping("/year")
     public AjaxResult yearStats(@RequestParam(required = false) Integer year) {
-        Long userId = getUserId();
+        Map<String, Object> scope = getQueryScope();
+        boolean isFamilyMode = (boolean) scope.get("isFamilyMode");
+        Long queryId = (Long) scope.get("queryId");
 
         int targetYear = year != null ? year : LocalDate.now().getYear();
 
         LocalDate start = LocalDate.of(targetYear, 1, 1);
         LocalDate end = LocalDate.of(targetYear, 12, 31);
 
-        Map<String, BigDecimal> statistics = billRecordService.selectStatisticsByDateRange(userId, start, end);
+        Map<String, BigDecimal> statistics;
+        if (isFamilyMode) {
+            statistics = billRecordService.selectFamilyStatisticsByDateRange(queryId, start, end);
+        } else {
+            statistics = billRecordService.selectStatisticsByDateRange(queryId, start, end);
+        }
         return success(statistics);
     }
 }

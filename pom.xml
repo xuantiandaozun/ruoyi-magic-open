@@ -192,6 +192,12 @@
             <artifactId>spring-context-support</artifactId>
         </dependency>
 
+        <!-- 邮件发送 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Jakarta XML Binding -->
         <dependency>
             <groupId>jakarta.xml.bind</groupId>

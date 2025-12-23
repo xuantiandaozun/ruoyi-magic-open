@@ -11,6 +11,7 @@ import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.framework.security.LoginUser;
 import com.ruoyi.framework.security.service.PasswordEncoder;
 import com.ruoyi.framework.security.service.SaTokenLoginService;
+import com.ruoyi.framework.service.EmailService;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.project.bill.domain.dto.RegisterDTO;
@@ -41,6 +42,9 @@ public class BillUserController extends BaseController {
     @Autowired
     private SaTokenLoginService loginService;
 
+    @Autowired
+    private EmailService emailService;
+
     /**
      * 用户注册（支持手机号+验证码 或 邮箱+验证码）
      */
@@ -62,8 +66,14 @@ public class BillUserController extends BaseController {
         if (StrUtil.isEmpty(registerDTO.getVerifyCode())) {
             return error("验证码不能为空");
         }
-        // TODO: 实际项目中需要验证验证码是否正确
-        // 目前先跳过验证码校验，后续完善
+
+        // 验证邮箱验证码（如果是邮箱注册）
+        if (StrUtil.isNotEmpty(registerDTO.getEmail())) {
+            if (!emailService.verifyCode(registerDTO.getEmail(), registerDTO.getVerifyCode())) {
+                return error("验证码错误或已过期");
+            }
+        }
+        // TODO: 手机号验证码校验，后续完善
 
         String username = null;
         SysUser sysUser = new SysUser();
@@ -149,7 +159,7 @@ public class BillUserController extends BaseController {
     }
 
     /**
-     * 发送邮箱验证码
+     * 发送邮箱验证码（异步）
      */
     @Operation(summary = "发送邮箱验证码")
     @PostMapping("/sendEmail")
@@ -162,15 +172,13 @@ public class BillUserController extends BaseController {
             return error("邮箱格式不正确");
         }
 
-        // TODO: 这里是假的发送验证码接口，实际项目中需要对接邮件服务
-        // 1. 生成6位随机验证码
-        // 2. 将验证码存储到Redis，设置5分钟过期
-        // 3. 发送邮件
-
-        // 模拟发送成功
-        logger.info("发送验证码到邮箱: {}, 验证码: 123456 (模拟)", sendSmsDTO.getEmail());
-
-        return success("验证码发送成功");
+        // 调用邮件服务异步发送验证码
+        boolean success = emailService.sendVerifyCodeAsync(sendSmsDTO.getEmail());
+        if (success) {
+            return success("验证码正在发送，请稍后查收邮件");
+        } else {
+            return error("验证码发送失败，请稍后重试");
+        }
     }
 
     /**
