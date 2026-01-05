@@ -1,8 +1,8 @@
-package com.ruoyi.project.system.service;
+package com.ruoyi.project.aliyun.service;
 
 import com.mybatisflex.core.service.IService;
-import com.ruoyi.project.system.domain.RdsInstanceInfo;
 import com.ruoyi.framework.web.domain.AjaxResult;
+import com.ruoyi.project.aliyun.domain.RdsInstanceInfo;
 
 /**
  * RDS实例管理Service接口

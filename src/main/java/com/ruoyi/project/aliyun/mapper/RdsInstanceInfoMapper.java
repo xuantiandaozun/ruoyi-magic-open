@@ -1,7 +1,7 @@
-package com.ruoyi.project.system.mapper;
+package com.ruoyi.project.aliyun.mapper;
 
 import com.mybatisflex.core.BaseMapper;
-import com.ruoyi.project.system.domain.RdsInstanceInfo;
+import com.ruoyi.project.aliyun.domain.RdsInstanceInfo;
 
 /**
  * RDS实例管理Mapper接口

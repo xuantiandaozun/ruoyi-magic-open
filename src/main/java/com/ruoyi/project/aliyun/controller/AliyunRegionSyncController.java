@@ -1,11 +1,15 @@
-package com.ruoyi.project.system.controller;
+package com.ruoyi.project.aliyun.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
-import com.ruoyi.project.system.service.IAliyunRegionSyncService;
+import com.ruoyi.project.aliyun.service.IAliyunRegionSyncService;
+
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 
 /**
  * 阿里云地域同步控制器
@@ -16,10 +20,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/system/aliyun/region")
 public class AliyunRegionSyncController extends BaseController {
-    
+
     @Autowired
     private IAliyunRegionSyncService aliyunRegionSyncService;
-    
+
     /**
      * 同步阿里云地域到数据字典
      */

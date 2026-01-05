@@ -1,4 +1,4 @@
-package com.ruoyi.project.system.service.impl;
+package com.ruoyi.project.aliyun.service.impl;
 
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
@@ -30,9 +30,9 @@ import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.ruoyi.framework.aliyun.config.AliyunCredential;
 import com.ruoyi.framework.aliyun.service.AliyunService;
 import com.ruoyi.framework.web.domain.AjaxResult;
-import com.ruoyi.project.system.domain.RdsInstanceInfo;
-import com.ruoyi.project.system.mapper.RdsInstanceInfoMapper;
-import com.ruoyi.project.system.service.IRdsInstanceInfoService;
+import com.ruoyi.project.aliyun.domain.RdsInstanceInfo;
+import com.ruoyi.project.aliyun.mapper.RdsInstanceInfoMapper;
+import com.ruoyi.project.aliyun.service.IRdsInstanceInfoService;
 import com.ruoyi.project.system.service.ISysSecretKeyService;
 
 /**

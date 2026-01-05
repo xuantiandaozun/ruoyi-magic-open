@@ -1,4 +1,4 @@
-package com.ruoyi.project.system.domain;
+package com.ruoyi.project.aliyun.domain;
 
 import java.util.Date;
 

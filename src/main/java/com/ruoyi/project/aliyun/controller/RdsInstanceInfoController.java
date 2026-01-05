@@ -1,4 +1,4 @@
-package com.ruoyi.project.system.controller;
+package com.ruoyi.project.aliyun.controller;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -25,9 +25,9 @@ import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.framework.web.page.PageDomain;
 import com.ruoyi.framework.web.page.TableDataInfo;
 import com.ruoyi.framework.web.page.TableSupport;
-import com.ruoyi.project.system.domain.RdsInstanceInfo;
-import com.ruoyi.project.system.domain.dto.ModifySecurityIpsRequest;
-import com.ruoyi.project.system.service.IRdsInstanceInfoService;
+import com.ruoyi.project.aliyun.domain.RdsInstanceInfo;
+import com.ruoyi.project.aliyun.domain.dto.ModifySecurityIpsRequest;
+import com.ruoyi.project.aliyun.service.IRdsInstanceInfoService;
 import com.ruoyi.project.system.service.IpLocationService;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
@@ -41,7 +41,7 @@ import jakarta.servlet.http.HttpServletResponse;
  * @date 2025-07-11 17:49:40
  */
 @RestController
-@RequestMapping("/system/rdsInstance")
+@RequestMapping("/aliyun/rdsInstance")
 public class RdsInstanceInfoController extends BaseController
 {
     @Autowired
@@ -53,7 +53,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 查询RDS实例管理列表
      */
-    @SaCheckPermission("system:rdsInstance:list")
+    @SaCheckPermission("aliyun:rdsInstance:list")
     @GetMapping("/list")
     public TableDataInfo list(RdsInstanceInfo rdsInstanceInfo)
     {
@@ -72,7 +72,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 导出RDS实例管理列表
      */
-    @SaCheckPermission("system:rdsInstance:export")
+    @SaCheckPermission("aliyun:rdsInstance:export")
     @Log(title = "RDS实例管理", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
     public void export(HttpServletResponse response, RdsInstanceInfo rdsInstanceInfo)
@@ -88,7 +88,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 获取RDS实例管理详细信息
      */
-    @SaCheckPermission("system:rdsInstance:query")
+    @SaCheckPermission("aliyun:rdsInstance:query")
     @GetMapping(value = "/{id}")
     public AjaxResult getInfo(@PathVariable("id") Long id)
     {
@@ -98,7 +98,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 新增RDS实例管理
      */
-    @SaCheckPermission("system:rdsInstance:add")
+    @SaCheckPermission("aliyun:rdsInstance:add")
     @Log(title = "RDS实例管理", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody RdsInstanceInfo rdsInstanceInfo)
@@ -109,7 +109,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 修改RDS实例管理
      */
-    @SaCheckPermission("system:rdsInstance:edit")
+    @SaCheckPermission("aliyun:rdsInstance:edit")
     @Log(title = "RDS实例管理", businessType = BusinessType.UPDATE)
     @PutMapping
     public AjaxResult edit(@RequestBody RdsInstanceInfo rdsInstanceInfo)
@@ -120,7 +120,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 删除RDS实例管理
      */
-    @SaCheckPermission("system:rdsInstance:remove")
+    @SaCheckPermission("aliyun:rdsInstance:remove")
     @Log(title = "RDS实例管理", businessType = BusinessType.DELETE)
 	@DeleteMapping("/{ids}")
     public AjaxResult remove(@PathVariable Long[] ids)
@@ -131,7 +131,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 同步阿里云RDS实例数据
      */
-    @SaCheckPermission("system:rdsInstance:sync")
+    @SaCheckPermission("aliyun:rdsInstance:sync")
     @Log(title = "同步阿里云RDS实例", businessType = BusinessType.OTHER)
     @PostMapping("/syncAliyun")
     public AjaxResult syncAliyunRdsInstances()
@@ -142,7 +142,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 获取RDS实例连接信息
      */
-    @SaCheckPermission("system:rdsInstance:query")
+    @SaCheckPermission("aliyun:rdsInstance:query")
     @Log(title = "获取RDS实例连接信息", businessType = BusinessType.OTHER)
     @GetMapping("/netInfo/{dbInstanceId}")
     public AjaxResult getRdsInstanceNetInfo(@PathVariable("dbInstanceId") String dbInstanceId)
@@ -153,7 +153,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 获取RDS实例白名单信息
      */
-    @SaCheckPermission("system:rdsInstance:query")
+    @SaCheckPermission("aliyun:rdsInstance:query")
     @Log(title = "获取RDS实例白名单信息", businessType = BusinessType.OTHER)
     @GetMapping("/ipArrayList/{dbInstanceId}")
     public AjaxResult getRdsInstanceIPArrayList(@PathVariable("dbInstanceId") String dbInstanceId)
@@ -164,7 +164,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 修改RDS实例白名单
      */
-    @SaCheckPermission("system:rdsInstance:edit")
+    @SaCheckPermission("aliyun:rdsInstance:edit")
     @Log(title = "修改RDS实例白名单", businessType = BusinessType.UPDATE)
     @PutMapping("/modifySecurityIps/{dbInstanceId}")
     public AjaxResult modifyRdsInstanceSecurityIps(
@@ -182,7 +182,7 @@ public class RdsInstanceInfoController extends BaseController
      * 批量更新所有RDS实例的客户端白名单
      * 自动获取客户端IP并设置到所有RDS实例的client分组中
      */
-    @SaCheckPermission("system:rdsInstance:edit")
+    @SaCheckPermission("aliyun:rdsInstance:edit")
     @Log(title = "批量更新RDS客户端白名单", businessType = BusinessType.UPDATE)
     @PostMapping("/updateClientWhitelist")
     public AjaxResult updateAllRdsClientWhitelist(HttpServletRequest request)
@@ -239,7 +239,7 @@ public class RdsInstanceInfoController extends BaseController
     /**
      * 获取当前客户端IP地址和地理位置信息
      */
-    @SaCheckPermission("system:rdsInstance:query")
+    @SaCheckPermission("aliyun:rdsInstance:query")
     @Log(title = "获取客户端IP地址", businessType = BusinessType.OTHER)
     @GetMapping("/getClientIp")
     public AjaxResult getClientIp(HttpServletRequest request)
