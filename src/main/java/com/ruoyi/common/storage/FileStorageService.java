@@ -16,9 +16,9 @@ import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.ServletUtils;
 import com.ruoyi.common.utils.ip.IpUtils;
 import com.ruoyi.framework.config.CloudStorageConfig;
-import com.ruoyi.project.system.domain.FileUploadRecord;
+import com.ruoyi.project.system.domain.SysFileUploadRecord;
 import com.ruoyi.project.system.domain.SysStorageConfig;
-import com.ruoyi.project.system.service.IFileUploadRecordService;
+import com.ruoyi.project.system.service.ISysFileUploadRecordService;
 import com.ruoyi.project.system.service.ISysStorageConfigService;
 
 import cn.hutool.core.util.StrUtil;
@@ -44,7 +44,7 @@ public class FileStorageService {
     private ISysStorageConfigService sysStorageConfigService;
 
     @Autowired
-    private IFileUploadRecordService fileUploadRecordService;
+    private ISysFileUploadRecordService sysFileUploadRecordService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -120,7 +120,7 @@ public class FileStorageService {
         String storageType = strategy.getStorageType();
 
         // 创建上传记录
-        FileUploadRecord record = createUploadRecord(file, fileName, storageType);
+        SysFileUploadRecord record = createUploadRecord(file, fileName, storageType);
 
         try {
             // 执行文件上传
@@ -139,7 +139,7 @@ public class FileStorageService {
         } finally {
             // 保存上传记录
             try {
-                fileUploadRecordService.save(record);
+                sysFileUploadRecordService.save(record);
             } catch (Exception e) {
                 // 记录保存失败不影响文件上传功能
                 System.err.println("保存文件上传记录失败: " + e.getMessage());
@@ -163,7 +163,7 @@ public class FileStorageService {
         String storageType = strategy.getStorageType();
 
         // 创建上传记录
-        FileUploadRecord record = createUploadRecord(file, fileName, storageType);
+        SysFileUploadRecord record = createUploadRecord(file, fileName, storageType);
 
         try {
             // 执行文件上传
@@ -182,7 +182,7 @@ public class FileStorageService {
         } finally {
             // 保存上传记录
             try {
-                fileUploadRecordService.save(record);
+                sysFileUploadRecordService.save(record);
             } catch (Exception e) {
                 // 记录保存失败不影响文件上传功能
                 System.err.println("保存文件上传记录失败: " + e.getMessage());
@@ -245,8 +245,8 @@ public class FileStorageService {
     /**
      * 创建文件上传记录
      */
-    private FileUploadRecord createUploadRecord(MultipartFile file, String fileName, String storageType) {
-        FileUploadRecord record = new FileUploadRecord();
+    private SysFileUploadRecord createUploadRecord(MultipartFile file, String fileName, String storageType) {
+        SysFileUploadRecord record = new SysFileUploadRecord();
 
         // 基本文件信息
         record.setOriginalFilename(file.getOriginalFilename());

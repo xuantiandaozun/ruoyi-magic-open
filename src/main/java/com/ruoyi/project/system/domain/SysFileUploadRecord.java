@@ -20,8 +20,7 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Table("sys_file_upload_record")
-public class FileUploadRecord extends BaseEntity
-{
+public class SysFileUploadRecord extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /** 记录ID */
