@@ -1,7 +1,7 @@
 package com.ruoyi.project.system.service;
 
 import com.mybatisflex.core.service.IService;
-import com.ruoyi.project.system.domain.StorageConfig;
+import com.ruoyi.project.system.domain.SysStorageConfig;
 
 /**
  * 存储配置Service接口
@@ -9,21 +9,20 @@ import com.ruoyi.project.system.domain.StorageConfig;
  * @author ruoyi
  * @date 2025-07-11 11:32:00
  */
-public interface IStorageConfigService extends IService<StorageConfig>
-{
+public interface ISysStorageConfigService extends IService<SysStorageConfig> {
     /**
      * 新增存储配置（带默认配置唯一性校验）
      * 
-     * @param storageConfig 存储配置
+     * @param sysStorageConfig 存储配置
      * @return 结果
      */
-    boolean saveStorageConfig(StorageConfig storageConfig);
-    
+    boolean saveSysStorageConfig(SysStorageConfig sysStorageConfig);
+
     /**
      * 修改存储配置（带默认配置唯一性校验）
      * 
-     * @param storageConfig 存储配置
+     * @param sysStorageConfig 存储配置
      * @return 结果
      */
-    boolean updateStorageConfig(StorageConfig storageConfig);
+    boolean updateSysStorageConfig(SysStorageConfig sysStorageConfig);
 }

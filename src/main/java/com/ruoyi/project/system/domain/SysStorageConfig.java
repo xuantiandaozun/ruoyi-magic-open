@@ -19,15 +19,16 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Table("sys_storage_config")
-public class StorageConfig extends BaseEntity
-{
+public class SysStorageConfig extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /** 配置ID */
     @Id(keyType = KeyType.Auto)
     private String configId;
 
-    /** 存储类型（local-本地存储, aliyun-阿里云OSS, tencent-腾讯云COS, amazon-亚马逊S3, azure-微软Azure） */
+    /**
+     * 存储类型（local-本地存储, aliyun-阿里云OSS, tencent-腾讯云COS, amazon-亚马逊S3, azure-微软Azure）
+     */
     @Excel(name = "存储类型", readConverterExp = "l=ocal-本地存储,,a=liyun-阿里云OSS,,t=encent-腾讯云COS,,a=mazon-亚马逊S3,,a=zure-微软Azure")
     private String storageType;
 

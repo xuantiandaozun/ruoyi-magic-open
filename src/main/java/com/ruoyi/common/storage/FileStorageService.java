@@ -1,27 +1,28 @@
 package com.ruoyi.common.storage;
 
-import com.ruoyi.framework.config.CloudStorageConfig;
-import com.ruoyi.project.system.domain.StorageConfig;
-import com.ruoyi.project.system.domain.FileUploadRecord;
-import com.ruoyi.project.system.service.IStorageConfigService;
-import com.ruoyi.project.system.service.IFileUploadRecordService;
-import com.ruoyi.common.utils.ServletUtils;
-import com.ruoyi.common.utils.SecurityUtils;
-import com.ruoyi.common.utils.ip.IpUtils;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mybatisflex.core.query.QueryWrapper;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mybatisflex.core.query.QueryWrapper;
+import com.ruoyi.common.enums.FileType;
+import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.common.utils.ServletUtils;
+import com.ruoyi.common.utils.ip.IpUtils;
+import com.ruoyi.framework.config.CloudStorageConfig;
+import com.ruoyi.project.system.domain.FileUploadRecord;
+import com.ruoyi.project.system.domain.SysStorageConfig;
+import com.ruoyi.project.system.service.IFileUploadRecordService;
+import com.ruoyi.project.system.service.ISysStorageConfigService;
+
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
-import com.ruoyi.common.enums.FileType;
-
-import java.util.Map;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
@@ -38,13 +39,13 @@ public class FileStorageService {
 
     @Autowired
     private CloudStorageConfig cloudStorageConfig;
-    
+
     @Autowired
-    private IStorageConfigService storageConfigService;
-    
+    private ISysStorageConfigService sysStorageConfigService;
+
     @Autowired
     private IFileUploadRecordService fileUploadRecordService;
-    
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -55,12 +56,12 @@ public class FileStorageService {
         try {
             // 1. 优先查询数据库中的默认配置
             QueryWrapper queryWrapper = QueryWrapper.create()
-                .eq("is_default", "Y")
-                .eq("status", "0")
-                .eq("del_flag", "0");
-            
-            StorageConfig dbConfig = storageConfigService.getOne(queryWrapper);
-            
+                    .eq("is_default", "Y")
+                    .eq("status", "0")
+                    .eq("del_flag", "0");
+
+            SysStorageConfig dbConfig = sysStorageConfigService.getOne(queryWrapper);
+
             if (dbConfig != null && StrUtil.isNotEmpty(dbConfig.getStorageType())) {
                 // 使用数据库配置
                 return getStrategyByType(dbConfig.getStorageType());
@@ -69,12 +70,12 @@ public class FileStorageService {
             // 数据库查询失败，记录日志但不影响功能
             System.err.println("查询数据库存储配置失败，使用YML配置: " + e.getMessage());
         }
-        
+
         // 2. 回退到YML配置
         String storageType = cloudStorageConfig.getType();
         return getStrategyByType(storageType);
     }
-    
+
     /**
      * 根据存储类型获取对应的存储策略
      */
@@ -109,7 +110,7 @@ public class FileStorageService {
     /**
      * 上传文件
      *
-     * @param file 上传的文件
+     * @param file     上传的文件
      * @param fileName 文件名（包含路径）
      * @return 文件访问URL
      * @throws Exception 上传异常
@@ -117,18 +118,18 @@ public class FileStorageService {
     public String upload(MultipartFile file, String fileName) throws Exception {
         FileStorageStrategy strategy = getCurrentStrategy();
         String storageType = strategy.getStorageType();
-        
+
         // 创建上传记录
         FileUploadRecord record = createUploadRecord(file, fileName, storageType);
-        
+
         try {
             // 执行文件上传
             String fileUrl = strategy.upload(file, fileName);
-            
+
             // 更新上传记录为成功
             record.setFileUrl(fileUrl);
             record.setUploadStatus("1"); // 成功
-            
+
             return fileUrl;
         } catch (Exception e) {
             // 更新上传记录为失败
@@ -150,9 +151,9 @@ public class FileStorageService {
      * 本地文件上传（专门用于FileUploadUtils调用）
      * 使用当前配置的存储策略，而不是强制本地存储
      *
-     * @param file 上传的文件
+     * @param file     上传的文件
      * @param fileName 文件名（包含路径）
-     * @param baseDir 基础目录
+     * @param baseDir  基础目录
      * @return 文件访问URL
      * @throws Exception 上传异常
      */
@@ -160,18 +161,18 @@ public class FileStorageService {
         // 使用当前配置的存储策略，而不是强制本地存储
         FileStorageStrategy strategy = getCurrentStrategy();
         String storageType = strategy.getStorageType();
-        
+
         // 创建上传记录
         FileUploadRecord record = createUploadRecord(file, fileName, storageType);
-        
+
         try {
             // 执行文件上传
             String fileUrl = strategy.upload(file, fileName);
-            
+
             // 更新上传记录为成功
             record.setFileUrl(fileUrl);
             record.setUploadStatus("1"); // 成功
-            
+
             return fileUrl;
         } catch (Exception e) {
             // 更新上传记录为失败
@@ -240,13 +241,13 @@ public class FileStorageService {
     public Map<String, FileStorageStrategy> getAllStrategies() {
         return applicationContext.getBeansOfType(FileStorageStrategy.class);
     }
-    
+
     /**
      * 创建文件上传记录
      */
     private FileUploadRecord createUploadRecord(MultipartFile file, String fileName, String storageType) {
         FileUploadRecord record = new FileUploadRecord();
-        
+
         // 基本文件信息
         record.setOriginalFilename(file.getOriginalFilename());
         record.setStoredFilename(fileName);
@@ -254,7 +255,7 @@ public class FileStorageService {
         record.setFileSize(file.getSize());
         record.setMimeType(file.getContentType());
         record.setStorageType(storageType);
-        
+
         // 文件扩展名和类型
         String originalFilename = file.getOriginalFilename();
         if (StrUtil.isNotEmpty(originalFilename)) {
@@ -263,17 +264,17 @@ public class FileStorageService {
                 record.setFileExtension(originalFilename.substring(lastDotIndex + 1));
             }
         }
-        
+
         // 根据扩展名确定文件类型
         record.setFileType(getFileTypeByExtension(record.getFileExtension()));
-        
+
         // 获取当前用户和请求信息
         try {
             record.setCreateBy(SecurityUtils.getUsername());
         } catch (Exception e) {
             record.setCreateBy("system");
         }
-        
+
         // 获取请求IP和User-Agent
         try {
             HttpServletRequest request = ServletUtils.getRequest();
@@ -284,41 +285,41 @@ public class FileStorageService {
         } catch (Exception e) {
             // 获取请求信息失败不影响功能
         }
-        
+
         record.setCreateTime(new Date());
         record.setDelFlag("0");
-        
+
         return record;
     }
-    
+
     /**
      * 根据文件扩展名获取文件类型
      */
     private FileType getFileTypeByExtension(String extension) {
         return FileType.getByExtension(extension);
     }
-    
+
     /**
      * 获取当前存储配置信息（包含数据库配置）
      */
     public Map<String, Object> getCurrentStorageConfig() {
         Map<String, Object> result = new HashMap<>();
-        
+
         try {
             // 查询数据库默认配置
             QueryWrapper queryWrapper = QueryWrapper.create()
-                .eq("is_default", "Y")
-                .eq("status", "0")
-                .eq("del_flag", "0");
-            
-            StorageConfig dbConfig = storageConfigService.getOne(queryWrapper);
-            
+                    .eq("is_default", "Y")
+                    .eq("status", "0")
+                    .eq("del_flag", "0");
+
+            SysStorageConfig dbConfig = sysStorageConfigService.getOne(queryWrapper);
+
             if (dbConfig != null) {
                 result.put("source", "database");
                 result.put("configId", dbConfig.getConfigId());
                 result.put("configName", dbConfig.getConfigName());
                 result.put("storageType", dbConfig.getStorageType());
-                
+
                 // 解析配置数据
                 if (StrUtil.isNotEmpty(dbConfig.getConfigData())) {
                     try {
@@ -337,7 +338,7 @@ public class FileStorageService {
             result.put("storageType", cloudStorageConfig.getType());
             result.put("error", e.getMessage());
         }
-        
+
         return result;
     }
 }

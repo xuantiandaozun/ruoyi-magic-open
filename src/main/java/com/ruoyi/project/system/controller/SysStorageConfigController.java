@@ -1,30 +1,33 @@
 package com.ruoyi.project.system.controller;
 
-import java.util.List;
 import java.util.Arrays;
-import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.mybatisflex.core.paginate.Page;
+import com.mybatisflex.core.query.QueryWrapper;
+import com.ruoyi.common.utils.poi.MagicExcelUtil;
 import com.ruoyi.framework.aspectj.lang.annotation.Log;
 import com.ruoyi.framework.aspectj.lang.enums.BusinessType;
-import com.ruoyi.project.system.domain.StorageConfig;
-import com.ruoyi.project.system.service.IStorageConfigService;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
-import com.ruoyi.common.utils.poi.MagicExcelUtil;
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.core.paginate.Page;
 import com.ruoyi.framework.web.page.PageDomain;
-import com.ruoyi.framework.web.page.TableSupport;
-import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.ruoyi.framework.web.page.TableDataInfo;
+import com.ruoyi.framework.web.page.TableSupport;
+import com.ruoyi.project.system.domain.SysStorageConfig;
+import com.ruoyi.project.system.service.ISysStorageConfigService;
+
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * 存储配置Controller
@@ -34,27 +37,25 @@ import com.ruoyi.framework.web.page.TableDataInfo;
  */
 @RestController
 @RequestMapping("/system/storageConfig")
-public class StorageConfigController extends BaseController
-{
+public class SysStorageConfigController extends BaseController {
     @Autowired
-    private IStorageConfigService storageConfigService;
+    private ISysStorageConfigService sysStorageConfigService;
 
     /**
      * 查询存储配置列表
      */
     @SaCheckPermission("system:storageConfig:list")
     @GetMapping("/list")
-    public TableDataInfo list(StorageConfig storageConfig)
-    {
+    public TableDataInfo list(SysStorageConfig sysStorageConfig) {
         PageDomain pageDomain = TableSupport.buildPageRequest();
         Integer pageNum = pageDomain.getPageNum();
         Integer pageSize = pageDomain.getPageSize();
-        
+
         // 创建 MyBatisFlex 的 QueryWrapper
-        QueryWrapper queryWrapper = buildFlexQueryWrapper(storageConfig);
-        
+        QueryWrapper queryWrapper = buildFlexQueryWrapper(sysStorageConfig);
+
         // 使用 MyBatisFlex 的分页方法
-        Page<StorageConfig> page = storageConfigService.page(new Page<>(pageNum, pageSize), queryWrapper);
+        Page<SysStorageConfig> page = sysStorageConfigService.page(new Page<>(pageNum, pageSize), queryWrapper);
         return getDataTable(page);
     }
 
@@ -64,13 +65,12 @@ public class StorageConfigController extends BaseController
     @SaCheckPermission("system:storageConfig:export")
     @Log(title = "存储配置", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
-    public void export(HttpServletResponse response, StorageConfig storageConfig)
-    {
+    public void export(HttpServletResponse response, SysStorageConfig sysStorageConfig) {
         QueryWrapper queryWrapper = QueryWrapper.create();
         // 这里需要根据实际业务编写查询条件
-        
-        List<StorageConfig> list = storageConfigService.list(queryWrapper);
-        MagicExcelUtil<StorageConfig> util = new MagicExcelUtil<>(StorageConfig.class);
+
+        List<SysStorageConfig> list = sysStorageConfigService.list(queryWrapper);
+        MagicExcelUtil<SysStorageConfig> util = new MagicExcelUtil<>(SysStorageConfig.class);
         util.exportExcel(response, list, "存储配置数据");
     }
 
@@ -79,9 +79,8 @@ public class StorageConfigController extends BaseController
      */
     @SaCheckPermission("system:storageConfig:query")
     @GetMapping(value = "/{configId}")
-    public AjaxResult getInfo(@PathVariable("configId") String configId)
-    {
-        return success(storageConfigService.getById(configId));
+    public AjaxResult getInfo(@PathVariable("configId") String configId) {
+        return success(sysStorageConfigService.getById(configId));
     }
 
     /**
@@ -90,9 +89,8 @@ public class StorageConfigController extends BaseController
     @SaCheckPermission("system:storageConfig:add")
     @Log(title = "存储配置", businessType = BusinessType.INSERT)
     @PostMapping
-    public AjaxResult add(@RequestBody StorageConfig storageConfig)
-    {
-        return toAjax(storageConfigService.saveStorageConfig(storageConfig) ? 1 : 0);
+    public AjaxResult add(@RequestBody SysStorageConfig sysStorageConfig) {
+        return toAjax(sysStorageConfigService.saveSysStorageConfig(sysStorageConfig) ? 1 : 0);
     }
 
     /**
@@ -101,9 +99,8 @@ public class StorageConfigController extends BaseController
     @SaCheckPermission("system:storageConfig:edit")
     @Log(title = "存储配置", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@RequestBody StorageConfig storageConfig)
-    {
-        return toAjax(storageConfigService.updateStorageConfig(storageConfig) ? 1 : 0);
+    public AjaxResult edit(@RequestBody SysStorageConfig sysStorageConfig) {
+        return toAjax(sysStorageConfigService.updateSysStorageConfig(sysStorageConfig) ? 1 : 0);
     }
 
     /**
@@ -111,9 +108,8 @@ public class StorageConfigController extends BaseController
      */
     @SaCheckPermission("system:storageConfig:remove")
     @Log(title = "存储配置", businessType = BusinessType.DELETE)
-	@DeleteMapping("/{configIds}")
-    public AjaxResult remove(@PathVariable String[] configIds)
-    {
-        return toAjax(storageConfigService.removeByIds(Arrays.asList(configIds)) ? configIds.length : 0);
+    @DeleteMapping("/{configIds}")
+    public AjaxResult remove(@PathVariable String[] configIds) {
+        return toAjax(sysStorageConfigService.removeByIds(Arrays.asList(configIds)) ? configIds.length : 0);
     }
 }

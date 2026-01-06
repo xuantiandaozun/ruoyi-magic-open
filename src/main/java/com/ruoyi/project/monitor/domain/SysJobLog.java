@@ -1,8 +1,5 @@
 package com.ruoyi.project.monitor.domain;
 
-import java.util.Date;
-
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
@@ -22,8 +19,7 @@ import lombok.experimental.Accessors;
 @Accessors(prefix = "")
 @EqualsAndHashCode(callSuper = true)
 @Table("sys_job_log")
-public class SysJobLog extends BaseEntity
-{
+public class SysJobLog extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /** ID */

@@ -1,4 +1,4 @@
-package com.ruoyi.project.system.domain;
+package com.ruoyi.project.secretkey.domain;
 
 import java.util.Date;
 
@@ -13,22 +13,22 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * 密钥管理对象 sys_secret_key
+ * 密钥管理对象 secret_key_info
  * 
  * @author ruoyi
  * @date 2025-07-11 17:46:46
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Table("sys_secret_key")
-public class SysSecretKey extends BaseEntity {
+@Table("secret_key_info")
+public class SecretKeyInfo extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /** 主键ID */
     @Id(keyType = KeyType.Auto)
     private Long id;
 
-    /** 厂商类型（1云厂商 2应用厂商） */
+    /** 厂商类型(1云厂商 2应用厂商) */
     @Excel(name = "厂商类型", readConverterExp = "1=云厂商,2=应用厂商")
     private String providerType;
 
@@ -67,10 +67,10 @@ public class SysSecretKey extends BaseEntity {
     /** 过期时间 */
     private Date expireTime;
 
-    /** 状态（0正常 1停用） */
+    /** 状态(0正常 1停用) */
     private String status;
 
-    /** 删除标志（0存在 2删除） */
+    /** 删除标志(0存在 2删除) */
     @Column(isLogicDelete = true)
     private String delFlag;
 

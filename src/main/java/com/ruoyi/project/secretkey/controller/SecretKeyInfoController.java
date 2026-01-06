@@ -1,4 +1,4 @@
-package com.ruoyi.project.system.controller;
+package com.ruoyi.project.secretkey.controller;
 
 import java.util.Arrays;
 import java.util.List;
@@ -23,8 +23,8 @@ import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.framework.web.page.PageDomain;
 import com.ruoyi.framework.web.page.TableDataInfo;
 import com.ruoyi.framework.web.page.TableSupport;
-import com.ruoyi.project.system.domain.SysSecretKey;
-import com.ruoyi.project.system.service.ISysSecretKeyService;
+import com.ruoyi.project.secretkey.domain.SecretKeyInfo;
+import com.ruoyi.project.secretkey.service.ISecretKeyInfoService;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import jakarta.servlet.http.HttpServletResponse;
@@ -36,101 +36,93 @@ import jakarta.servlet.http.HttpServletResponse;
  * @date 2025-07-11 17:46:46
  */
 @RestController
-@RequestMapping("/system/secretKey")
-public class SysSecretKeyController extends BaseController
-{
+@RequestMapping("/secretkey/info")
+public class SecretKeyInfoController extends BaseController {
     @Autowired
-    private ISysSecretKeyService sysSecretKeyService;
+    private ISecretKeyInfoService secretKeyInfoService;
 
     /**
      * 查询密钥管理列表
      */
-    @SaCheckPermission("system:secretKey:list")
+    @SaCheckPermission("secretkey:info:list")
     @GetMapping("/list")
-    public TableDataInfo list(SysSecretKey sysSecretKey)
-    {
+    public TableDataInfo list(SecretKeyInfo secretKeyInfo) {
         PageDomain pageDomain = TableSupport.buildPageRequest();
         Integer pageNum = pageDomain.getPageNum();
         Integer pageSize = pageDomain.getPageSize();
-        
+
         // 创建 MyBatisFlex 的 QueryWrapper
-        QueryWrapper queryWrapper = buildFlexQueryWrapper(sysSecretKey);
-        
+        QueryWrapper queryWrapper = buildFlexQueryWrapper(secretKeyInfo);
+
         // 使用 MyBatisFlex 的分页方法
-        Page<SysSecretKey> page = sysSecretKeyService.page(new Page<>(pageNum, pageSize), queryWrapper);
+        Page<SecretKeyInfo> page = secretKeyInfoService.page(new Page<>(pageNum, pageSize), queryWrapper);
         return getDataTable(page);
     }
 
     /**
      * 导出密钥管理列表
      */
-    @SaCheckPermission("system:secretKey:export")
+    @SaCheckPermission("secretkey:info:export")
     @Log(title = "密钥管理", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
-    public void export(HttpServletResponse response, SysSecretKey sysSecretKey)
-    {
+    public void export(HttpServletResponse response, SecretKeyInfo secretKeyInfo) {
         QueryWrapper queryWrapper = QueryWrapper.create();
         // 这里需要根据实际业务编写查询条件
-        
-        List<SysSecretKey> list = sysSecretKeyService.list(queryWrapper);
-        MagicExcelUtil<SysSecretKey> util = new MagicExcelUtil<>(SysSecretKey.class);
+
+        List<SecretKeyInfo> list = secretKeyInfoService.list(queryWrapper);
+        MagicExcelUtil<SecretKeyInfo> util = new MagicExcelUtil<>(SecretKeyInfo.class);
         util.exportExcel(response, list, "密钥管理数据");
     }
 
     /**
      * 获取密钥管理详细信息
      */
-    @SaCheckPermission("system:secretKey:query")
+    @SaCheckPermission("secretkey:info:query")
     @GetMapping(value = "/{id}")
-    public AjaxResult getInfo(@PathVariable("id") Long id)
-    {
-        return success(sysSecretKeyService.getById(id));
+    public AjaxResult getInfo(@PathVariable("id") Long id) {
+        return success(secretKeyInfoService.getById(id));
     }
 
     /**
      * 新增密钥管理
      */
-    @SaCheckPermission("system:secretKey:add")
+    @SaCheckPermission("secretkey:info:add")
     @Log(title = "密钥管理", businessType = BusinessType.INSERT)
     @PostMapping
-    public AjaxResult add(@RequestBody SysSecretKey sysSecretKey)
-    {
-        return toAjax(sysSecretKeyService.save(sysSecretKey) ? 1 : 0);
+    public AjaxResult add(@RequestBody SecretKeyInfo secretKeyInfo) {
+        return toAjax(secretKeyInfoService.save(secretKeyInfo) ? 1 : 0);
     }
 
     /**
      * 修改密钥管理
      */
-    @SaCheckPermission("system:secretKey:edit")
+    @SaCheckPermission("secretkey:info:edit")
     @Log(title = "密钥管理", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@RequestBody SysSecretKey sysSecretKey)
-    {
-        return toAjax(sysSecretKeyService.updateById(sysSecretKey) ? 1 : 0);
+    public AjaxResult edit(@RequestBody SecretKeyInfo secretKeyInfo) {
+        return toAjax(secretKeyInfoService.updateById(secretKeyInfo) ? 1 : 0);
     }
 
     /**
      * 删除密钥管理
      */
-    @SaCheckPermission("system:secretKey:remove")
+    @SaCheckPermission("secretkey:info:remove")
     @Log(title = "密钥管理", businessType = BusinessType.DELETE)
-	@DeleteMapping("/{ids}")
-    public AjaxResult remove(@PathVariable Long[] ids)
-    {
-        return toAjax(sysSecretKeyService.removeByIds(Arrays.asList(ids)) ? ids.length : 0);
+    @DeleteMapping("/{ids}")
+    public AjaxResult remove(@PathVariable Long[] ids) {
+        return toAjax(secretKeyInfoService.removeByIds(Arrays.asList(ids)) ? ids.length : 0);
     }
 
     /**
      * 获取飞书密钥下拉选项列表
      */
     @GetMapping("/feishu/options")
-    public AjaxResult getFeishuKeyOptions()
-    {
+    public AjaxResult getFeishuKeyOptions() {
         QueryWrapper queryWrapper = QueryWrapper.create()
-            .eq("provider_name", "飞书")
-            .eq("status", "0")
-            .select("id", "key_name", "key_type");
-        List<SysSecretKey> list = sysSecretKeyService.list(queryWrapper);
+                .eq("provider_name", "飞书")
+                .eq("status", "0")
+                .select("id", "key_name", "key_type");
+        List<SecretKeyInfo> list = secretKeyInfoService.list(queryWrapper);
         return success(list);
     }
 }

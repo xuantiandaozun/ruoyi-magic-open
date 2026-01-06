@@ -6,9 +6,9 @@ import org.springframework.stereotype.Component;
 
 import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.common.utils.spring.SpringUtils;
+import com.ruoyi.project.secretkey.domain.SecretKeyInfo;
+import com.ruoyi.project.secretkey.service.ISecretKeyInfoService;
 import com.ruoyi.project.system.config.FeishuConfig;
-import com.ruoyi.project.system.domain.SysSecretKey;
-import com.ruoyi.project.system.service.ISysSecretKeyService;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 public class FeishuConfigUtils {
-    
+
     /**
      * 获取飞书配置
      * 
@@ -31,46 +31,46 @@ public class FeishuConfigUtils {
      */
     public static FeishuConfig getFeishuConfig(String keyName) {
         try {
-            ISysSecretKeyService sysSecretKeyService = SpringUtils.getBean(ISysSecretKeyService.class);
-            
+            ISecretKeyInfoService secretKeyInfoService = SpringUtils.getBean(ISecretKeyInfoService.class);
+
             // 查询飞书相关的密钥配置
             QueryWrapper queryWrapper = QueryWrapper.create()
                     .eq("provider_name", "飞书")
                     .eq("status", "0")
                     .eq("del_flag", "0")
                     .orderBy("create_time", false);
-            
-            List<SysSecretKey> secretKeys = sysSecretKeyService.list(queryWrapper);
-            
-            SysSecretKey selectedKey = null;
-            
+
+            List<SecretKeyInfo> secretKeys = secretKeyInfoService.list(queryWrapper);
+
+            SecretKeyInfo selectedKey = null;
+
             // 如果指定了keyName，优先查找指定的密钥
             if (StrUtil.isNotBlank(keyName)) {
                 selectedKey = secretKeys.stream()
                         .filter(key -> keyName.equals(key.getKeyName()))
                         .findFirst()
                         .orElse(null);
-                
+
                 if (selectedKey == null) {
                     log.warn("未找到指定名称的飞书密钥: {}, 将使用第一个可用密钥", keyName);
                 }
             }
-            
+
             // 如果没有指定keyName或者没有找到指定的密钥，使用第一个
             if (selectedKey == null && !secretKeys.isEmpty()) {
                 selectedKey = secretKeys.get(0);
             }
-            
-            if (selectedKey != null && StrUtil.isNotEmpty(selectedKey.getAccessKey()) 
-                && StrUtil.isNotEmpty(selectedKey.getSecretKey())) {
-                
+
+            if (selectedKey != null && StrUtil.isNotEmpty(selectedKey.getAccessKey())
+                    && StrUtil.isNotEmpty(selectedKey.getSecretKey())) {
+
                 FeishuConfig feishuConfig = new FeishuConfig(selectedKey.getAccessKey(), selectedKey.getSecretKey());
                 feishuConfig.setKeyId(selectedKey.getId());
                 feishuConfig.setKeyName(selectedKey.getKeyName());
-                
-                log.info("飞书配置获取成功，密钥名称: {}, 应用ID: {}", 
+
+                log.info("飞书配置获取成功，密钥名称: {}, 应用ID: {}",
                         selectedKey.getKeyName(), selectedKey.getAccessKey());
-                        
+
                 return feishuConfig;
             } else {
                 log.warn("未找到有效的飞书配置，请在sys_secret_key表中配置飞书应用密钥");
@@ -81,7 +81,7 @@ public class FeishuConfigUtils {
             return null;
         }
     }
-    
+
     /**
      * 获取飞书配置（使用默认密钥名称）
      * 

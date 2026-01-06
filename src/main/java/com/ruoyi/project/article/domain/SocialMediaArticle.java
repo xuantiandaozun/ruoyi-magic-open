@@ -1,16 +1,16 @@
 package com.ruoyi.project.article.domain;
 
 import java.util.Date;
-import com.fasterxml.jackson.annotation.JsonFormat;
+
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-import com.mybatisflex.annotation.Column;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import com.ruoyi.framework.aspectj.lang.annotation.Excel;
 import com.ruoyi.framework.web.domain.BaseEntity;
-import com.fasterxml.jackson.annotation.JsonFormat;
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * 自媒体文章对象 social_media_article
@@ -21,8 +21,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Table("social_media_article")
-public class SocialMediaArticle extends BaseEntity
-{
+public class SocialMediaArticle extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /** 文章ID */

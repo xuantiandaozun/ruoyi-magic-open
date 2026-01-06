@@ -13,8 +13,8 @@ import com.aliyun.oss.model.PutObjectRequest;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.common.storage.FileStorageStrategy;
 import com.ruoyi.framework.config.CloudStorageConfig;
-import com.ruoyi.project.system.domain.StorageConfig;
-import com.ruoyi.project.system.service.IStorageConfigService;
+import com.ruoyi.project.system.domain.SysStorageConfig;
+import com.ruoyi.project.system.service.ISysStorageConfigService;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
@@ -31,9 +31,9 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
 
     @Autowired
     private CloudStorageConfig cloudStorageConfig;
-    
+
     @Autowired
-    private IStorageConfigService storageConfigService;
+    private ISysStorageConfigService sysStorageConfigService;
 
     /**
      * 获取阿里云配置
@@ -43,13 +43,13 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
         try {
             // 1. 优先查询数据库中的阿里云配置
             QueryWrapper queryWrapper = QueryWrapper.create()
-                .eq("storage_type", "aliyun")
-                .eq("is_default", "Y")
-                .eq("status", "0")
-                .eq("del_flag", "0");
-            
-            StorageConfig dbConfig = storageConfigService.getOne(queryWrapper);
-            
+                    .eq("storage_type", "aliyun")
+                    .eq("is_default", "Y")
+                    .eq("status", "0")
+                    .eq("del_flag", "0");
+
+            SysStorageConfig dbConfig = sysStorageConfigService.getOne(queryWrapper);
+
             if (dbConfig != null && StrUtil.isNotEmpty(dbConfig.getConfigData())) {
                 // 解析数据库配置
                 Map<String, Object> configData = JSONUtil.toBean(dbConfig.getConfigData(), Map.class);
@@ -66,7 +66,7 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
             // 数据库查询失败，记录日志但不影响功能
             System.err.println("查询数据库阿里云配置失败，使用YML配置: " + e.getMessage());
         }
-        
+
         // 2. 回退到YML配置
         CloudStorageConfig.AliyunConfig ymlConfig = cloudStorageConfig.getAliyun();
         AliyunConfig config = new AliyunConfig();
@@ -86,7 +86,7 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
         AliyunConfig config = getAliyunConfig();
         return new OSSClientBuilder().build(config.getEndpoint(), config.getAccessKeyId(), config.getAccessKeySecret());
     }
-    
+
     /**
      * 阿里云配置类
      */
@@ -97,20 +97,55 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
         private String endpoint;
         private String prefix = "";
         private String customDomain;
-        
+
         // Getters and Setters
-        public String getAccessKeyId() { return accessKeyId; }
-        public void setAccessKeyId(String accessKeyId) { this.accessKeyId = accessKeyId; }
-        public String getAccessKeySecret() { return accessKeySecret; }
-        public void setAccessKeySecret(String accessKeySecret) { this.accessKeySecret = accessKeySecret; }
-        public String getBucketName() { return bucketName; }
-        public void setBucketName(String bucketName) { this.bucketName = bucketName; }
-        public String getEndpoint() { return endpoint; }
-        public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
-        public String getPrefix() { return prefix; }
-        public void setPrefix(String prefix) { this.prefix = prefix; }
-        public String getCustomDomain() { return customDomain; }
-        public void setCustomDomain(String customDomain) { this.customDomain = customDomain; }
+        public String getAccessKeyId() {
+            return accessKeyId;
+        }
+
+        public void setAccessKeyId(String accessKeyId) {
+            this.accessKeyId = accessKeyId;
+        }
+
+        public String getAccessKeySecret() {
+            return accessKeySecret;
+        }
+
+        public void setAccessKeySecret(String accessKeySecret) {
+            this.accessKeySecret = accessKeySecret;
+        }
+
+        public String getBucketName() {
+            return bucketName;
+        }
+
+        public void setBucketName(String bucketName) {
+            this.bucketName = bucketName;
+        }
+
+        public String getEndpoint() {
+            return endpoint;
+        }
+
+        public void setEndpoint(String endpoint) {
+            this.endpoint = endpoint;
+        }
+
+        public String getPrefix() {
+            return prefix;
+        }
+
+        public void setPrefix(String prefix) {
+            this.prefix = prefix;
+        }
+
+        public String getCustomDomain() {
+            return customDomain;
+        }
+
+        public void setCustomDomain(String customDomain) {
+            this.customDomain = customDomain;
+        }
     }
 
     @Override
@@ -119,15 +154,15 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
         try {
             ossClient = getOssClient();
             AliyunConfig aliyun = getAliyunConfig();
-            
+
             // 构建完整的文件路径
             String objectName = aliyun.getPrefix() + fileName;
-            
+
             // 上传文件
             InputStream inputStream = file.getInputStream();
             PutObjectRequest putObjectRequest = new PutObjectRequest(aliyun.getBucketName(), objectName, inputStream);
             ossClient.putObject(putObjectRequest);
-            
+
             return getFileUrl(fileName);
         } finally {
             if (ossClient != null) {
@@ -161,7 +196,9 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
         if (aliyun.getCustomDomain() != null && !aliyun.getCustomDomain().isEmpty()) {
             return aliyun.getCustomDomain() + "/" + aliyun.getPrefix() + fileName;
         } else {
-            return "https://" + aliyun.getBucketName() + "." + aliyun.getEndpoint().replace("https://", "").replace("http://", "") + "/" + aliyun.getPrefix() + fileName;
+            return "https://" + aliyun.getBucketName() + "."
+                    + aliyun.getEndpoint().replace("https://", "").replace("http://", "") + "/" + aliyun.getPrefix()
+                    + fileName;
         }
     }
 
@@ -171,7 +208,7 @@ public class AliyunOssStorageStrategy implements FileStorageStrategy {
         try {
             ossClient = getOssClient();
             AliyunConfig config = getAliyunConfig();
-            
+
             String objectName = config.getPrefix() + fileName;
             return ossClient.doesObjectExist(config.getBucketName(), objectName);
         } catch (Exception e) {

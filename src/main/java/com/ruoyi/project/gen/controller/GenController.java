@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.row.Db;
@@ -37,7 +36,6 @@ import com.ruoyi.project.gen.domain.GenTableColumn;
 import com.ruoyi.project.gen.domain.request.BatchGenCodeRequest;
 import com.ruoyi.project.gen.domain.vo.AiCreateTableResponse;
 import com.ruoyi.project.gen.domain.vo.CreateImportTableRequest;
-import com.ruoyi.project.gen.service.IAsyncTaskService;
 import com.ruoyi.project.gen.service.IGenTableColumnService;
 import com.ruoyi.project.gen.service.IGenTableService;
 import com.ruoyi.project.gen.tools.request.BatchUpdateGenTableRequest;
@@ -50,7 +48,6 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
-import io.micrometer.observation.ObservationRegistry;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -68,25 +65,13 @@ import lombok.extern.slf4j.Slf4j;
 public class GenController extends BaseController {
 
     @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
     private IGenTableService genTableService;
 
     @Autowired
     private IGenTableColumnService genTableColumnService;
 
-
-
     @Autowired
     private ISysDataSourceService sysDataSourceService;
-
-
-    @Autowired
-    private ObservationRegistry observationRegistry;
-
-    @Autowired
-    private IAsyncTaskService asyncTaskService;
 
     /**
      * 查询代码生成列表
@@ -296,9 +281,10 @@ public class GenController extends BaseController {
     @SaCheckPermission("tool:gen:code")
     @Log(title = "批量代码生成", businessType = BusinessType.GENCODE)
     @PostMapping("/batchDownload")
-    public void batchDownload(HttpServletResponse response, @Validated @RequestBody BatchGenCodeRequest request) throws IOException {
+    public void batchDownload(HttpServletResponse response, @Validated @RequestBody BatchGenCodeRequest request)
+            throws IOException {
         byte[] data = genTableService.downloadCodeByIds(request.getTableIds(), request.getGenType());
-        
+
         // 动态生成文件名
         String fileName = generateZipFileName(request.getTableIds());
         genCode(response, data, fileName);
@@ -353,129 +339,135 @@ public class GenController extends BaseController {
     public AjaxResult syncTableFromDb(@RequestBody Map<String, Object> request) {
         String tableName = (String) request.get("tableName");
         String dataSourceName = (String) request.get("dataSourceName");
-        
+
         if (StrUtil.isBlank(tableName)) {
             return error("表名不能为空");
         }
-        
+
         try {
             // 验证表名格式，防止SQL注入
             if (!tableName.matches("^[a-zA-Z0-9_]+$")) {
                 return error("表名格式不正确，只允许字母、数字和下划线");
             }
-            
+
             // 检查表是否已经存在于GenTable中
-             GenTable existingTable = genTableService.selectGenTableByName(tableName);
-             if (existingTable != null) {  
-                 // 重新导入表字段信息到GenTableColumn，以同步新增的字段
-                 List<GenTable> tableList;
-                 if (StrUtil.isBlank(dataSourceName) || "master".equalsIgnoreCase(dataSourceName)) {
-                     // 从主数据源获取最新的表字段信息
-                     tableList = genTableService.selectDbTableListByNames(new String[]{tableName});
-                 } else {
-                     // 从指定数据源获取最新的表字段信息
-                     tableList = genTableService.selectDbTableListByNamesAndDataSource(new String[]{tableName}, dataSourceName);
-                 }
-                 
-                 if (!tableList.isEmpty()) {
-                     GenTable latestTableInfo = tableList.get(0);
-                     // 保留原有的表配置信息，只更新字段信息
-                     latestTableInfo.setTableId(existingTable.getTableId());
-                     latestTableInfo.setClassName(existingTable.getClassName());
-                     latestTableInfo.setTplCategory(existingTable.getTplCategory());
-                     latestTableInfo.setPackageName(existingTable.getPackageName());
-                     latestTableInfo.setModuleName(existingTable.getModuleName());
-                     latestTableInfo.setBusinessName(existingTable.getBusinessName());
-                     latestTableInfo.setFunctionName(existingTable.getFunctionName());
-                     latestTableInfo.setFunctionAuthor(existingTable.getFunctionAuthor());
-                     latestTableInfo.setGenType(existingTable.getGenType());
-                     latestTableInfo.setGenPath(existingTable.getGenPath());
-                     latestTableInfo.setVuePath(existingTable.getVuePath());
-                     latestTableInfo.setOptions(existingTable.getOptions());
-                     latestTableInfo.setRemark(existingTable.getRemark());
-                     
-                     // 先获取旧的字段配置信息
-                     List<GenTableColumn> oldColumns = genTableColumnService.selectGenTableColumnListByTableId(existingTable.getTableId());
-                     Map<String, GenTableColumn> oldColumnMap = new HashMap<>();
-                     if (!oldColumns.isEmpty()) {
-                         oldColumns.forEach(col -> oldColumnMap.put(col.getColumnName(), col));
-                     }
-                     
-                     // 从数据库获取最新的字段信息
-                     List<GenTableColumn> newColumns;
-                     if (StrUtil.isNotEmpty(latestTableInfo.getDataSource()) && !StrUtil.equals(latestTableInfo.getDataSource(), "MASTER")) {
-                         // 从指定数据源获取字段信息
-                         newColumns = genTableColumnService.selectDbTableColumnsByNameAndDataSource(tableName, latestTableInfo.getDataSource());
-                     } else {
-                         // 从主数据源获取字段信息
-                         newColumns = genTableColumnService.selectDbTableColumnsByName(tableName);
-                     }
-                     
-                     // 处理新字段：根据columnName匹配旧字段配置
-                     if (!newColumns.isEmpty()) {
-                         newColumns.forEach(column -> {
-                             column.setTableId(existingTable.getTableId());
-                             GenTableColumn oldColumn = oldColumnMap.get(column.getColumnName());
-                             if (oldColumn != null) {
-                                 // 有相同columnName的，把旧的设置赋值到新的上，但不设置ID
-                                 column.setJavaField(oldColumn.getJavaField());
-                                 column.setJavaType(oldColumn.getJavaType());
-                                 column.setQueryType(oldColumn.getQueryType());
-                                 column.setHtmlType(oldColumn.getHtmlType());
-                                 column.setDictType(oldColumn.getDictType());
-                                 column.setIsInsert(oldColumn.getIsInsert());
-                                 column.setIsEdit(oldColumn.getIsEdit());
-                                 column.setIsList(oldColumn.getIsList());
-                                 column.setIsQuery(oldColumn.getIsQuery());
-                                 column.setIsRequired(oldColumn.getIsRequired());
-                                 column.setSort(oldColumn.getSort());
-                                 column.setCreateBy(oldColumn.getCreateBy());
-                                 column.setUpdateBy(oldColumn.getUpdateBy());
-                             } else {
-                                 // 没有相同的就初始化
-                                 GenUtils.initColumnField(column, existingTable);
-                             }
-                         });
-                         
-                         // 删除旧的字段
-                         if (!oldColumns.isEmpty()) {
-                             genTableColumnService.deleteGenTableColumns(oldColumns);
-                         }
-                         
-                         // 保存新的字段
-                         genTableColumnService.saveBatch(newColumns);
-                     }
-                 }
-                 
-                 return success("表 '" + tableName + "' 已存在，已更新其表结构和字段信息");
-             }
-            
+            GenTable existingTable = genTableService.selectGenTableByName(tableName);
+            if (existingTable != null) {
+                // 重新导入表字段信息到GenTableColumn，以同步新增的字段
+                List<GenTable> tableList;
+                if (StrUtil.isBlank(dataSourceName) || "master".equalsIgnoreCase(dataSourceName)) {
+                    // 从主数据源获取最新的表字段信息
+                    tableList = genTableService.selectDbTableListByNames(new String[] { tableName });
+                } else {
+                    // 从指定数据源获取最新的表字段信息
+                    tableList = genTableService.selectDbTableListByNamesAndDataSource(new String[] { tableName },
+                            dataSourceName);
+                }
+
+                if (!tableList.isEmpty()) {
+                    GenTable latestTableInfo = tableList.get(0);
+                    // 保留原有的表配置信息，只更新字段信息
+                    latestTableInfo.setTableId(existingTable.getTableId());
+                    latestTableInfo.setClassName(existingTable.getClassName());
+                    latestTableInfo.setTplCategory(existingTable.getTplCategory());
+                    latestTableInfo.setPackageName(existingTable.getPackageName());
+                    latestTableInfo.setModuleName(existingTable.getModuleName());
+                    latestTableInfo.setBusinessName(existingTable.getBusinessName());
+                    latestTableInfo.setFunctionName(existingTable.getFunctionName());
+                    latestTableInfo.setFunctionAuthor(existingTable.getFunctionAuthor());
+                    latestTableInfo.setGenType(existingTable.getGenType());
+                    latestTableInfo.setGenPath(existingTable.getGenPath());
+                    latestTableInfo.setVuePath(existingTable.getVuePath());
+                    latestTableInfo.setOptions(existingTable.getOptions());
+                    latestTableInfo.setRemark(existingTable.getRemark());
+
+                    // 先获取旧的字段配置信息
+                    List<GenTableColumn> oldColumns = genTableColumnService
+                            .selectGenTableColumnListByTableId(existingTable.getTableId());
+                    Map<String, GenTableColumn> oldColumnMap = new HashMap<>();
+                    if (!oldColumns.isEmpty()) {
+                        oldColumns.forEach(col -> oldColumnMap.put(col.getColumnName(), col));
+                    }
+
+                    // 从数据库获取最新的字段信息
+                    List<GenTableColumn> newColumns;
+                    if (StrUtil.isNotEmpty(latestTableInfo.getDataSource())
+                            && !StrUtil.equals(latestTableInfo.getDataSource(), "MASTER")) {
+                        // 从指定数据源获取字段信息
+                        newColumns = genTableColumnService.selectDbTableColumnsByNameAndDataSource(tableName,
+                                latestTableInfo.getDataSource());
+                    } else {
+                        // 从主数据源获取字段信息
+                        newColumns = genTableColumnService.selectDbTableColumnsByName(tableName);
+                    }
+
+                    // 处理新字段：根据columnName匹配旧字段配置
+                    if (!newColumns.isEmpty()) {
+                        newColumns.forEach(column -> {
+                            column.setTableId(existingTable.getTableId());
+                            GenTableColumn oldColumn = oldColumnMap.get(column.getColumnName());
+                            if (oldColumn != null) {
+                                // 有相同columnName的，把旧的设置赋值到新的上，但不设置ID
+                                column.setJavaField(oldColumn.getJavaField());
+                                column.setJavaType(oldColumn.getJavaType());
+                                column.setQueryType(oldColumn.getQueryType());
+                                column.setHtmlType(oldColumn.getHtmlType());
+                                column.setDictType(oldColumn.getDictType());
+                                column.setIsInsert(oldColumn.getIsInsert());
+                                column.setIsEdit(oldColumn.getIsEdit());
+                                column.setIsList(oldColumn.getIsList());
+                                column.setIsQuery(oldColumn.getIsQuery());
+                                column.setIsRequired(oldColumn.getIsRequired());
+                                column.setSort(oldColumn.getSort());
+                                column.setCreateBy(oldColumn.getCreateBy());
+                                column.setUpdateBy(oldColumn.getUpdateBy());
+                            } else {
+                                // 没有相同的就初始化
+                                GenUtils.initColumnField(column, existingTable);
+                            }
+                        });
+
+                        // 删除旧的字段
+                        if (!oldColumns.isEmpty()) {
+                            genTableColumnService.deleteGenTableColumns(oldColumns);
+                        }
+
+                        // 保存新的字段
+                        genTableColumnService.saveBatch(newColumns);
+                    }
+                }
+
+                return success("表 '" + tableName + "' 已存在，已更新其表结构和字段信息");
+            }
+
             List<GenTable> tableList;
             String normalizedDataSourceName;
-            
+
             // 根据数据源获取表信息
             if (StrUtil.isBlank(dataSourceName) || "master".equalsIgnoreCase(dataSourceName)) {
                 // 从主数据源获取表信息
-                tableList = genTableService.selectDbTableListByNames(new String[]{tableName});
+                tableList = genTableService.selectDbTableListByNames(new String[] { tableName });
                 normalizedDataSourceName = "MASTER";
             } else {
                 // 从指定数据源获取表信息
-                tableList = genTableService.selectDbTableListByNamesAndDataSource(new String[]{tableName}, dataSourceName);
+                tableList = genTableService.selectDbTableListByNamesAndDataSource(new String[] { tableName },
+                        dataSourceName);
                 normalizedDataSourceName = dataSourceName;
             }
-            
+
             if (tableList.isEmpty()) {
-                return error("在" + (StrUtil.isBlank(dataSourceName) ? "主数据源" : "数据源 '" + dataSourceName + "'") + "中未找到表 '" + tableName + "'");
+                return error("在" + (StrUtil.isBlank(dataSourceName) ? "主数据源" : "数据源 '" + dataSourceName + "'")
+                        + "中未找到表 '" + tableName + "'");
             }
-            
+
             // 设置数据源标记
             tableList.forEach(table -> table.setDataSource(normalizedDataSourceName));
-            
+
             // 导入表结构到GenTable和GenTableColumn
             genTableService.importGenTable(tableList, SecurityUtils.getUsername());
-            
+
             return success("成功从数据库同步表 '" + tableName + "' 到代码生成配置中");
-            
+
         } catch (Exception e) {
             logger.error("从数据库同步表失败: tableName={}, dataSourceName={}", tableName, dataSourceName, e);
             return error("同步表失败: " + e.getMessage());
@@ -515,12 +507,12 @@ public class GenController extends BaseController {
         response.reset();
         response.addHeader("Access-Control-Allow-Origin", "*");
         response.addHeader("Access-Control-Expose-Headers", "Content-Disposition");
-        
+
         // 支持中文文件名，使用RFC 5987标准编码
         String encodedFileName = java.net.URLEncoder.encode(fileName, "UTF-8");
-        response.setHeader("Content-Disposition", 
-            "attachment; filename=\"" + fileName + "\"; filename*=UTF-8''" + encodedFileName);
-        
+        response.setHeader("Content-Disposition",
+                "attachment; filename=\"" + fileName + "\"; filename*=UTF-8''" + encodedFileName);
+
         response.addHeader("Content-Length", "" + data.length);
         response.setContentType("application/octet-stream; charset=UTF-8");
         IoUtil.write(response.getOutputStream(), true, data);
@@ -533,7 +525,7 @@ public class GenController extends BaseController {
         if (tableIds == null || tableIds.isEmpty()) {
             return "ruoyi_code.zip";
         }
-        
+
         if (tableIds.size() == 1) {
             // 单个表，使用表名
             GenTable table = genTableService.getById(tableIds.get(0));
@@ -549,7 +541,7 @@ public class GenController extends BaseController {
                     tableNames.add(table.getTableName());
                 }
             }
-            
+
             if (!tableNames.isEmpty()) {
                 if (tableNames.size() <= 3) {
                     // 3个或更少的表，组合表名
@@ -560,7 +552,7 @@ public class GenController extends BaseController {
                 }
             }
         }
-        
+
         return "ruoyi_code.zip";
     }
 

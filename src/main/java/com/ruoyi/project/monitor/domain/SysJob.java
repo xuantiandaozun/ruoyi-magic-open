@@ -6,7 +6,6 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-import com.ruoyi.common.constant.ScheduleConstants;
 import com.ruoyi.common.utils.job.CronUtils;
 import com.ruoyi.framework.aspectj.lang.annotation.Excel;
 import com.ruoyi.framework.aspectj.lang.annotation.Excel.ColumnType;
@@ -28,8 +27,7 @@ import lombok.experimental.Accessors;
 @Accessors(prefix = "")
 @EqualsAndHashCode(callSuper = true)
 @Table("sys_job")
-public class SysJob extends BaseEntity
-{
+public class SysJob extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /** 任务ID */
@@ -72,10 +70,8 @@ public class SysJob extends BaseEntity
     public String status;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    public Date getNextValidTime()
-    {
-        if (StrUtil.isNotEmpty(cronExpression))
-        {
+    public Date getNextValidTime() {
+        if (StrUtil.isNotEmpty(cronExpression)) {
             return CronUtils.getNextExecution(cronExpression);
         }
         return null;
