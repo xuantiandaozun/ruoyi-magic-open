@@ -42,7 +42,7 @@ public class BlogCoverUpdateLangChain4jTool implements LangChain4jTool {
 
     @Override
     public String getToolDescription() {
-        return "更新中文博客和/或英文博客的封面图片URL，支持同时更新中英文博客封面。当只传入中文博客ID时，会自动查找并更新绑定的英文博客封面";
+        return "更新博客封面图片URL（中英文博客共用同一封面）。传入任意一个博客ID即可，系统会自动同步更新绑定的中英文博客封面";
     }
 
     @Override
@@ -143,6 +143,27 @@ public class BlogCoverUpdateLangChain4jTool implements LangChain4jTool {
                             successMsg.append("；");
                         }
                         successMsg.append("英文博客封面更新成功（ID: ").append(enBlogId).append("）");
+
+                        // 如果没有传中文博客ID，尝试通过英文博客的zhBlogId字段反向查找中文博客并更新
+                        if (StrUtil.isBlank(zhBlogId) && blogEn.getZhBlogId() != null) {
+                            try {
+                                Blog boundBlog = blogService.getById(blogEn.getZhBlogId());
+                                if (boundBlog != null) {
+                                    boundBlog.setCoverImage(coverImageUrl);
+                                    boolean zhSuccess = blogService.updateById(boundBlog);
+                                    if (zhSuccess) {
+                                        resultData.put("autoFoundZhBlog", true);
+                                        resultData.put("autoFoundZhBlogId", blogEn.getZhBlogId());
+                                        resultData.put("autoFoundZhBlogTitle", boundBlog.getTitle());
+                                        successMsg.append("；自动同步更新中文博客封面（ID: ").append(blogEn.getZhBlogId())
+                                                .append("）");
+                                    }
+                                }
+                            } catch (Exception e) {
+                                // 反向查找中文博客失败不影响英文博客的更新
+                                resultData.put("zhBlogWarning", "自动同步中文博客封面时发生错误: " + e.getMessage());
+                            }
+                        }
                     } else {
                         resultData.put("enBlogError", "英文博客封面更新失败");
                         hasError = true;
@@ -204,7 +225,9 @@ public class BlogCoverUpdateLangChain4jTool implements LangChain4jTool {
 
                 注意：
                 - 至少需要提供 zhBlogId 或 enBlogId 中的一个
-                - 当只传入 zhBlogId 时，系统会自动查找绑定的英文博客（通过 BlogEn.zhBlogId 字段）并同时更新其封面
+                - 当只传入 zhBlogId 时，系统会自动查找绑定的英文博客并同时更新其封面
+                - 当只传入 enBlogId 时，系统会自动查找绑定的中文博客并同时更新其封面
+                - 中英文博客共用同一个封面，只需传入任意一个博客ID即可完成双向同步
                 """;
     }
 
