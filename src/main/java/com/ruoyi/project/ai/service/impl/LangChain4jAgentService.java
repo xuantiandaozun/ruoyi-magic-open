@@ -6,7 +6,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.service.IAiModelConfigService;
 import com.ruoyi.project.ai.tool.LangChain4jToolRegistry;
+import com.ruoyi.project.ai.util.ToolResultProcessor;
 
 import cn.hutool.core.util.StrUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -148,7 +151,7 @@ public class LangChain4jAgentService {
         }
         messages.add(UserMessage.from(message));
         
-        return executeChatWithMessages(streamingChatModel, messages, availableTools);
+        return executeChatWithMessages(streamingChatModel, messages, availableTools, true);
     }
     
     /**
@@ -156,6 +159,11 @@ public class LangChain4jAgentService {
      */
     private String executeChatWithMessages(StreamingChatModel streamingChatModel, List<ChatMessage> messages, 
                                          List<String> availableTools) throws Exception {
+        return executeChatWithMessages(streamingChatModel, messages, availableTools, true);
+    }
+
+    private String executeChatWithMessages(StreamingChatModel streamingChatModel, List<ChatMessage> messages, 
+                                         List<String> availableTools, boolean allowRecovery) throws Exception {
         // 构建聊天请求
         ChatRequest.Builder requestBuilder = ChatRequest.builder().messages(messages);
         
@@ -170,6 +178,8 @@ public class LangChain4jAgentService {
         // 使用CompletableFuture来同步等待流式响应
         CompletableFuture<String> future = new CompletableFuture<>();
         StringBuilder responseBuilder = new StringBuilder();
+        AtomicBoolean toolInvoked = new AtomicBoolean(false);
+        AtomicBoolean toolSuccessAll = new AtomicBoolean(true);
         
         streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
             @Override
@@ -192,13 +202,26 @@ public class LangChain4jAgentService {
                     if (completeResponse != null && completeResponse.aiMessage() != null) {
                         AiMessage aiMessage = completeResponse.aiMessage();
                         if (aiMessage.hasToolExecutionRequests()) {
+                                log.debug("模型触发工具调用: toolCount={}, tools={}",
+                                    aiMessage.toolExecutionRequests().size(),
+                                    aiMessage.toolExecutionRequests().stream()
+                                        .map(req -> req.name())
+                                        .collect(Collectors.joining(",")));
                             // 添加AI消息到对话历史
                             messages.add(aiMessage);
                             
                             // 执行所有工具调用
                              aiMessage.toolExecutionRequests().forEach(toolRequest -> {
                                  try {
-                                     String result = toolRegistry.executeTool(toolRequest.name(), toolRequest.arguments());
+                                         log.debug("执行工具: name={}, argsLength={}, argsSnippet={}",
+                                             toolRequest.name(),
+                                             toolRequest.arguments() != null ? toolRequest.arguments().length() : 0,
+                                             abbreviate(toolRequest.arguments(), 300));
+                                         String result = toolRegistry.executeTool(toolRequest.name(), toolRequest.arguments());
+                                         toolInvoked.set(true);
+                                         if (!ToolResultProcessor.isSuccess(result)) {
+                                             toolSuccessAll.set(false);
+                                         }
                                      
                                      // 如果工具执行结果为null，转换为失败的统一格式
                                      if (result == null) {
@@ -208,7 +231,10 @@ public class LangChain4jAgentService {
                                      
                                      // 创建工具执行结果消息
                                      messages.add(ToolExecutionResultMessage.from(toolRequest, result));
-                                     log.debug("工具调用成功: {} -> {}", toolRequest.name(), result);
+                                     log.debug("工具调用成功: name={}, resultLength={}, resultSnippet={}",
+                                             toolRequest.name(),
+                                             result != null ? result.length() : 0,
+                                             abbreviate(result, 500));
                                  } catch (Exception e) {
                                      log.error("工具调用失败: {}", e.getMessage(), e);
                                      // 工具调用异常，返回失败格式
@@ -219,7 +245,7 @@ public class LangChain4jAgentService {
                             
                             // 递归继续对话
                             try {
-                                String finalResult = executeChatWithMessages(streamingChatModel, messages, availableTools);
+                                String finalResult = executeChatWithMessages(streamingChatModel, messages, availableTools, allowRecovery);
                                 future.complete(finalResult);
                             } catch (Exception e) {
                                 future.completeExceptionally(e);
@@ -233,6 +259,25 @@ public class LangChain4jAgentService {
                     if (StrUtil.isBlank(response) && completeResponse != null && completeResponse.aiMessage() != null) {
                         response = completeResponse.aiMessage().text();
                     }
+                    String trimmedResponse = response != null ? response.trim() : null;
+                    if ("TOOL_EXECUTION_FAILED".equals(trimmedResponse)
+                            && toolInvoked.get()
+                            && toolSuccessAll.get()
+                            && allowRecovery) {
+                        log.warn("模型返回 TOOL_EXECUTION_FAILED 但工具执行均成功，触发一次恢复重试");
+                        messages.add(SystemMessage.from("工具均已成功返回，请继续完成任务。禁止返回TOOL_EXECUTION_FAILED。"));
+                        try {
+                            String retryResult = executeChatWithMessages(streamingChatModel, messages, availableTools, false);
+                            future.complete(retryResult);
+                            return;
+                        } catch (Exception e) {
+                            future.completeExceptionally(e);
+                            return;
+                        }
+                    }
+                    log.debug("模型最终响应: length={}, snippet={}",
+                            response != null ? response.length() : 0,
+                            abbreviate(response, 500));
                     future.complete(response);
                 } catch (Exception e) {
                     future.completeExceptionally(e);
@@ -338,6 +383,16 @@ public class LangChain4jAgentService {
             log.error("带系统提示的流式聊天失败: {}", e.getMessage(), e);
             onError.accept(new ServiceException("带系统提示的流式聊天失败: " + e.getMessage()));
         }
+    }
+
+    private String abbreviate(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        if (value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength) + "...";
     }
 
     /**

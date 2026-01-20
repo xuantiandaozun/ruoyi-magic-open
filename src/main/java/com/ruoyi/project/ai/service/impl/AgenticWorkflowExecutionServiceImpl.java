@@ -185,8 +185,12 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
         }
 
         try {
-            log.info("开始执行Agent步骤: stepId={}, modelConfigId={}, toolCount={}",
-                    step.getId(), step.getModelConfigId(), toolNames != null ? toolNames.size() : 0);
+            log.info("开始执行Agent步骤: stepId={}, stepName={}, modelConfigId={}, toolCount={}",
+                step.getId(), step.getStepName(), step.getModelConfigId(), toolNames != null ? toolNames.size() : 0);
+            log.info("步骤输入摘要: stepId={}, inputKeys={}, systemPromptLength={}, userInputLength={}",
+                step.getId(), inputData != null ? inputData.keySet() : "null",
+                systemPrompt != null ? systemPrompt.length() : 0,
+                userInput != null ? userInput.length() : 0);
             log.debug("系统提示: {}", systemPrompt);
             log.debug("用户输入: {}", userInput);
             log.debug("可用工具: {}", toolNames);
@@ -202,8 +206,12 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
                 agentResult = agentService.chatWithSystem(step.getModelConfigId(), systemPrompt, userInput);
             }
 
-            log.info("Agent执行成功: stepId={}, resultType={}",
-                    step.getId(), agentResult != null ? agentResult.toString() : "null");
+                log.info("Agent执行完成: stepId={}, resultLength={}, toolResultSuccessFlag={}, toolResultEmpty={}, message={}",
+                    step.getId(), agentResult != null ? agentResult.length() : 0,
+                    ToolResultProcessor.isSuccess(agentResult),
+                    ToolResultProcessor.isEmpty(agentResult),
+                    abbreviate(ToolResultProcessor.getMessage(agentResult), 200));
+                log.debug("Agent结果摘要: stepId={}, resultSnippet={}", step.getId(), abbreviate(agentResult, 500));
             // 不再打印完整结果，避免日志过大
 
             // 基于工具统一返回结构进行失败判断，避免完全依赖模型文本
@@ -250,6 +258,16 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
             log.error("Agent执行失败: stepId={}, error={}", step.getId(), e.getMessage(), e);
             throw new ServiceException("LangChain4j Agent执行失败: " + e.getMessage());
         }
+    }
+
+    private String abbreviate(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        if (value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength) + "...";
     }
 
     /**

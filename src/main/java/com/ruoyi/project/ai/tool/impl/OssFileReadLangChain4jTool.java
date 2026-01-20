@@ -59,10 +59,15 @@ public class OssFileReadLangChain4jTool implements LangChain4jTool {
     
     @Override
     public String execute(Map<String, Object> parameters) {
-        String ossUrl = (String) parameters.get("ossUrl");
+        String ossUrl = parameters != null ? (String) parameters.get("ossUrl") : null;
         
         if (StrUtil.isBlank(ossUrl)) {
-            return ToolExecutionResult.empty("query", "OSS URL为空");
+            return ToolExecutionResult.querySuccess("", "OSS URL为空，已跳过读取");
+        }
+        
+        if (!ossUrl.startsWith("http://") && !ossUrl.startsWith("https://")) {
+            log.warn("[OssFileReadTool] OSS URL不合法，跳过读取: url={}", ossUrl);
+            return ToolExecutionResult.querySuccess("", "OSS URL不合法，已跳过读取");
         }
         
         log.info("[OssFileReadTool] 开始下载并读取文件: url={}", ossUrl);
