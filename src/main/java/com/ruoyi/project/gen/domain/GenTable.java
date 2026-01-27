@@ -83,12 +83,15 @@ public class GenTable extends BaseEntity {
 
     /** 生成路径（不填默认项目路径） */
     private String genPath;
-    
+
     /** Vue代码生成路径 */
     private String vuePath;
-    
+
     /** 数据源名称 */
     private String dataSource;
+
+    /** 是否继承基类（1继承 0不继承） */
+    private String isInherit;
 
     /** 主键信息 */
     @Column(ignore = true)
@@ -127,7 +130,7 @@ public class GenTable extends BaseEntity {
     private String parentMenuName;
 
     /** 删除标志（0代表存在 2代表删除） */
-    @Column(isLogicDelete=true)
+    @Column(isLogicDelete = true)
     private String delFlag;
 
     public boolean isSub() {
@@ -164,5 +167,12 @@ public class GenTable extends BaseEntity {
                     ArrayUtils.addAll(GenConstants.TREE_ENTITY, GenConstants.BASE_ENTITY));
         }
         return StrUtil.equalsAnyIgnoreCase(javaField, GenConstants.BASE_ENTITY);
+    }
+
+    /**
+     * 判断是否继承基类
+     */
+    public boolean isInherit() {
+        return isInherit == null || !"0".equals(isInherit);
     }
 }

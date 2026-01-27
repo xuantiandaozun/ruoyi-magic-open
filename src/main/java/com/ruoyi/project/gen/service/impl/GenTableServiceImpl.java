@@ -347,7 +347,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         if (genTable.getColumns() != null && !genTable.getColumns().isEmpty()) {
             validateAutoIncrementColumns(genTable.getColumns());
         }
-        
+
         this.updateById(genTable);
 
         // 查询原有表字段
@@ -543,7 +543,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         if (CollUtil.isNotEmpty(columns)) {
             validateAutoIncrementColumns(columns);
         }
-        
+
         // 保存业务表信息
         this.save(genTable);
 
@@ -577,13 +577,13 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                 if (CollUtil.isNotEmpty(columns)) {
                     // 初始化列属性字段
                     columns.forEach(column -> GenUtils.initColumnField(column, table));
-                    
+
                     // 优化列表显示字段数量，确保最多显示7个字段
                     GenUtils.optimizeListColumns(columns);
-                    
+
                     // 优化查询字段数量，确保最多设置4个查询条件
                     GenUtils.optimizeQueryColumns(columns);
-                    
+
                     genTableColumnService.saveBatch(columns);
                 }
             }
@@ -650,7 +650,8 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         VelocityContext context = VelocityUtils.prepareContext(table);
 
         // 获取模板列表
-        List<String> templates = VelocityUtils.getTemplateList(table.getTplCategory(), table.getTplWebType());
+        List<String> templates = VelocityUtils.getTemplateList(table.getTplCategory(), table.getTplWebType(),
+                table.isInherit());
         for (String template : templates) {
             // 渲染模板
             StringWriter sw = new StringWriter();
@@ -734,7 +735,8 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         VelocityContext context = VelocityUtils.prepareContext(table);
 
         // 获取模板列表
-        List<String> templates = VelocityUtils.getTemplateList(table.getTplCategory(), table.getTplWebType());
+        List<String> templates = VelocityUtils.getTemplateList(table.getTplCategory(), table.getTplWebType(),
+                table.isInherit());
         for (String template : templates) {
             // 移除对Vue模板的跳过限制，允许生成所有模板文件
             if (!StrUtil.containsAny(template, "mapper.xml.vm")) {
@@ -866,24 +868,26 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
     /**
      * 逐个字段同步表结构
      * 
-     * @param tableName 表名
-     * @param tableColumns 目标字段列表
+     * @param tableName      表名
+     * @param tableColumns   目标字段列表
      * @param dbTableColumns 数据库现有字段列表
      */
-    private void synchTableFieldsOneByOne(String tableName, List<GenTableColumn> tableColumns, List<GenTableColumn> dbTableColumns) {
+    private void synchTableFieldsOneByOne(String tableName, List<GenTableColumn> tableColumns,
+            List<GenTableColumn> dbTableColumns) {
         // 构建数据库字段映射
         Map<String, GenTableColumn> dbColumnMap = dbTableColumns.stream()
                 .collect(Collectors.toMap(GenTableColumn::getColumnName, Function.identity()));
-        
+
         // 构建目标字段映射
         Map<String, GenTableColumn> genColumnMap = tableColumns.stream()
                 .collect(Collectors.toMap(GenTableColumn::getColumnName, Function.identity()));
-        
+
         // 1. 先处理需要删除的字段
         for (GenTableColumn dbColumn : dbTableColumns) {
             if (!genColumnMap.containsKey(dbColumn.getColumnName())) {
                 try {
-                    String dropColumnSql = String.format("ALTER TABLE `%s` DROP COLUMN `%s`", tableName, dbColumn.getColumnName());
+                    String dropColumnSql = String.format("ALTER TABLE `%s` DROP COLUMN `%s`", tableName,
+                            dbColumn.getColumnName());
                     log.info("删除字段: {}.{}", tableName, dbColumn.getColumnName());
                     Db.updateBySql(dropColumnSql);
                     log.info("字段删除成功: {}.{}", tableName, dbColumn.getColumnName());
@@ -893,11 +897,11 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                 }
             }
         }
-        
+
         // 2. 处理需要新增和修改的字段
         for (GenTableColumn genColumn : tableColumns) {
             GenTableColumn dbColumn = dbColumnMap.get(genColumn.getColumnName());
-            
+
             if (dbColumn == null) {
                 // 字段不存在，需要新增
                 addSingleColumn(tableName, genColumn);
@@ -908,11 +912,11 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                 }
             }
         }
-        
+
         // 3. 最后处理主键
         handlePrimaryKey(tableName, tableColumns, dbTableColumns);
     }
-    
+
     /**
      * 新增单个字段
      */
@@ -920,44 +924,46 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         try {
             StringBuilder sql = new StringBuilder();
             sql.append("ALTER TABLE `").append(tableName).append("` ADD COLUMN `")
-               .append(column.getColumnName()).append("` ").append(column.getColumnType());
-            
+                    .append(column.getColumnName()).append("` ").append(column.getColumnType());
+
             // 是否允许为NULL
             if ("1".equals(column.getIsRequired())) {
                 sql.append(" NOT NULL");
             } else {
                 sql.append(" NULL");
             }
-            
+
             // 自增属性
             if ("1".equals(column.getIsIncrement())) {
                 sql.append(" AUTO_INCREMENT");
             }
-            
+
             // 默认值处理 - 主键自增字段不需要默认值
             if (!"1".equals(column.getIsPk()) || !"1".equals(column.getIsIncrement())) {
-                if (StrUtil.isNotEmpty(column.getColumnDefault()) && !"NULL".equalsIgnoreCase(column.getColumnDefault())) {
+                if (StrUtil.isNotEmpty(column.getColumnDefault())
+                        && !"NULL".equalsIgnoreCase(column.getColumnDefault())) {
                     sql.append(" DEFAULT '").append(column.getColumnDefault()).append("'");
                 } else if (!"1".equals(column.getIsRequired())) {
                     // 只有当字段允许为NULL时才设置DEFAULT NULL
                     sql.append(" DEFAULT NULL");
                 }
             }
-            
+
             // 注释
             if (StrUtil.isNotEmpty(column.getColumnComment())) {
                 sql.append(" COMMENT '").append(column.getColumnComment()).append("'");
             }
-            
+
             log.info("新增字段: {}.{}", tableName, column.getColumnName());
             Db.updateBySql(sql.toString());
             log.info("字段新增成功: {}.{}", tableName, column.getColumnName());
         } catch (Exception e) {
             log.error("新增字段失败: {}.{}, 错误: {}", tableName, column.getColumnName(), e.getMessage());
-            throw new ServiceException(String.format("新增字段失败: %s.%s, 错误: %s", tableName, column.getColumnName(), e.getMessage()));
+            throw new ServiceException(
+                    String.format("新增字段失败: %s.%s, 错误: %s", tableName, column.getColumnName(), e.getMessage()));
         }
     }
-    
+
     /**
      * 修改单个字段
      */
@@ -965,66 +971,69 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         try {
             StringBuilder sql = new StringBuilder();
             sql.append("ALTER TABLE `").append(tableName).append("` MODIFY COLUMN `")
-               .append(genColumn.getColumnName()).append("` ").append(genColumn.getColumnType());
-            
+                    .append(genColumn.getColumnName()).append("` ").append(genColumn.getColumnType());
+
             // 是否允许为NULL
             if ("1".equals(genColumn.getIsRequired())) {
                 sql.append(" NOT NULL");
             } else {
                 sql.append(" NULL");
             }
-            
+
             // 自增属性 - 如果目标字段需要自增就添加AUTO_INCREMENT
             if ("1".equals(genColumn.getIsIncrement())) {
                 sql.append(" AUTO_INCREMENT");
             }
-            
+
             // 默认值处理 - 主键自增字段不需要默认值
             if (!"1".equals(genColumn.getIsPk()) || !"1".equals(genColumn.getIsIncrement())) {
-                if (StrUtil.isNotEmpty(genColumn.getColumnDefault()) && !"NULL".equalsIgnoreCase(genColumn.getColumnDefault())) {
+                if (StrUtil.isNotEmpty(genColumn.getColumnDefault())
+                        && !"NULL".equalsIgnoreCase(genColumn.getColumnDefault())) {
                     sql.append(" DEFAULT '").append(genColumn.getColumnDefault()).append("'");
                 } else if (!"1".equals(genColumn.getIsRequired())) {
                     // 只有当字段允许为NULL时才设置DEFAULT NULL
                     sql.append(" DEFAULT NULL");
                 }
             }
-            
+
             // 注释
             if (StrUtil.isNotEmpty(genColumn.getColumnComment())) {
                 sql.append(" COMMENT '").append(genColumn.getColumnComment()).append("'");
             }
-            
+
             log.info("修改字段: {}.{}", tableName, genColumn.getColumnName());
             Db.updateBySql(sql.toString());
             log.info("字段修改成功: {}.{}", tableName, genColumn.getColumnName());
         } catch (Exception e) {
             log.error("修改字段失败: {}.{}, 错误: {}", tableName, genColumn.getColumnName(), e.getMessage());
-            throw new ServiceException(String.format("修改字段失败: %s.%s, 错误: %s", tableName, genColumn.getColumnName(), e.getMessage()));
+            throw new ServiceException(
+                    String.format("修改字段失败: %s.%s, 错误: %s", tableName, genColumn.getColumnName(), e.getMessage()));
         }
     }
-    
+
     /**
      * 处理主键
      */
-    private void handlePrimaryKey(String tableName, List<GenTableColumn> tableColumns, List<GenTableColumn> dbTableColumns) {
+    private void handlePrimaryKey(String tableName, List<GenTableColumn> tableColumns,
+            List<GenTableColumn> dbTableColumns) {
         // 获取目标主键字段
         List<String> targetPkColumns = tableColumns.stream()
                 .filter(column -> "1".equals(column.getIsPk()))
                 .map(GenTableColumn::getColumnName)
                 .collect(Collectors.toList());
-        
+
         // 获取当前主键字段
         List<String> currentPkColumns = dbTableColumns.stream()
                 .filter(column -> "1".equals(column.getIsPk()))
                 .map(GenTableColumn::getColumnName)
                 .collect(Collectors.toList());
-        
+
         // 比较主键是否相同
         if (targetPkColumns.equals(currentPkColumns)) {
             log.info("表 {} 主键无需修改", tableName);
             return;
         }
-        
+
         try {
             // 如果当前有主键，先删除
             if (!currentPkColumns.isEmpty()) {
@@ -1033,7 +1042,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                 Db.updateBySql(dropPkSql);
                 log.info("主键删除成功: {}", tableName);
             }
-            
+
             // 如果目标有主键，先确保主键字段具有正确的AUTO_INCREMENT属性，然后添加新主键
             if (!targetPkColumns.isEmpty()) {
                 // 先处理主键字段的AUTO_INCREMENT属性
@@ -1042,27 +1051,28 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                             .filter(col -> pkColumnName.equals(col.getColumnName()) && "1".equals(col.getIsPk()))
                             .findFirst()
                             .orElse(null);
-                    
+
                     if (pkColumn != null && "1".equals(pkColumn.getIsIncrement())) {
                         // 如果主键字段需要自增，先修改字段属性
                         StringBuilder modifyPkSql = new StringBuilder();
                         modifyPkSql.append("ALTER TABLE `").append(tableName).append("` MODIFY COLUMN `")
                                 .append(pkColumn.getColumnName()).append("` ").append(pkColumn.getColumnType());
-                        
+
                         // 主键字段通常是NOT NULL
                         modifyPkSql.append(" NOT NULL AUTO_INCREMENT");
-                        
+
                         // 添加注释
                         if (StrUtil.isNotEmpty(pkColumn.getColumnComment())) {
-                            modifyPkSql.append(" COMMENT '").append(pkColumn.getColumnComment().replace("'", "\\'")).append("'");
+                            modifyPkSql.append(" COMMENT '").append(pkColumn.getColumnComment().replace("'", "\\'"))
+                                    .append("'");
                         }
-                        
+
                         log.info("设置主键字段 {}.{} 为自增", tableName, pkColumn.getColumnName());
                         Db.updateBySql(modifyPkSql.toString());
                         log.info("主键字段自增设置成功: {}.{}", tableName, pkColumn.getColumnName());
                     }
                 }
-                
+
                 // 添加主键约束
                 String pkColumnList = targetPkColumns.stream()
                         .map(col -> "`" + col + "`")
@@ -1370,7 +1380,8 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         VelocityContext context = VelocityUtils.prepareContext(table);
 
         // 获取模板列表
-        List<String> templates = VelocityUtils.getTemplateList(table.getTplCategory(), table.getTplWebType());
+        List<String> templates = VelocityUtils.getTemplateList(table.getTplCategory(), table.getTplWebType(),
+                table.isInherit());
 
         // 根据生成类型过滤模板
         templates = filterTemplatesByGenType(templates, genType);
@@ -1474,7 +1485,8 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         VelocityContext context = VelocityUtils.prepareContext(table);
 
         // 获取模板列表
-        List<String> templates = VelocityUtils.getTemplateList(table.getTplCategory(), table.getTplWebType());
+        List<String> templates = VelocityUtils.getTemplateList(table.getTplCategory(), table.getTplWebType(),
+                table.isInherit());
 
         for (String template : templates) {
             // 渲染模板
@@ -1510,12 +1522,12 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
         long autoIncrementCount = columns.stream()
                 .filter(column -> "1".equals(column.getIsIncrement()))
                 .count();
-        
+
         // 检查是否有多个自增字段
         if (autoIncrementCount > 1) {
             throw new RuntimeException("一个表只能有一个自增字段");
         }
-        
+
         // 检查自增字段是否为主键
         for (GenTableColumn column : columns) {
             if ("1".equals(column.getIsIncrement()) && !"1".equals(column.getIsPk())) {
@@ -1523,19 +1535,20 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
             }
         }
     }
-    
+
     /**
      * 验证数据库中的自增字段配置
      * 检查是否会导致表中有多个自增字段
      */
-    private void validateDatabaseAutoIncrementColumns(String tableName, List<GenTableColumn> tableColumns, List<GenTableColumn> dbTableColumns) {
+    private void validateDatabaseAutoIncrementColumns(String tableName, List<GenTableColumn> tableColumns,
+            List<GenTableColumn> dbTableColumns) {
         try {
             // 查询数据库中当前已有的自增字段
             String sql = "SELECT column_name FROM information_schema.columns " +
-                        "WHERE table_schema = (SELECT DATABASE()) " +
-                        "AND table_name = ? " +
-                        "AND extra LIKE '%auto_increment%'";
-            
+                    "WHERE table_schema = (SELECT DATABASE()) " +
+                    "AND table_name = ? " +
+                    "AND extra LIKE '%auto_increment%'";
+
             List<Row> rows = Db.selectListBySql(sql, tableName);
             Set<String> dbAutoIncrementColumns = new HashSet<>();
             if (rows != null) {
@@ -1543,7 +1556,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                     dbAutoIncrementColumns.add(row.getString("column_name"));
                 }
             }
-            
+
             // 检查新配置的自增字段
             Set<String> newAutoIncrementColumns = new HashSet<>();
             for (GenTableColumn column : tableColumns) {
@@ -1551,26 +1564,26 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                     newAutoIncrementColumns.add(column.getColumnName());
                 }
             }
-            
+
             // 计算最终会有的自增字段数量
             Set<String> finalAutoIncrementColumns = new HashSet<>(dbAutoIncrementColumns);
-            
+
             // 移除不再是自增的字段
             for (GenTableColumn column : tableColumns) {
                 if (!"1".equals(column.getIsIncrement())) {
                     finalAutoIncrementColumns.remove(column.getColumnName());
                 }
             }
-            
+
             // 添加新的自增字段
             finalAutoIncrementColumns.addAll(newAutoIncrementColumns);
-            
+
             // 检查最终自增字段数量
             if (finalAutoIncrementColumns.size() > 1) {
-                throw new RuntimeException("表 " + tableName + " 中已存在自增字段，不能再设置其他字段为自增。当前自增字段：" + 
-                    String.join(", ", finalAutoIncrementColumns));
+                throw new RuntimeException("表 " + tableName + " 中已存在自增字段，不能再设置其他字段为自增。当前自增字段：" +
+                        String.join(", ", finalAutoIncrementColumns));
             }
-            
+
         } catch (Exception e) {
             if (e instanceof RuntimeException) {
                 throw e;
@@ -1689,10 +1702,10 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
             List<GenTableColumn> tableColumns, List<GenTableColumn> dbTableColumns) {
         // 验证自增字段配置
         validateAutoIncrementColumns(tableColumns);
-        
+
         // 检查数据库中是否已有自增字段
         validateDatabaseAutoIncrementColumns(tableName, tableColumns, dbTableColumns);
-        
+
         // 构建数据库字段映射，用于判断是否已设置自增
         Map<String, GenTableColumn> dbColumnMap = dbTableColumns.stream()
                 .collect(Collectors.toMap(GenTableColumn::getColumnName, Function.identity()));
@@ -1724,7 +1737,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
             if (StrUtil.isNotEmpty(column.getColumnDefault())
                     && !"undefined".equalsIgnoreCase(column.getColumnDefault())) {
                 alterSql.append(" DEFAULT ").append(column.getColumnDefault());
-            } else if ((column.getColumnDefault() == null || column.getColumnDefault().isEmpty()) 
+            } else if ((column.getColumnDefault() == null || column.getColumnDefault().isEmpty())
                     && !"1".equals(column.getIsRequired())) {
                 // 只有当字段允许为NULL时才设置DEFAULT NULL
                 alterSql.append(" DEFAULT NULL");
@@ -1766,7 +1779,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
             if (StrUtil.isNotEmpty(column.getColumnDefault())
                     && !"undefined".equalsIgnoreCase(column.getColumnDefault())) {
                 alterSql.append(" DEFAULT ").append(column.getColumnDefault());
-            } else if ((column.getColumnDefault() == null || column.getColumnDefault().isEmpty()) 
+            } else if ((column.getColumnDefault() == null || column.getColumnDefault().isEmpty())
                     && !"1".equals(column.getIsRequired())) {
                 // 只有当字段允许为NULL时才设置DEFAULT NULL
                 alterSql.append(" DEFAULT NULL");
@@ -1800,12 +1813,12 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
             // 不再依赖检查表是否有主键的方法，而是直接尝试删除主键，如果失败则忽略错误
             // 这样可以避免在表没有主键时尝试删除主键导致的错误
             String dropPkSql = "ALTER TABLE `" + tableName + "` DROP PRIMARY KEY";
-            
+
             // 添加删除主键的SQL，但在执行时会单独处理
             sqlList.add("-- @DROP_PRIMARY_KEY_START");
             sqlList.add(dropPkSql + ";");
             sqlList.add("-- @DROP_PRIMARY_KEY_END");
-            
+
             // 检查主键字段是否需要自增，如果需要，先修改字段属性
             for (GenTableColumn pkColumn : pkColumns) {
                 if ("1".equals(pkColumn.getIsIncrement())) {
@@ -1813,19 +1826,20 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                     StringBuilder modifyPkSql = new StringBuilder();
                     modifyPkSql.append("ALTER TABLE `").append(tableName).append("` MODIFY COLUMN `")
                             .append(pkColumn.getColumnName()).append("` ").append(pkColumn.getColumnType());
-                    
+
                     // 主键字段通常是NOT NULL
                     modifyPkSql.append(" NOT NULL AUTO_INCREMENT");
-                    
+
                     // 添加注释
                     if (StrUtil.isNotEmpty(pkColumn.getColumnComment())) {
-                        modifyPkSql.append(" COMMENT '").append(pkColumn.getColumnComment().replace("'", "\\'")).append("'");
+                        modifyPkSql.append(" COMMENT '").append(pkColumn.getColumnComment().replace("'", "\\'"))
+                                .append("'");
                     }
-                    
+
                     sqlList.add(modifyPkSql.toString() + ";");
                 }
             }
-            
+
             // 添加新主键
             String addPkSql = "ALTER TABLE `" + tableName + "` ADD PRIMARY KEY (";
             for (int i = 0; i < pkColumns.size(); i++) {
@@ -1835,7 +1849,7 @@ public class GenTableServiceImpl extends ServiceImpl<GenTableMapper, GenTable> i
                 }
             }
             addPkSql += ")";
-            
+
             // 添加到SQL列表
             sqlList.add(addPkSql + ";");
         }
