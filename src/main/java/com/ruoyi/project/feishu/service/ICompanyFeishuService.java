@@ -1,5 +1,7 @@
 package com.ruoyi.project.feishu.service;
 
+import java.util.Map;
+
 import com.ruoyi.project.feishu.domain.dto.DomainCertRecordDto;
 
 /**
@@ -64,4 +66,25 @@ public interface ICompanyFeishuService {
      * @return 更新记录结果
      */
     Object updateAppTableRecord(String appToken, String tableId, String recordId, DomainCertRecordDto record);
+
+    /**
+     * 新增多维表格记录（通用Map版本）
+     *
+     * @param appToken 多维表格应用token
+     * @param tableId 数据表ID
+     * @param fields 字段数据Map
+     * @return 新增记录结果
+     */
+    Object createAppTableRecord(String appToken, String tableId, Map<String, Object> fields);
+
+    /**
+     * 更新多维表格记录（通用Map版本）
+     *
+     * @param appToken 多维表格应用token
+     * @param tableId 数据表ID
+     * @param recordId 记录ID
+     * @param fields 字段数据Map
+     * @return 更新记录结果
+     */
+    Object updateAppTableRecord(String appToken, String tableId, String recordId, Map<String, Object> fields);
 }

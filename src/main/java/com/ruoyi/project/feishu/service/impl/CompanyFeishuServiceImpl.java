@@ -558,4 +558,87 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
             throw new RuntimeException("更新多维表格记录异常: " + e.getMessage());
         }
     }
+
+    @Override
+    public Object createAppTableRecord(String appToken, String tableId, Map<String, Object> fields) {
+        try {
+            // 获取飞书客户端
+            Client client = getFeishuClient();
+
+            // 创建请求对象
+            CreateAppTableRecordReq req = CreateAppTableRecordReq.newBuilder()
+                .appToken(appToken)
+                .tableId(tableId)
+                .appTableRecord(AppTableRecord.newBuilder()
+                    .fields(fields)
+                    .build())
+                .build();
+
+            // 发起请求
+            CreateAppTableRecordResp resp = client.bitable().v1().appTableRecord().create(req);
+
+            // 处理服务端错误
+            if (!resp.success()) {
+                log.error("新增多维表格记录失败（通用），错误码: {}, 错误信息: {}, 请求ID: {}",
+                        resp.getCode(), resp.getMsg(), resp.getRequestId());
+
+                if (resp.getRawResponse() != null && resp.getRawResponse().getBody() != null) {
+                    String errorDetail = Jsons.createGSON(true, false).toJson(
+                            JsonParser.parseString(new String(resp.getRawResponse().getBody(), StandardCharsets.UTF_8)));
+                    log.error("飞书API详细错误信息: {}", errorDetail);
+                }
+                throw new RuntimeException("新增多维表格记录失败: " + resp.getMsg());
+            }
+
+            // 返回新增记录的数据
+            return resp.getData();
+
+        } catch (Exception e) {
+            log.error("新增多维表格记录异常（通用）", e);
+            throw new RuntimeException("新增多维表格记录异常: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public Object updateAppTableRecord(String appToken, String tableId, String recordId, Map<String, Object> fields) {
+        try {
+            log.info("更新飞书记录，传入字段: {}", fields != null ? fields.keySet() : "null");
+            
+            // 获取飞书客户端
+            Client client = getFeishuClient();
+
+            // 创建请求对象
+            UpdateAppTableRecordReq req = UpdateAppTableRecordReq.newBuilder()
+                .appToken(appToken)
+                .tableId(tableId)
+                .recordId(recordId)
+                .appTableRecord(AppTableRecord.newBuilder()
+                    .fields(fields)
+                    .build())
+                .build();
+
+            // 发起请求
+            UpdateAppTableRecordResp resp = client.bitable().v1().appTableRecord().update(req);
+
+            // 处理服务端错误
+            if (!resp.success()) {
+                log.error("更新多维表格记录失败（通用），错误码: {}, 错误信息: {}, 请求ID: {}",
+                        resp.getCode(), resp.getMsg(), resp.getRequestId());
+
+                if (resp.getRawResponse() != null && resp.getRawResponse().getBody() != null) {
+                    String errorDetail = Jsons.createGSON(true, false).toJson(
+                            JsonParser.parseString(new String(resp.getRawResponse().getBody(), StandardCharsets.UTF_8)));
+                    log.error("飞书API详细错误信息: {}", errorDetail);
+                }
+                throw new RuntimeException("更新多维表格记录失败: " + resp.getMsg());
+            }
+
+            // 返回更新记录的数据
+            return resp.getData();
+
+        } catch (Exception e) {
+            log.error("更新多维表格记录异常（通用）", e);
+            throw new RuntimeException("更新多维表格记录异常: " + e.getMessage());
+        }
+    }
 }

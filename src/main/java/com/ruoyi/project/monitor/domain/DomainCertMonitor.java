@@ -100,6 +100,10 @@ public class DomainCertMonitor implements Serializable {
     @Column(isLogicDelete = true)
     private String delFlag;
 
+    /** 飞书多维表格记录ID（不持久化到数据库） */
+    @Column(ignore = true)
+    private transient String feishuRecordId;
+
     /** 状态常量 */
     @Column(ignore = true)
     public static final String STATUS_NORMAL = "0";
