@@ -63,6 +63,11 @@ public class BitableConfig {
     private Long requestInterval = 100L;
     
     /**
+     * 飞书密钥名称
+     */
+    private String keyName = "我的飞书";
+    
+    /**
      * 添加字段映射
      */
     public BitableConfig addFieldMapping(BitableFieldMapping mapping) {

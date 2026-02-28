@@ -205,7 +205,8 @@ public class GenericBitableSyncServiceImpl implements IGenericBitableSyncService
                 config.getTableId(),
                 config.getViewId(),
                 1,
-                String.valueOf(primaryKeyValue)
+                String.valueOf(primaryKeyValue),
+                config.getKeyName() != null ? config.getKeyName() : "我的飞书"
             );
             
             if (response instanceof FeishuBitablePageResponseDto) {
@@ -233,7 +234,8 @@ public class GenericBitableSyncServiceImpl implements IGenericBitableSyncService
             Object response = companyFeishuService.createAppTableRecord(
                 config.getAppToken(),
                 config.getTableId(),
-                fields
+                fields,
+                config.getKeyName() != null ? config.getKeyName() : "我的飞书"
             );
             
             // 从响应中提取recordId
@@ -260,7 +262,8 @@ public class GenericBitableSyncServiceImpl implements IGenericBitableSyncService
                 config.getAppToken(),
                 config.getTableId(),
                 recordId,
-                fields
+                fields,
+                config.getKeyName() != null ? config.getKeyName() : "我的飞书"
             );
             
             return response != null;
@@ -325,7 +328,8 @@ public class GenericBitableSyncServiceImpl implements IGenericBitableSyncService
                     config.getTableId(),
                     config.getViewId(),
                     config.getPageSize(),
-                    null
+                    null,
+                    config.getKeyName() != null ? config.getKeyName() : "我的飞书"
                 );
                 
                 if (response instanceof FeishuBitablePageResponseDto) {

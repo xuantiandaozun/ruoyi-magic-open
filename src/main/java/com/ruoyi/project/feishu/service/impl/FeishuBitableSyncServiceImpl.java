@@ -49,15 +49,16 @@ public class FeishuBitableSyncServiceImpl implements IFeishuBitableSyncService {
             .setAppToken(StrUtil.isNotEmpty(appToken) ? appToken : APP_TOKEN)
             .setTableId(StrUtil.isNotEmpty(tableId) ? tableId : TABLE_ID)
             .setViewId(StrUtil.isNotEmpty(viewId) ? viewId : VIEW_ID)
+            .setKeyName("公司飞书机器人")  // 固定使用公司飞书机器人
             .setPageSize(DEFAULT_PAGE_SIZE)
             .setRequestInterval(100L)
             // 主键字段配置
             .setPrimaryField("domain")
             // 字段映射配置 - 只配置飞书表格中实际存在的字段
-            .addFieldMapping(new BitableFieldMapping("域名", "domain", FieldType.TEXT).setPrimary(true))
-            .addFieldMapping(new BitableFieldMapping("备注", "remark", FieldType.TEXT))
-            .addFieldMapping(new BitableFieldMapping("剩余天数", "daysRemaining", FieldType.NUMBER))
-            .addFieldMapping(new BitableFieldMapping("过期时间", "expireTime", FieldType.DATE));
+            .addFieldMapping(new BitableFieldMapping("域名", "domain", com.ruoyi.project.feishu.annotation.FieldType.TEXT).setPrimary(true))
+            .addFieldMapping(new BitableFieldMapping("备注", "remark", com.ruoyi.project.feishu.annotation.FieldType.TEXT))
+            .addFieldMapping(new BitableFieldMapping("剩余天数", "daysRemaining", com.ruoyi.project.feishu.annotation.FieldType.NUMBER))
+            .addFieldMapping(new BitableFieldMapping("过期时间", "expireTime", com.ruoyi.project.feishu.annotation.FieldType.DATE));
             // 注意：如果飞书表格还有其他字段（如端口），需要在这里添加
     }
 

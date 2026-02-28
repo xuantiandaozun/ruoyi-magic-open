@@ -61,11 +61,19 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
      * @return 飞书客户端实例
      */
     private Client getFeishuClient() {
-        String keyName = "公司飞书机器人";
-        
+        return getFeishuClient("公司飞书机器人");
+    }
+    
+    /**
+     * 获取飞书客户端（使用指定密钥名称）
+     * 
+     * @param keyName 密钥名称
+     * @return 飞书客户端实例
+     */    
+    private Client getFeishuClient(String keyName) {
         // 获取飞书配置
         FeishuConfig feishuConfig = FeishuConfigUtils.getFeishuConfig(keyName);
-        log.info("使用固定密钥名称: {} 获取飞书配置", keyName);
+        log.info("使用密钥名称: {} 获取飞书配置", keyName);
         
         if (feishuConfig == null || !feishuConfig.isValid()) {
             throw new RuntimeException("飞书配置无效，请检查密钥配置");
@@ -77,9 +85,24 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
     
     @Override
     public Object getDepartmentUsers(String departmentId, String userIdType, String departmentIdType, Integer pageSize) {
+        return getDepartmentUsers(departmentId, userIdType, departmentIdType, pageSize, "公司飞书机器人");
+    }
+
+    /**
+     * 根据部门ID获取部门用户列表
+     * 携带指定密钥名称
+     *
+     * @param departmentId 部门ID
+     * @param userIdType 用户ID类型
+     * @param departmentIdType 部门ID类型
+     * @param pageSize 分页大小
+     * @param keyName 密钥名称
+     * @return 部门用户信息
+     */
+    public Object getDepartmentUsers(String departmentId, String userIdType, String departmentIdType, Integer pageSize, String keyName) {
         try {
             // 获取飞书客户端
-            Client client = getFeishuClient();
+            Client client = getFeishuClient(keyName);
             
             // 创建请求对象（使用固定参数）
             FindByDepartmentUserReq req = FindByDepartmentUserReq.newBuilder()
@@ -116,9 +139,23 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
     
     @Override
     public String syncDepartmentUsers(String departmentId, String userIdType, String departmentIdType, Integer pageSize) {
+        return syncDepartmentUsers(departmentId, userIdType, departmentIdType, pageSize, "公司飞书机器人");
+    }
+
+    /**
+     * 同步部门用户列表
+     * 
+     * @param departmentId 部门ID
+     * @param userIdType 用户ID类型
+     * @param departmentIdType 部门ID类型
+     * @param pageSize 分页大小
+     * @param keyName 密钥名称
+     * @return 同步结果信息
+     */
+    public String syncDepartmentUsers(String departmentId, String userIdType, String departmentIdType, Integer pageSize, String keyName) {
         try {
             // 获取飞书客户端
-            Client client = getFeishuClient();
+            Client client = getFeishuClient(keyName);
             
             // 创建请求对象（使用固定参数）
             FindByDepartmentUserReq req = FindByDepartmentUserReq.newBuilder()
@@ -162,7 +199,7 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
                 
                 try {
                     // 转换为本地用户实体
-                    FeishuUsers feishuUser = convertToFeishuUser(userObj);
+                    FeishuUsers feishuUser = convertToFeishuUser(userObj, keyName);
                     
                     // 保存或更新用户信息
                     boolean isNew = feishuUser.getId() == null;
@@ -210,6 +247,17 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
      * @return 本地用户实体
      */
     private FeishuUsers convertToFeishuUser(JsonObject userObj) {
+        return convertToFeishuUser(userObj, "公司飞书机器人");
+    }
+
+    /**
+     * 将飞书API返回的用户数据转换为本地用户实体
+     * 
+     * @param userObj 飞书用户JSON对象
+     * @param keyName  密钥名称
+     * @return 本地用户实体
+     */
+    private FeishuUsers convertToFeishuUser(JsonObject userObj, String keyName) {
         FeishuUsers feishuUser = new FeishuUsers();
         
         // 设置基本字段
@@ -242,7 +290,6 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
         feishuUser.setUpdatedAt(new Date());
         
         // 设置密钥信息
-        String keyName = "公司飞书机器人";
         feishuUser.setKeyName(keyName);
         
         // 获取并设置keyId
@@ -271,9 +318,24 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
     
     @Override
     public Object searchAppTableRecord(String appToken, String tableId, String viewId, Integer pageSize, String domain) {
+        return searchAppTableRecord(appToken, tableId, viewId, pageSize, domain, "公司飞书机器人");
+    }
+
+    /**
+     * 搜索多维表格数据记录
+     * 
+     * @param appToken  应用token
+     * @param tableId  表格ID
+     * @param viewId  视图ID
+     * @param pageSize  分页大小
+     * @param domain  域名（可选过滤条件）
+     * @param keyName  密钥名称
+     * @return 搜索结果
+     */
+    public Object searchAppTableRecord(String appToken, String tableId, String viewId, Integer pageSize, String domain, String keyName) {
         try {
             // 获取飞书客户端
-            Client client = getFeishuClient();
+            Client client = getFeishuClient(keyName);
             
             // 创建请求对象
             SearchAppTableRecordReq.Builder reqBuilder = SearchAppTableRecordReq.newBuilder()
@@ -438,9 +500,22 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
     
     @Override
     public Object createAppTableRecord(String appToken, String tableId, DomainCertRecordDto record) {
+        return createAppTableRecord(appToken, tableId, record, "公司飞书机器人");
+    }
+
+    /**
+     * 创建多维表格记录
+     * 
+     * @param appToken 应用token
+     * @param tableId 表格ID
+     * @param record 记录对象
+     * @param keyName 密钥名称
+     * @return 创建结果
+     */
+    public Object createAppTableRecord(String appToken, String tableId, DomainCertRecordDto record, String keyName) {
         try {
             // 获取飞书客户端
-            Client client = getFeishuClient();
+            Client client = getFeishuClient(keyName);
             
             // 将DTO转换为Map类型
             Map<String, Object> fieldsMap = convertDomainCertRecordToMap(record);
@@ -517,9 +592,23 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
     
     @Override
     public Object updateAppTableRecord(String appToken, String tableId, String recordId, DomainCertRecordDto record) {
+        return updateAppTableRecord(appToken, tableId, recordId, record, "公司飞书机器人");
+    }
+
+    /**
+     * 更新多维表格记录
+     * 
+     * @param appToken 应用token
+     * @param tableId 表格ID
+     * @param recordId 记录ID
+     * @param record 记录对象
+     * @param keyName 密钥名称
+     * @return 更新结果
+     */
+    public Object updateAppTableRecord(String appToken, String tableId, String recordId, DomainCertRecordDto record, String keyName) {
         try {
             // 获取飞书客户端
-            Client client = getFeishuClient();
+            Client client = getFeishuClient(keyName);
             
             // 将DTO转换为Map类型
             Map<String, Object> fieldsMap = convertDomainCertRecordToMap(record);
@@ -561,9 +650,22 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
 
     @Override
     public Object createAppTableRecord(String appToken, String tableId, Map<String, Object> fields) {
+        return createAppTableRecord(appToken, tableId, fields, "公司飞书机器人");
+    }
+
+    /**
+     * 创建多维表格记录（通用）
+     * 
+     * @param appToken 应用token
+     * @param tableId 表格ID
+     * @param fields 字段映射
+     * @param keyName 密钥名称
+     * @return 创建结果
+     */
+    public Object createAppTableRecord(String appToken, String tableId, Map<String, Object> fields, String keyName) {
         try {
             // 获取飞书客户端
-            Client client = getFeishuClient();
+            Client client = getFeishuClient(keyName);
 
             // 创建请求对象
             CreateAppTableRecordReq req = CreateAppTableRecordReq.newBuilder()
@@ -601,11 +703,25 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
 
     @Override
     public Object updateAppTableRecord(String appToken, String tableId, String recordId, Map<String, Object> fields) {
+        return updateAppTableRecord(appToken, tableId, recordId, fields, "公司飞书机器人");
+    }
+
+    /**
+     * 更新多维表格记录（通用）
+     * 
+     * @param appToken 应用token
+     * @param tableId 表格ID
+     * @param recordId 记录ID
+     * @param fields 字段映射
+     * @param keyName 密钥名称
+     * @return 更新结果
+     */
+    public Object updateAppTableRecord(String appToken, String tableId, String recordId, Map<String, Object> fields, String keyName) {
         try {
             log.info("更新飞书记录，传入字段: {}", fields != null ? fields.keySet() : "null");
             
             // 获取飞书客户端
-            Client client = getFeishuClient();
+            Client client = getFeishuClient(keyName);
 
             // 创建请求对象
             UpdateAppTableRecordReq req = UpdateAppTableRecordReq.newBuilder()

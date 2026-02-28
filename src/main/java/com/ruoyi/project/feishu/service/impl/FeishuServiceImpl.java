@@ -55,7 +55,7 @@ public class FeishuServiceImpl implements IFeishuService {
      * 从数据库加载飞书配置
      */
     private void loadFeishuConfig() {
-        loadFeishuConfig(null);
+        loadFeishuConfig("我的飞书");
     }
     
     /**
@@ -95,7 +95,7 @@ public class FeishuServiceImpl implements IFeishuService {
     
     @Override
     public boolean sendTextMessage(String receiveId, String receiveIdType, String content) {
-        return sendTextMessage(receiveId, receiveIdType, content, null);
+        return sendTextMessage(receiveId, receiveIdType, content, "我的飞书");
     }
     
     /**
@@ -118,7 +118,7 @@ public class FeishuServiceImpl implements IFeishuService {
     
     @Override
     public boolean sendMessage(FeishuMessageDto messageDto) {
-        return sendMessage(messageDto, null);
+        return sendMessage(messageDto, "我的飞书");
     }
     
     /**

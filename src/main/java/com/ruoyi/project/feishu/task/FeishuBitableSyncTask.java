@@ -32,11 +32,11 @@ public class FeishuBitableSyncTask {
     private static final Integer DEFAULT_PAGE_SIZE = 50;
     
     /**
-     * 执行数据同步任务（每小时执行一次）
-     * cron表达式：0 0 * * * ?
+     * 执行数据同步任务（每2小时执行一次）
+     * cron表达式：0 0 0/2 * * ?
      * 秒 分 时 日 月 周
      */
-    @Scheduled(cron = "0 0 * * * ?")
+    @Scheduled(cron = "0 0 0/2 * * ?")
     public void execute() {
         log.info("========== 开始执行飞书多维表格数据同步定时任务 ==========");
         long startTime = System.currentTimeMillis();
@@ -57,29 +57,4 @@ public class FeishuBitableSyncTask {
         log.info("========== 飞书多维表格数据同步定时任务执行完成，耗时: {} ms ==========", (endTime - startTime));
     }
     
-    /**
-     * 每日凌晨执行一次完整的数据清理和同步
-     * cron表达式：0 0 2 * * ?
-     * 每天凌晨2点执行
-     */
-    @Scheduled(cron = "0 0 2 * * ?")
-    public void dailySync() {
-        log.info("========== 开始执行每日飞书多维表格数据同步任务 ==========");
-        long startTime = System.currentTimeMillis();
-        
-        try {
-            // 执行双向同步
-            log.info("【步骤1】开始执行每日双向数据同步...");
-            String syncResult = feishuBitableSyncService.syncBidirectional(
-                APP_TOKEN, TABLE_ID, VIEW_ID, DEFAULT_PAGE_SIZE);
-            
-            log.info("【步骤1完成】每日数据同步结果:\n{}", syncResult);
-            
-        } catch (Exception e) {
-            log.error("每日飞书多维表格数据同步任务执行异常", e);
-        }
-        
-        long endTime = System.currentTimeMillis();
-        log.info("========== 每日飞书多维表格数据同步任务执行完成，耗时: {} ms ==========", (endTime - startTime));
-    }
 }
