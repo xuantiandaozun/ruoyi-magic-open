@@ -5,8 +5,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import com.ruoyi.project.ai.domain.AiChatMessage;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -199,35 +197,10 @@ public class AiServiceImpl implements IAiService {
                 String mergedMessage = messages.stream().filter(StrUtil::isNotBlank).collect(Collectors.joining("\n"));
                 return currentStrategy.chat(mergedMessage);
             }
-            throw new RuntimeException("多轮对话请求失败: 策略模式不可用");
+            throw new RuntimeException("多轮对话请求失败：策略模式不可用");
         } catch (Exception e) {
-            log.error("多轮对话请求失败: {}", e.getMessage(), e);
-            throw new RuntimeException("多轮对话请求失败: " + e.getMessage());
-        }
-    }
-
-    @Override
-    public String chatWithHistory(String message, String systemPrompt, List<com.ruoyi.project.ai.domain.AiChatMessage> chatHistory, Long modelConfigId) {
-        try {
-            // 根据模型配置ID获取配置
-            AiModelConfig config = aiModelConfigService.getById(modelConfigId);
-            if (config == null) {
-                throw new RuntimeException("模型配置不存在: " + modelConfigId);
-            }
-            
-            if (!"Y".equals(config.getEnabled())) {
-                throw new RuntimeException("模型配置已禁用: " + modelConfigId);
-            }
-
-            // 使用AiClientFactory.fromConfig创建临时策略
-            AiClientStrategy tempStrategy = AiClientFactory.fromConfig(config);
-            
-            // 使用临时策略进行带历史的聊天
-            return tempStrategy.chatWithHistory(message, systemPrompt, chatHistory);
-            
-        } catch (Exception e) {
-            log.error("使用聊天历史的对话失败: {}", e.getMessage(), e);
-            throw new RuntimeException("使用聊天历史的对话失败: " + e.getMessage());
+            log.error("多轮对话请求失败：{}", e.getMessage(), e);
+            throw new RuntimeException("多轮对话请求失败：" + e.getMessage());
         }
     }
 
@@ -301,13 +274,14 @@ public class AiServiceImpl implements IAiService {
             if (currentStrategy != null) {
                 currentStrategy.streamChatWithSystem(systemPrompt, message, onToken, onComplete, onError);
             } else {
-                onError.accept(new RuntimeException("流式聊天请求失败: 策略模式不可用"));
+                onError.accept(new RuntimeException("流式聊天请求失败：策略模式不可用"));
             }
         } catch (Exception e) {
-            log.error("流式聊天请求失败: {}", e.getMessage(), e);
-            onError.accept(new RuntimeException("流式聊天请求失败: " + e.getMessage()));
+            log.error("带系统提示的流式聊天请求失败：{}", e.getMessage(), e);
+            onError.accept(new RuntimeException("带系统提示的流式聊天请求失败：" + e.getMessage()));
         }
     }
+
 
     @Override
     public void streamChatWithModelConfig(String message, String systemPrompt, Long modelConfigId, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError) {
@@ -333,60 +307,6 @@ public class AiServiceImpl implements IAiService {
         } catch (Exception e) {
             log.error("使用指定模型配置流式聊天失败: {}", e.getMessage(), e);
             onError.accept(new RuntimeException("使用指定模型配置流式聊天失败: " + e.getMessage()));
-        }
-    }
-
-    @Override
-    public void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Long modelConfigId, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError) {
-        try {
-            // 根据模型配置ID获取配置
-            AiModelConfig config = aiModelConfigService.getById(modelConfigId);
-            if (config == null) {
-                onError.accept(new RuntimeException("模型配置不存在: " + modelConfigId));
-                return;
-            }
-            
-            if (!"Y".equals(config.getEnabled())) {
-                onError.accept(new RuntimeException("模型配置已禁用: " + modelConfigId));
-                return;
-            }
-
-            // 使用AiClientFactory.fromConfig创建临时策略
-            AiClientStrategy tempStrategy = AiClientFactory.fromConfig(config);
-            
-            // 使用临时策略进行带历史的流式聊天
-            tempStrategy.streamChatWithHistory(message, systemPrompt, chatHistory, onToken, onComplete, onError);
-            
-        } catch (Exception e) {
-            log.error("使用聊天历史的流式聊天失败: {}", e.getMessage(), e);
-            onError.accept(new RuntimeException("使用聊天历史的流式聊天失败: " + e.getMessage()));
-        }
-    }
-
-    @Override
-    public void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Long modelConfigId, Consumer<String> onToken, BiConsumer<String, String> onToolCall, BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError) {
-        try {
-            // 根据模型配置ID获取配置
-            AiModelConfig config = aiModelConfigService.getById(modelConfigId);
-            if (config == null) {
-                onError.accept(new RuntimeException("模型配置不存在: " + modelConfigId));
-                return;
-            }
-            
-            if (!"Y".equals(config.getEnabled())) {
-                onError.accept(new RuntimeException("模型配置已禁用: " + modelConfigId));
-                return;
-            }
-
-            // 使用AiClientFactory.fromConfig创建临时策略
-            AiClientStrategy tempStrategy = AiClientFactory.fromConfig(config);
-            
-            // 使用临时策略进行带历史的流式聊天（带工具调用回调）
-            tempStrategy.streamChatWithHistory(message, systemPrompt, chatHistory, onToken, onToolCall, onToolResult, onComplete, onError);
-            
-        } catch (Exception e) {
-            log.error("使用聊天历史的流式聊天失败: {}", e.getMessage(), e);
-            onError.accept(new RuntimeException("使用聊天历史的流式聊天失败: " + e.getMessage()));
         }
     }
 

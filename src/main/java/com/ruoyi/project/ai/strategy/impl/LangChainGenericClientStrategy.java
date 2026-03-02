@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 import com.mybatisflex.core.row.Db;
 import com.mybatisflex.core.row.Row;
 import com.ruoyi.common.utils.spring.SpringUtils;
-import com.ruoyi.project.ai.domain.AiChatMessage;
+
 import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.strategy.AiClientStrategy;
 import com.ruoyi.project.ai.tool.LangChain4jToolRegistry;
@@ -285,64 +285,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
         return model;
     }
 
-    @Override
-    public String chatWithHistory(String message, String systemPrompt, List<com.ruoyi.project.ai.domain.AiChatMessage> chatHistory) {
-        try {
-            // 构建消息列表
-            List<dev.langchain4j.data.message.ChatMessage> messages = new ArrayList<>();
-            
-            // 添加系统消息（总是构建增强系统消息）
-            String enhancedSystemPrompt = buildEnhancedSystemPrompt(StrUtil.isNotBlank(systemPrompt) ? systemPrompt : "");
-            messages.add(new SystemMessage(enhancedSystemPrompt));
-            
-            // 添加聊天历史
-            if (chatHistory != null && !chatHistory.isEmpty()) {
-                for (com.ruoyi.project.ai.domain.AiChatMessage historyMessage : chatHistory) {
-                    String role = safeGetMessageRole(historyMessage);
-                    switch (role) {
-                        case "user":
-                            messages.add(safeCreateUserMessage(historyMessage.getMessageContent()));
-                            break;
-                        case "assistant":
-                            messages.add(safeCreateAiMessage(historyMessage.getMessageContent()));
-                            break;
-                        case "system":
-                            messages.add(safeCreateSystemMessage(historyMessage.getMessageContent()));
-                            break;
-                        default:
-                            log.warn("未知的消息角色: {}", role);
-                            break;
-                    }
-                }
-            }
-            
-            // 添加当前用户消息
-            messages.add(new UserMessage(message));
-            
-            // 构建工具规范列表
-            List<ToolSpecification> toolSpecs = buildToolSpecifications();
-            
-            // 构建聊天请求
-            dev.langchain4j.model.chat.request.ChatRequest chatRequest = dev.langchain4j.model.chat.request.ChatRequest.builder()
-                .messages(messages)
-                .toolSpecifications(toolSpecs)
-                .build();
-            
-            // 执行同步聊天
-            ChatModel chatModel = buildChatModel();
-            if (chatModel == null) {
-                throw new RuntimeException("无法构建聊天模型");
-            }
-            
-            dev.langchain4j.model.chat.response.ChatResponse response = chatModel.chat(chatRequest);
-            return response.aiMessage().text();
-            
-        } catch (Exception e) {
-            log.error("同步聊天失败: {}", e.getMessage(), e);
-            throw new RuntimeException("同步聊天失败: " + e.getMessage());
-        }
-    }
-
     private ChatModel buildChatModel() {
         try {
             // 统一走 OpenAI 兼容接口；若 endpoint 非空，则使用自定义 baseUrl
@@ -391,68 +333,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             log.warn("[LC4J-{}] buildStreamingChatModel failed: {}", provider, e.getMessage());
             return null;
         }
-    }
-
-    
-    
-    
-    /**
-     * 安全获取消息角色，防止空指针异常
-     * @param message 聊天消息
-     * @return 消息角色（小写），如果为空则返回 "user"
-     */
-    private String safeGetMessageRole(AiChatMessage message) {
-        if (message == null) {
-            log.warn("AiChatMessage 为 null，使用默认角色 'user'");
-            return "user";
-        }
-        
-        String role = message.getMessageRole();
-        if (StrUtil.isBlank(role)) {
-            log.warn("消息角色为空，消息ID: {}, 使用默认角色 'user'", message.getId());
-            return "user";
-        }
-        
-        return role.toLowerCase();
-    }
-
-    /**
-     * 安全创建用户消息，防止 text null 异常
-     * @param text 消息文本
-     * @return UserMessage 对象
-     */
-    private UserMessage safeCreateUserMessage(String text) {
-        if (StrUtil.isBlank(text)) {
-            log.warn("用户消息内容为空，使用默认内容");
-            return new UserMessage("用户消息内容为空");
-        }
-        return new UserMessage(text);
-    }
-
-    /**
-     * 安全创建AI消息，防止 text null 异常
-     * @param text 消息文本
-     * @return AiMessage 对象
-     */
-    private AiMessage safeCreateAiMessage(String text) {
-        if (StrUtil.isBlank(text)) {
-            log.warn("AI消息内容为空，使用默认内容");
-            return new AiMessage("AI消息内容为空");
-        }
-        return new AiMessage(text);
-    }
-
-    /**
-     * 安全创建系统消息，防止 text null 异常
-     * @param text 消息文本
-     * @return SystemMessage 对象
-     */
-    private SystemMessage safeCreateSystemMessage(String text) {
-        if (StrUtil.isBlank(text)) {
-            log.warn("系统消息内容为空，使用默认内容");
-            return new SystemMessage("系统消息内容为空");
-        }
-        return new SystemMessage(text);
     }
 
     @Override
@@ -1037,145 +917,16 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
     private List<ToolSpecification> buildToolSpecifications() {
         return toolRegistry.getAllToolSpecifications();
     }
-    
-    
-    @Override
-    public void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError) {
-        try {
-            // 构建消息列表
-            List<dev.langchain4j.data.message.ChatMessage> messages = new ArrayList<>();
-            
-            // 添加系统消息（总是构建增强系统消息）
-            String enhancedSystemPrompt = buildEnhancedSystemPrompt(StrUtil.isNotBlank(systemPrompt) ? systemPrompt : "");
-            messages.add(new SystemMessage(enhancedSystemPrompt));
-            
-            // 添加聊天历史
-            if (chatHistory != null && !chatHistory.isEmpty()) {
-                for (AiChatMessage historyMessage : chatHistory) {
-                    String role = safeGetMessageRole(historyMessage);
-                    switch (role) {
-                        case "user":
-                            messages.add(safeCreateUserMessage(historyMessage.getMessageContent()));
-                            break;
-                        case "assistant":
-                            messages.add(safeCreateAiMessage(historyMessage.getMessageContent()));
-                            break;
-                        case "system":
-                            messages.add(safeCreateSystemMessage(historyMessage.getMessageContent()));
-                            break;
-                        default:
-                            log.warn("未知的消息角色: {}", role);
-                            break;
-                    }
-                }
-            }
-            
-            // 添加当前用户消息
-            messages.add(new UserMessage(message));
-            
-            // 构建工具规范列表
-            List<ToolSpecification> toolSpecs = buildToolSpecifications();
-            
-            // 构建聊天请求
-            dev.langchain4j.model.chat.request.ChatRequest chatRequest = dev.langchain4j.model.chat.request.ChatRequest.builder()
-                .messages(messages)
-                .toolSpecifications(toolSpecs)
-                .build();
-            
-            // 执行流式聊天
-            streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
-                @Override
-                public void onPartialResponse(String partialResponse) {
-                    if (partialResponse != null) {
-                        onToken.accept(partialResponse);
-                    }
-                }
-                
-                @Override
-                public void onCompleteResponse(ChatResponse completeResponse) {
-                    // 检查是否有工具调用请求
-                    if (completeResponse != null && completeResponse.aiMessage() != null) {
-                        AiMessage aiMessage = completeResponse.aiMessage();
-                        if (aiMessage.hasToolExecutionRequests()) {
-                            // 处理工具调用
-                            handleToolCalls(aiMessage, messages, onToken, onComplete, onError);
-                            return;
-                        }
-                    }
-                    onComplete.run();
-                }
-                
-                @Override
-                public void onError(Throwable error) {
-                    onError.accept(error);
-                }
-            });
-            
-        } catch (Exception e) {
-            log.error("带历史的流式聊天失败: {}", e.getMessage(), e);
-            onError.accept(new RuntimeException("带历史的流式聊天失败: " + e.getMessage()));
-        }
-    }
-
-    @Override
-    public void streamChatWithHistory(String message, String systemPrompt, List<AiChatMessage> chatHistory, 
-                                    Consumer<String> onToken, BiConsumer<String, String> onToolCall, 
-                                    BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError) {
-        try {
-            // 构建消息列表
-            List<ChatMessage> messages = new ArrayList<>();
-            
-            // 添加系统消息（总是构建增强系统消息）
-            String enhancedSystemPrompt = buildEnhancedSystemPrompt(StrUtil.isNotBlank(systemPrompt) ? systemPrompt : "");
-            messages.add(new SystemMessage(enhancedSystemPrompt));
-            
-            // 添加聊天历史
-            if (chatHistory != null && !chatHistory.isEmpty()) {
-                for (AiChatMessage historyMessage : chatHistory) {
-                    String role = safeGetMessageRole(historyMessage);
-                    switch (role) {
-                        case "user":
-                            messages.add(safeCreateUserMessage(historyMessage.getMessageContent()));
-                            break;
-                        case "assistant":
-                            messages.add(safeCreateAiMessage(historyMessage.getMessageContent()));
-                            break;
-                        case "system":
-                            messages.add(safeCreateSystemMessage(historyMessage.getMessageContent()));
-                            break;
-                        default:
-                            log.warn("未知的消息角色: {}", role);
-                            break;
-                    }
-                }
-            }
-            
-            // 添加当前用户消息
-            messages.add(new UserMessage(message));
-            
-            // 构建工具规范列表
-            List<ToolSpecification> toolSpecs = buildToolSpecifications();
-            
-            // 构建聊天请求
-            ChatRequest chatRequest = ChatRequest.builder()
-                .messages(messages)
-                .toolSpecifications(toolSpecs)
-                .build();
-            
-            // 执行流式聊天（带重试）
-            executeStreamChatWithCallbacksRetry(chatRequest, messages, onToken, onToolCall, onToolResult, onComplete, onError, 1);
-            
-        } catch (Exception e) {
-            log.error("带历史的流式聊天失败: {}", e.getMessage(), e);
-            onError.accept(new RuntimeException("带历史的流式聊天失败: " + e.getMessage()));
-        }
-    }
 
     @Override
     public void streamChatWithModelConfig(String message, String systemPrompt, 
                                         Consumer<String> onToken, BiConsumer<String, String> onToolCall, 
                                         BiConsumer<String, String> onToolResult, Runnable onComplete, Consumer<Throwable> onError) {
-        streamChatWithHistory(message, systemPrompt, null, onToken, onToolCall, onToolResult, onComplete, onError);
+        if (StrUtil.isNotBlank(systemPrompt)) {
+            streamChatWithSystem(message, systemPrompt, onToken, onComplete, onError);
+        } else {
+            streamChat(message, onToken, onComplete, onError);
+        }
     }
 
     /**
