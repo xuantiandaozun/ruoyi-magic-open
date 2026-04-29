@@ -1,0 +1,52 @@
+SET NAMES utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `ai_workflow_step_run` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '步骤执行ID',
+  `execution_id` bigint NULL DEFAULT NULL COMMENT '工作流执行ID',
+  `workflow_key` varchar(100) NULL DEFAULT NULL COMMENT '文件化工作流Key',
+  `step_key` varchar(100) NULL DEFAULT NULL COMMENT '步骤Key',
+  `step_name` varchar(200) NULL DEFAULT NULL COMMENT '步骤名称',
+  `step_order` int NULL DEFAULT NULL COMMENT '步骤顺序',
+  `model_config_id` bigint NULL DEFAULT NULL COMMENT '模型配置ID',
+  `status` varchar(30) NOT NULL DEFAULT 'running' COMMENT '状态',
+  `attempt_count` int NOT NULL DEFAULT 0 COMMENT '尝试次数',
+  `duration_ms` bigint NULL DEFAULT NULL COMMENT '耗时毫秒',
+  `input_snapshot` longtext NULL COMMENT '输入快照',
+  `output_snapshot` longtext NULL COMMENT '输出快照',
+  `error_message` text NULL COMMENT '错误信息',
+  `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志',
+  `create_by` varchar(64) NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `remark` varchar(500) NULL DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`),
+  KEY `idx_execution_id` (`execution_id`),
+  KEY `idx_workflow_step` (`workflow_key`, `step_key`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AI工作流步骤执行记录';
+
+CREATE TABLE IF NOT EXISTS `ai_tool_run` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '工具调用ID',
+  `execution_id` bigint NULL DEFAULT NULL COMMENT '工作流执行ID',
+  `step_run_id` bigint NULL DEFAULT NULL COMMENT '步骤执行ID',
+  `workflow_key` varchar(100) NULL DEFAULT NULL COMMENT '文件化工作流Key',
+  `step_key` varchar(100) NULL DEFAULT NULL COMMENT '步骤Key',
+  `tool_name` varchar(100) NOT NULL COMMENT '工具名称',
+  `status` varchar(30) NOT NULL DEFAULT 'running' COMMENT '状态',
+  `duration_ms` bigint NULL DEFAULT NULL COMMENT '耗时毫秒',
+  `arguments_json` longtext NULL COMMENT '工具入参',
+  `result_json` longtext NULL COMMENT '工具结果',
+  `error_message` text NULL COMMENT '错误信息',
+  `del_flag` char(1) NOT NULL DEFAULT '0' COMMENT '删除标志',
+  `create_by` varchar(64) NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `remark` varchar(500) NULL DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`),
+  KEY `idx_execution_id` (`execution_id`),
+  KEY `idx_step_run_id` (`step_run_id`),
+  KEY `idx_workflow_step` (`workflow_key`, `step_key`),
+  KEY `idx_tool_status` (`tool_name`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AI工具调用记录';

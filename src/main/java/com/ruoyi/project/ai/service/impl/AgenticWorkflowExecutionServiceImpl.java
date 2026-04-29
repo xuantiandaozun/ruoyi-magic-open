@@ -12,13 +12,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.project.ai.domain.AiWorkflow;
 import com.ruoyi.project.ai.domain.AiWorkflowExecution;
 import com.ruoyi.project.ai.domain.AiWorkflowStep;
-import com.ruoyi.project.ai.dto.WorkflowExecuteRequest;
 import com.ruoyi.project.ai.service.IAiWorkflowExecutionService;
 import com.ruoyi.project.ai.service.IAiWorkflowService;
 import com.ruoyi.project.ai.service.IAiWorkflowStepService;
@@ -26,6 +24,7 @@ import com.ruoyi.project.ai.service.IWorkflowExecutionService;
 import com.ruoyi.project.ai.tool.LangChain4jToolRegistry;
 import com.ruoyi.project.ai.util.PromptVariableProcessor;
 import com.ruoyi.project.ai.util.ToolResultProcessor;
+import com.ruoyi.project.ai.workflow.FileWorkflowEngine;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
@@ -56,15 +55,15 @@ public class AgenticWorkflowExecutionServiceImpl implements IWorkflowExecutionSe
     @Autowired
     private LangChain4jAgentService agentService;
 
-    @Override
-    @Transactional
-    public Map<String, Object> executeWorkflow(WorkflowExecuteRequest request) {
-        return executeWorkflow(request.getWorkflowId(), request.getInputData());
-    }
+    @Autowired
+    private FileWorkflowEngine fileWorkflowEngine;
 
     @Override
-    @Transactional
     public Map<String, Object> executeWorkflow(Long workflowId, Map<String, Object> inputData) {
+        if (fileWorkflowEngine.supportsLegacyWorkflowId(workflowId)) {
+            return fileWorkflowEngine.executeByLegacyWorkflowId(workflowId, inputData);
+        }
+
         // 1. 获取工作流配置
         AiWorkflow workflow = workflowService.getById(workflowId);
         if (workflow == null) {

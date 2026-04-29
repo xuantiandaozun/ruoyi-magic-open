@@ -38,7 +38,7 @@
         <hutool.version>5.8.38</hutool.version>
         <spring-ai.version>1.0.0</spring-ai.version>
         <spring-ai-alibaba.version>1.0.0.2</spring-ai-alibaba.version>
-        <langchain4j.version>1.7.1-beta14</langchain4j.version>
+        <langchain4j.version>1.13.1</langchain4j.version>
     </properties>
 
     <dependencyManagement>
@@ -400,35 +400,19 @@
             <version>0.2.27</version>
         </dependency>
 
-        <!-- 核心 starter -->
+        <!-- LangChain4j核心包。当前Spring Boot 3.3.x不使用官方starter，避免RestClient版本不兼容。 -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-spring-boot-starter</artifactId>
-            <version>1.7.1-beta14</version>
+            <artifactId>langchain4j</artifactId>
+            <version>${langchain4j.version}</version>
         </dependency>
 
-        <!-- OpenAI 集成 starter（如果使用 OpenAI）-->
+        <!-- OpenAI兼容接口集成，用于通义千问compatible-mode等模型 -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-open-ai-spring-boot-starter</artifactId>
-            <version>1.7.1-beta14</version>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>${langchain4j.version}</version>
         </dependency>
-        
-        <!-- 流式输出支持 (可选) -->
-        <dependency>
-            <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-reactor</artifactId>
-            <version>1.7.1-beta14</version>
-        </dependency>
-
-        <!-- Agentic AI 支持 -->
-        <dependency>
-            <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-agentic</artifactId>
-            <version>1.7.1-beta14</version>
-        </dependency>
-
- 
         
     </dependencies>
 

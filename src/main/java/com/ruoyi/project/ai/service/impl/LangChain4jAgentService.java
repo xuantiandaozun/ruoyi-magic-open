@@ -3,9 +3,9 @@ package com.ruoyi.project.ai.service.impl;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.service.IAiModelConfigService;
@@ -26,11 +28,14 @@ import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.PartialToolCall;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
+import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,6 +48,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class LangChain4jAgentService {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Autowired
     private IAiModelConfigService modelConfigService;
@@ -142,7 +149,7 @@ public class LangChain4jAgentService {
      */
     private String executeChatSync(Long modelConfigId, String systemPrompt, String message, 
                                   List<String> availableTools) throws Exception {
-        StreamingChatModel streamingChatModel = getStreamingChatModel(modelConfigId);
+        ChatModel chatModel = getChatModel(modelConfigId);
         
         // 构建消息列表
         List<ChatMessage> messages = new ArrayList<>();
@@ -151,18 +158,18 @@ public class LangChain4jAgentService {
         }
         messages.add(UserMessage.from(message));
         
-        return executeChatWithMessages(streamingChatModel, messages, availableTools, true);
+        return executeChatWithMessages(chatModel, messages, availableTools, true);
     }
     
     /**
      * 使用消息列表执行聊天，支持递归工具调用
      */
-    private String executeChatWithMessages(StreamingChatModel streamingChatModel, List<ChatMessage> messages, 
+    private String executeChatWithMessages(ChatModel chatModel, List<ChatMessage> messages, 
                                          List<String> availableTools) throws Exception {
-        return executeChatWithMessages(streamingChatModel, messages, availableTools, true);
+        return executeChatWithMessages(chatModel, messages, availableTools, true);
     }
 
-    private String executeChatWithMessages(StreamingChatModel streamingChatModel, List<ChatMessage> messages, 
+    private String executeChatWithMessages(ChatModel chatModel, List<ChatMessage> messages, 
                                          List<String> availableTools, boolean allowRecovery) throws Exception {
         // 构建聊天请求
         ChatRequest.Builder requestBuilder = ChatRequest.builder().messages(messages);
@@ -175,127 +182,67 @@ public class LangChain4jAgentService {
         
         ChatRequest chatRequest = requestBuilder.build();
         
-        // 使用CompletableFuture来同步等待流式响应
-        CompletableFuture<String> future = new CompletableFuture<>();
-        StringBuilder responseBuilder = new StringBuilder();
         AtomicBoolean toolInvoked = new AtomicBoolean(false);
         AtomicBoolean toolSuccessAll = new AtomicBoolean(true);
-        
-        streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
-            @Override
-            public void onPartialResponse(String partialResponse) {
-                if (partialResponse != null) {
-                    responseBuilder.append(partialResponse);
-                }
-            }
-            
-            @Override
-            public void onPartialToolCall(PartialToolCall partialToolCall) {
-                // 记录部分工具调用信息
-                //log.debug("部分工具调用: {}", partialToolCall);
-            }
-            
-            @Override
-            public void onCompleteResponse(ChatResponse completeResponse) {
-                try {
-                    // 检查是否有工具调用请求
-                    if (completeResponse != null && completeResponse.aiMessage() != null) {
-                        AiMessage aiMessage = completeResponse.aiMessage();
-                        if (aiMessage.hasToolExecutionRequests()) {
-                                log.debug("模型触发工具调用: toolCount={}, tools={}",
-                                    aiMessage.toolExecutionRequests().size(),
-                                    aiMessage.toolExecutionRequests().stream()
-                                        .map(req -> req.name())
-                                        .collect(Collectors.joining(",")));
-                            // 添加AI消息到对话历史
-                            messages.add(aiMessage);
-                            
-                            // 执行所有工具调用
-                             aiMessage.toolExecutionRequests().forEach(toolRequest -> {
-                                 try {
-                                         log.debug("执行工具: name={}, argsLength={}, argsSnippet={}",
-                                             toolRequest.name(),
-                                             toolRequest.arguments() != null ? toolRequest.arguments().length() : 0,
-                                             abbreviate(toolRequest.arguments(), 300));
-                                         String result = toolRegistry.executeTool(toolRequest.name(), toolRequest.arguments());
-                                         toolInvoked.set(true);
-                                         if (!ToolResultProcessor.isSuccess(result)) {
-                                             toolSuccessAll.set(false);
-                                         }
-                                     
-                                     // 如果工具执行结果为null，转换为失败的统一格式
-                                     if (result == null) {
-                                         result = "{\"success\":false,\"operationType\":\"unknown\",\"message\":\"工具返回null\"}";
-                                         log.warn("工具返回null结果: {}, 已转换为失败格式", toolRequest.name());
-                                     }
-                                     
-                                     // 创建工具执行结果消息
-                                     messages.add(ToolExecutionResultMessage.from(toolRequest, result));
-                                     log.debug("工具调用成功: name={}, resultLength={}, resultSnippet={}",
-                                             toolRequest.name(),
-                                             result != null ? result.length() : 0,
-                                             abbreviate(result, 500));
-                                 } catch (Exception e) {
-                                     log.error("工具调用失败: {}", e.getMessage(), e);
-                                     // 工具调用异常，返回失败格式
-                                     String errorResult = "{\"success\":false,\"operationType\":\"error\",\"message\":\"工具调用失败: " + e.getMessage() + "\"}";
-                                     messages.add(ToolExecutionResultMessage.from(toolRequest, errorResult));
-                                 }
-                             });
-                            
-                            // 递归继续对话
-                            try {
-                                String finalResult = executeChatWithMessages(streamingChatModel, messages, availableTools, allowRecovery);
-                                future.complete(finalResult);
-                            } catch (Exception e) {
-                                future.completeExceptionally(e);
-                            }
-                            return;
+
+        ChatResponse completeResponse = chatModel.chat(chatRequest);
+        if (completeResponse != null && completeResponse.aiMessage() != null) {
+            AiMessage aiMessage = completeResponse.aiMessage();
+            if (aiMessage.hasToolExecutionRequests()) {
+                log.debug("模型触发工具调用: toolCount={}, tools={}",
+                    aiMessage.toolExecutionRequests().size(),
+                    aiMessage.toolExecutionRequests().stream()
+                        .map(req -> req.name())
+                        .collect(Collectors.joining(",")));
+                messages.add(aiMessage);
+
+                aiMessage.toolExecutionRequests().forEach(toolRequest -> {
+                    try {
+                        log.debug("执行工具: name={}, argsLength={}, argsSnippet={}",
+                            toolRequest.name(),
+                            toolRequest.arguments() != null ? toolRequest.arguments().length() : 0,
+                            abbreviate(toolRequest.arguments(), 300));
+                        String result = toolRegistry.executeTool(toolRequest.name(), toolRequest.arguments());
+                        toolInvoked.set(true);
+                        if (!ToolResultProcessor.isSuccess(result)) {
+                            toolSuccessAll.set(false);
                         }
-                    }
-                    
-                    // 没有工具调用，返回文本响应
-                    String response = responseBuilder.toString();
-                    if (StrUtil.isBlank(response) && completeResponse != null && completeResponse.aiMessage() != null) {
-                        response = completeResponse.aiMessage().text();
-                    }
-                    String trimmedResponse = response != null ? response.trim() : null;
-                    if ("TOOL_EXECUTION_FAILED".equals(trimmedResponse)
-                            && toolInvoked.get()
-                            && toolSuccessAll.get()
-                            && allowRecovery) {
-                        log.warn("模型返回 TOOL_EXECUTION_FAILED 但工具执行均成功，触发一次恢复重试");
-                        messages.add(SystemMessage.from("工具均已成功返回，请继续完成任务。禁止返回TOOL_EXECUTION_FAILED。"));
-                        try {
-                            String retryResult = executeChatWithMessages(streamingChatModel, messages, availableTools, false);
-                            future.complete(retryResult);
-                            return;
-                        } catch (Exception e) {
-                            future.completeExceptionally(e);
-                            return;
+                        if (result == null) {
+                            result = "{\"success\":false,\"operationType\":\"unknown\",\"message\":\"工具返回null\"}";
+                            log.warn("工具返回null结果: {}, 已转换为失败格式", toolRequest.name());
                         }
+                        messages.add(ToolExecutionResultMessage.from(toolRequest, result));
+                        log.debug("工具调用成功: name={}, resultLength={}, resultSnippet={}",
+                                toolRequest.name(),
+                                result != null ? result.length() : 0,
+                                abbreviate(result, 500));
+                    } catch (Exception e) {
+                        log.error("工具调用失败: {}", e.getMessage(), e);
+                        String errorResult = "{\"success\":false,\"operationType\":\"error\",\"message\":\"工具调用失败: " + e.getMessage() + "\"}";
+                        messages.add(ToolExecutionResultMessage.from(toolRequest, errorResult));
                     }
-                    log.debug("模型最终响应: length={}, snippet={}",
-                            response != null ? response.length() : 0,
-                            abbreviate(response, 500));
-                    future.complete(response);
-                } catch (Exception e) {
-                    future.completeExceptionally(e);
-                }
+                });
+
+                return executeChatWithMessages(chatModel, messages, availableTools, allowRecovery);
             }
-            
-            @Override
-            public void onError(Throwable error) {
-                future.completeExceptionally(error);
-            }
-        });
-        
-        // 等待响应完成，设置超时时间
-        try {
-            return future.get(5, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            throw new ServiceException("聊天响应超时或失败: " + e.getMessage());
         }
+
+        String response = completeResponse != null && completeResponse.aiMessage() != null
+                ? completeResponse.aiMessage().text()
+                : null;
+        String trimmedResponse = response != null ? response.trim() : null;
+        if ("TOOL_EXECUTION_FAILED".equals(trimmedResponse)
+                && toolInvoked.get()
+                && toolSuccessAll.get()
+                && allowRecovery) {
+            log.warn("模型返回 TOOL_EXECUTION_FAILED 但工具执行均成功，触发一次恢复重试");
+            messages.add(SystemMessage.from("工具均已成功返回，请继续完成任务。禁止返回TOOL_EXECUTION_FAILED。"));
+            return executeChatWithMessages(chatModel, messages, availableTools, false);
+        }
+        log.debug("模型最终响应: length={}, snippet={}",
+                response != null ? response.length() : 0,
+                abbreviate(response, 500));
+        return response;
     }
     
     /**
@@ -522,6 +469,19 @@ public class LangChain4jAgentService {
             throw new ServiceException("获取StreamingChatModel失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 根据模型配置ID获取非流式ChatModel
+     */
+    private ChatModel getChatModel(Long modelConfigId) {
+        try {
+            AiModelConfig config = getModelConfig(modelConfigId);
+            return createChatModelFromConfig(config);
+        } catch (Exception e) {
+            log.error("获取ChatModel失败: {}", e.getMessage(), e);
+            throw new ServiceException("获取ChatModel失败: " + e.getMessage());
+        }
+    }
     
     /**
      * 获取并验证模型配置
@@ -555,31 +515,203 @@ public class LangChain4jAgentService {
             if (StrUtil.isBlank(model)) {
                 throw new ServiceException("模型名称不能为空");
             }
-            
-            // 统一走 OpenAI 兼容接口
+
+            OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder = OpenAiStreamingChatModel.builder()
+                    .apiKey(apiKey)
+                    .modelName(model)
+                    .timeout(Duration.ofMinutes(5))
+                    .logRequests(false)
+                    .logResponses(true)
+                    .customHeaders(Collections.singletonMap("Accept-Charset", "utf-8"));
+
             if (StrUtil.isNotBlank(endpoint)) {
-                return OpenAiStreamingChatModel.builder()
-                        .apiKey(apiKey)
-                        .modelName(model)
-                        .baseUrl(endpoint)
-                        .timeout(Duration.ofMinutes(5))
-                        .logRequests(false)
-                        .logResponses(true)
-                        .customHeaders(Collections.singletonMap("Accept-Charset", "utf-8"))
-                        .build();
-            } else {
-                return OpenAiStreamingChatModel.builder()
-                        .apiKey(apiKey)
-                        .modelName(model)
-                        .timeout(Duration.ofMinutes(5))
-                        .logRequests(false)
-                        .logResponses(true)
-                        .customHeaders(Collections.singletonMap("Accept-Charset", "utf-8"))
-                        .build();
+                builder.baseUrl(endpoint);
             }
+
+            applyModelExtraParams(builder, config.getExtraParams());
+            
+            return builder.build();
         } catch (Exception e) {
             log.error("创建StreamingChatModel失败: {}", e.getMessage(), e);
             throw new ServiceException("创建StreamingChatModel失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 根据配置创建非流式ChatModel
+     */
+    private ChatModel createChatModelFromConfig(AiModelConfig config) {
+        try {
+            String apiKey = config.getApiKey();
+            String model = config.getModel();
+            String endpoint = config.getEndpoint();
+
+            if (StrUtil.isBlank(apiKey)) {
+                throw new ServiceException("API Key不能为空");
+            }
+
+            if (StrUtil.isBlank(model)) {
+                throw new ServiceException("模型名称不能为空");
+            }
+
+            OpenAiChatModel.OpenAiChatModelBuilder builder = OpenAiChatModel.builder()
+                    .apiKey(apiKey)
+                    .modelName(model)
+                    .timeout(Duration.ofMinutes(5))
+                    .logRequests(false)
+                    .logResponses(true)
+                    .customHeaders(Collections.singletonMap("Accept-Charset", "utf-8"));
+
+            if (StrUtil.isNotBlank(endpoint)) {
+                builder.baseUrl(endpoint);
+            }
+
+            applyModelExtraParams(builder, config.getExtraParams());
+
+            return builder.build();
+        } catch (Exception e) {
+            log.error("创建ChatModel失败: {}", e.getMessage(), e);
+            throw new ServiceException("创建ChatModel失败: " + e.getMessage());
+        }
+    }
+
+    private void applyModelExtraParams(OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder, String extraParams) {
+        ModelExtraParams params = parseModelExtraParams(extraParams);
+        applyParsedModelExtraParams(builder, params);
+    }
+
+    private void applyModelExtraParams(OpenAiChatModel.OpenAiChatModelBuilder builder, String extraParams) {
+        ModelExtraParams params = parseModelExtraParams(extraParams);
+        applyParsedModelExtraParams(builder, params);
+    }
+
+    private ModelExtraParams parseModelExtraParams(String extraParams) {
+        ModelExtraParams params = new ModelExtraParams();
+        if (StrUtil.isBlank(extraParams)) {
+            return params;
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(extraParams);
+            if (root == null || !root.isObject()) {
+                return params;
+            }
+
+            params.temperature = readDouble(root, "temperature");
+            params.topP = readDouble(root, "topP", "top_p");
+            params.maxTokens = readInt(root, "maxTokens", "max_tokens");
+            params.enableThinking = readBoolean(root, "enable_thinking");
+
+            Map<String, Object> customParameters = new HashMap<>();
+            if (root.has("enable_thinking")) {
+                customParameters.put("enable_thinking", params.enableThinking != null ? params.enableThinking : false);
+            }
+            if (root.has("chat_template_kwargs")) {
+                customParameters.put("chat_template_kwargs", toJavaObject(root.get("chat_template_kwargs")));
+            }
+            if (root.has("reasoning_effort")) {
+                customParameters.put("reasoning_effort", root.get("reasoning_effort").asText());
+            }
+
+            if (!customParameters.isEmpty()) {
+                params.requestParameters = OpenAiChatRequestParameters.builder()
+                        .customParameters(customParameters)
+                        .build();
+            }
+        } catch (Exception e) {
+            log.warn("解析模型extra_params失败，忽略扩展参数: {}", e.getMessage());
+        }
+        return params;
+    }
+
+    private void applyParsedModelExtraParams(OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder,
+            ModelExtraParams params) {
+        if (params.temperature != null) {
+            builder.temperature(params.temperature);
+        }
+        if (params.topP != null) {
+            builder.topP(params.topP);
+        }
+        if (params.maxTokens != null) {
+            builder.maxTokens(params.maxTokens);
+        }
+        if (Boolean.TRUE.equals(params.enableThinking)) {
+            builder.returnThinking(true);
+        }
+        if (params.requestParameters != null) {
+            builder.defaultRequestParameters(params.requestParameters);
+        }
+    }
+
+    private void applyParsedModelExtraParams(OpenAiChatModel.OpenAiChatModelBuilder builder,
+            ModelExtraParams params) {
+        if (params.temperature != null) {
+            builder.temperature(params.temperature);
+        }
+        if (params.topP != null) {
+            builder.topP(params.topP);
+        }
+        if (params.maxTokens != null) {
+            builder.maxTokens(params.maxTokens);
+        }
+        if (Boolean.TRUE.equals(params.enableThinking)) {
+            builder.returnThinking(true);
+        }
+        if (params.requestParameters != null) {
+            builder.defaultRequestParameters(params.requestParameters);
+        }
+    }
+
+    private static class ModelExtraParams {
+        private Double temperature;
+        private Double topP;
+        private Integer maxTokens;
+        private Boolean enableThinking;
+        private OpenAiChatRequestParameters requestParameters;
+    }
+
+    private Double readDouble(JsonNode root, String... keys) {
+        for (String key : keys) {
+            if (root.has(key) && root.get(key).isNumber()) {
+                return root.get(key).asDouble();
+            }
+        }
+        return null;
+    }
+
+    private Integer readInt(JsonNode root, String... keys) {
+        for (String key : keys) {
+            if (root.has(key) && root.get(key).isNumber()) {
+                return root.get(key).asInt();
+            }
+        }
+        return null;
+    }
+
+    private Boolean readBoolean(JsonNode root, String... keys) {
+        for (String key : keys) {
+            if (root.has(key) && root.get(key).isBoolean()) {
+                return root.get(key).asBoolean();
+            }
+        }
+        return null;
+    }
+
+    private Object toJavaObject(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (node.isObject() || node.isArray()) {
+            return OBJECT_MAPPER.convertValue(node, Object.class);
+        }
+        if (node.isTextual()) {
+            return node.asText();
+        }
+        if (node.isBoolean()) {
+            return node.asBoolean();
+        }
+        if (node.isNumber()) {
+            return node.numberValue();
+        }
+        return node.asText();
     }
 }

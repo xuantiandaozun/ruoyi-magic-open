@@ -29,6 +29,7 @@ import com.ruoyi.project.ai.domain.AiWorkflow;
 import com.ruoyi.project.ai.domain.AiWorkflowSchedule;
 import com.ruoyi.project.ai.service.IAiWorkflowService;
 import com.ruoyi.project.ai.service.IAiWorkflowScheduleService;
+import com.ruoyi.project.ai.workflow.FileWorkflowDefinitionLoader;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,6 +52,9 @@ public class AiWorkflowController extends BaseController {
     @Autowired
     private IAiWorkflowScheduleService scheduleService;
 
+    @Autowired
+    private FileWorkflowDefinitionLoader fileWorkflowDefinitionLoader;
+
     /**
      * 分页查询工作流列表
      */
@@ -58,13 +62,13 @@ public class AiWorkflowController extends BaseController {
     @SaCheckPermission("ai:workflow:list")
     @GetMapping("/list")
     public TableDataInfo list(AiWorkflow query) {
-        PageDomain pageDomain = TableSupport.buildPageRequest();
-        Integer pageNum = pageDomain.getPageNum();
-        Integer pageSize = pageDomain.getPageSize();
-
-        QueryWrapper qw = buildFlexQueryWrapper(query);
-        Page<AiWorkflow> page = workflowService.page(new Page<>(pageNum, pageSize), qw);
-        return getDataTable(page);
+        List<Map<String, Object>> workflows = fileWorkflowDefinitionLoader.listManagementSummaries();
+        TableDataInfo dataInfo = new TableDataInfo();
+        dataInfo.setCode(200);
+        dataInfo.setMsg("查询成功");
+        dataInfo.setRows(workflows);
+        dataInfo.setTotal(workflows.size());
+        return dataInfo;
     }
 
     /**
@@ -73,8 +77,11 @@ public class AiWorkflowController extends BaseController {
     @Operation(summary = "获取工作流详情")
     @SaCheckPermission("ai:workflow:query")
     @GetMapping("/{id}")
-    public AjaxResult getInfo(@PathVariable Long id) {
-        AiWorkflow workflow = workflowService.getById(id);
+    public AjaxResult getInfo(@PathVariable String id) {
+        Map<String, Object> workflow = fileWorkflowDefinitionLoader.getManagementDetail(id);
+        if (workflow == null) {
+            return error("文件化工作流不存在");
+        }
         return success(workflow);
     }
 
@@ -86,7 +93,7 @@ public class AiWorkflowController extends BaseController {
     @Log(title = "AI工作流", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@Validated @RequestBody AiWorkflow workflow) {
-        return toAjax(workflowService.save(workflow));
+        return error("工作流已改为文件化管理，请修改 src/main/resources/ai-workflows 下的 yml 文件");
     }
 
     /**
@@ -97,22 +104,7 @@ public class AiWorkflowController extends BaseController {
     @Log(title = "AI工作流", businessType = BusinessType.UPDATE)
     @PutMapping
     public AjaxResult edit(@Validated @RequestBody AiWorkflow workflow) {
-        boolean result = workflowService.updateById(workflow);
-        
-        // 如果工作流更新成功，同时更新相关调度任务的下次执行时间
-        if (result) {
-            try {
-                List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(workflow.getId());
-                for (AiWorkflowSchedule schedule : schedules) {
-                    scheduleService.updateNextExecutionTime(schedule.getId());
-                }
-            } catch (Exception e) {
-                logger.error("更新工作流调度任务下次执行时间失败: {}", e.getMessage(), e);
-                // 不影响主流程，只记录错误日志
-            }
-        }
-        
-        return toAjax(result);
+        return error("工作流已改为文件化管理，请修改 src/main/resources/ai-workflows 下的 yml 文件");
     }
 
     /**
@@ -123,7 +115,7 @@ public class AiWorkflowController extends BaseController {
     @Log(title = "AI工作流", businessType = BusinessType.DELETE)
     @DeleteMapping("/{ids}")
     public AjaxResult remove(@PathVariable Long[] ids) {
-        return toAjax(workflowService.removeByIds(Arrays.asList(ids)));
+        return error("文件化工作流不能在管理端删除，请删除对应 yml 文件");
     }
 
     /**
@@ -134,22 +126,7 @@ public class AiWorkflowController extends BaseController {
     @Log(title = "AI工作流", businessType = BusinessType.UPDATE)
     @PutMapping("/toggle/{id}")
     public AjaxResult toggleStatus(@PathVariable Long id) {
-        try {
-            AiWorkflow workflow = workflowService.getById(id);
-            if (workflow == null) {
-                return error("工作流不存在");
-            }
-            
-            // 切换状态：1启用 -> 0禁用，0禁用 -> 1启用
-            String newStatus = "1".equals(workflow.getEnabled()) ? "0" : "1";
-            workflow.setEnabled(newStatus);
-            
-            boolean result = workflowService.updateById(workflow);
-            return toAjax(result);
-        } catch (Exception e) {
-            logger.error("切换工作流状态失败: {}", e.getMessage(), e);
-            return error("切换工作流状态失败: " + e.getMessage());
-        }
+        return error("工作流启停已由 yml 文件控制，管理端不再修改工作流定义");
     }
 
     /**
@@ -160,7 +137,7 @@ public class AiWorkflowController extends BaseController {
     @GetMapping("/enabled")
     public AjaxResult getEnabledWorkflows() {
         try {
-            List<AiWorkflow> workflows = workflowService.listByEnabled("1");
+            List<Map<String, Object>> workflows = fileWorkflowDefinitionLoader.listManagementSummaries();
             return success(workflows);
         } catch (Exception e) {
             logger.error("获取启用工作流列表失败: {}", e.getMessage(), e);

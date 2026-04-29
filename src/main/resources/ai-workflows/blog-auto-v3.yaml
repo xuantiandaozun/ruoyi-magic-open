@@ -1,0 +1,76 @@
+id: blog-auto-v3
+name: 智能博客自动化 V3
+version: 3.0.0
+modelConfigId: 22
+legacyWorkflowIds:
+  - 3
+onFailure: stop
+steps:
+  - id: topic
+    name: 智能选题与项目筛选
+    prompt: blog-auto/01-topic.md
+    tools:
+      - blog_history_query
+      - github_trending
+    output: selected_project
+    retry: 1
+
+  - id: analysis
+    name: 深度项目分析与内容创作
+    prompt: blog-auto/02-analysis.md
+    tools:
+      - oss_file_read
+    input:
+      - selected_project
+    output: github_analysis
+    retry: 1
+    emptyPolicy: continue
+
+  - id: save-cn
+    name: 中文博客优化保存
+    prompt: blog-auto/03-save-cn.md
+    tools:
+      - blog_save
+    input:
+      - github_analysis
+    output: chinese_article
+    retry: 1
+
+  - id: translate-en
+    name: 英文翻译与本地化
+    prompt: blog-auto/04-translate-en.md
+    tools:
+      - blog_en_save
+    input:
+      - chinese_article
+      - github_analysis
+    output: english_article
+    retry: 1
+
+  - id: cover
+    name: 封面图片生成
+    prompt: blog-auto/05-cover.md
+    tools:
+      - ali_image_generation
+      - blog_cover_update
+    input:
+      - chinese_article
+      - english_article
+      - github_analysis
+    output: cover_image
+    retry: 1
+    failurePolicy: continue
+
+  - id: notify
+    name: 飞书通知
+    prompt: blog-auto/06-notify.md
+    tools:
+      - feishu_send_message
+    input:
+      - selected_project
+      - chinese_article
+      - english_article
+      - cover_image
+    output: feishu_notification
+    retry: 0
+    failurePolicy: continue
