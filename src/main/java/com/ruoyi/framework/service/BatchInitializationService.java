@@ -23,11 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.common.utils.job.ScheduleUtils;
+import com.ruoyi.common.constant.ScheduleConstants;
 import com.ruoyi.common.utils.spring.SpringUtils;
 import com.ruoyi.framework.datasource.DynamicDataSourceManager;
 import com.ruoyi.framework.redis.OptimizedRedisCache;
-import com.ruoyi.project.ai.domain.AiWorkflowSchedule;
-import com.ruoyi.project.ai.service.IAiWorkflowScheduleService;
+import com.ruoyi.project.ai.workflow.FileWorkflowDefinitionLoader;
+import com.ruoyi.project.ai.workflow.definition.FileWorkflowDefinition;
 import com.ruoyi.project.monitor.domain.SysJob;
 import com.ruoyi.project.monitor.mapper.SysJobMapper;
 import com.ruoyi.project.monitor.service.ISysJobService;
@@ -43,6 +44,7 @@ import com.ruoyi.project.system.service.ISysConfigService;
 import com.ruoyi.project.system.service.ISysDictTypeService;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.StrUtil;
 
 /**
  * 批量初始化服务
@@ -92,10 +94,10 @@ public class BatchInitializationService {
     @Lazy
     @Autowired
     private ISysJobService jobService;
-    
+
     @Lazy
     @Autowired
-    private IAiWorkflowScheduleService workflowScheduleService;
+    private FileWorkflowDefinitionLoader fileWorkflowDefinitionLoader;
     
     /**
      * 初始化数据容器
@@ -464,7 +466,7 @@ public class BatchInitializationService {
 
     /**
      * 使用已有数据初始化定时任务（避免重复查询数据库）
-     * 包含普通任务和AI工作流调度任务的统一初始化
+     * 初始化普通定时任务，过滤历史遗留的AI工作流调度任务
      */
     private void initializeJobsWithData(List<SysJob> jobs) {
         long startTime = System.currentTimeMillis();
@@ -479,7 +481,7 @@ public class BatchInitializationService {
             
             log.info("调度器清空完成，耗时: {}ms", schedulerClearDuration);
             
-            // 第一阶段：初始化普通定时任务（排除AI工作流调度任务）
+            // 初始化普通定时任务（排除历史遗留的AI工作流调度任务）
             long filterStart = System.currentTimeMillis();
             List<SysJob> regularJobs = jobs.stream()
                 .filter(job -> !"AI_WORKFLOW".equals(job.getJobGroup()) && 
@@ -511,50 +513,63 @@ public class BatchInitializationService {
             long jobCreateDuration = System.currentTimeMillis() - jobCreateStart;
             log.info("普通定时任务初始化完成，成功: {}, 失败: {}, 耗时: {}ms", 
                     regularSuccessCount, regularErrorCount, jobCreateDuration);
-            
-            // 第二阶段：初始化AI工作流调度任务（从 ai_workflow_schedule 表读取配置）
-            long aiJobStart = System.currentTimeMillis();
-            int aiSuccessCount = 0;
-            int aiErrorCount = 0;
-            
-            try {
-                // 获取所有启用的AI工作流调度配置
-                List<AiWorkflowSchedule> enabledSchedules = workflowScheduleService.listEnabledSchedules();
-                log.info("发现 {} 个启用的AI工作流调度配置", enabledSchedules.size());
-                
-                for (AiWorkflowSchedule schedule : enabledSchedules) {
-                    try {
-                        // 创建Quartz任务对象
-                        SysJob aiJob = workflowScheduleService.createQuartzJobForInit(schedule);
-                        // 直接在调度器中创建任务（不保存到 sys_job 表）
-                        ScheduleUtils.createScheduleJob(scheduler, aiJob);
-                        aiSuccessCount++;
-                        log.debug("AI工作流调度任务 [{}] 初始化成功", aiJob.getJobName());
-                        
-                        // 更新下次执行时间
-                        workflowScheduleService.updateNextExecutionTime(schedule.getId());
-                    } catch (Exception e) {
-                        aiErrorCount++;
-                        log.error("AI工作流调度任务 [{}] 初始化失败: {}", 
-                                "WORKFLOW_SCHEDULE_" + schedule.getId(), e.getMessage());
-                    }
-                }
-            } catch (Exception e) {
-                log.error("加载AI工作流调度配置失败", e);
-            }
-            
-            long aiJobDuration = System.currentTimeMillis() - aiJobStart;
+
+            int fileWorkflowSuccessCount = initializeFileWorkflowJobs(scheduler);
             long totalDuration = System.currentTimeMillis() - startTime;
             
-            log.info("AI工作流调度任务初始化完成，成功: {}, 失败: {}, 耗时: {}ms", 
-                    aiSuccessCount, aiErrorCount, aiJobDuration);
-            
-            log.info("所有定时任务初始化完成，普通任务成功: {}/失败: {}，AI工作流任务成功: {}/失败: {}，总耗时: {}ms", 
-                    regularSuccessCount, regularErrorCount, aiSuccessCount, aiErrorCount, totalDuration);
+            log.info("所有定时任务初始化完成，普通任务成功: {}/失败: {}，文件化工作流任务成功: {}，总耗时: {}ms", 
+                    regularSuccessCount, regularErrorCount, fileWorkflowSuccessCount, totalDuration);
                     
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("初始化定时任务时发生错误，耗时: {}ms", duration, e);
         }
+    }
+
+    /**
+     * 从 yml 注册文件化工作流定时任务，不写入 sys_job。
+     */
+    private int initializeFileWorkflowJobs(Scheduler scheduler) {
+        int successCount = 0;
+        int errorCount = 0;
+
+        for (Object item : fileWorkflowDefinitionLoader.listWorkflowSummaries()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> summary = (Map<String, Object>) item;
+            String workflowKey = String.valueOf(summary.get("workflowKey"));
+            FileWorkflowDefinition definition = fileWorkflowDefinitionLoader.findByKey(workflowKey).orElse(null);
+            if (definition == null
+                    || !"Y".equalsIgnoreCase(definition.getScheduleEnabled())
+                    || StrUtil.isBlank(definition.getCronExpression())) {
+                continue;
+            }
+
+            try {
+                SysJob job = new SysJob();
+                job.setJobId(buildFileWorkflowJobId(definition.getId()));
+                job.setJobName("FILE_WORKFLOW_" + definition.getId());
+                job.setJobGroup("FILE_WORKFLOW");
+                job.setInvokeTarget("fileWorkflowScheduleTask.execute('" + definition.getId() + "')");
+                job.setCronExpression(definition.getCronExpression());
+                job.setMisfirePolicy(StrUtil.blankToDefault(definition.getMisfirePolicy(), ScheduleConstants.MISFIRE_DO_NOTHING));
+                job.setConcurrent(StrUtil.blankToDefault(definition.getConcurrent(), "1"));
+                job.setStatus(ScheduleConstants.Status.NORMAL.getValue());
+                ScheduleUtils.createScheduleJob(scheduler, job);
+                successCount++;
+                log.info("文件化工作流定时任务初始化成功: workflow={}, cron={}",
+                        definition.getId(), definition.getCronExpression());
+            } catch (Exception e) {
+                errorCount++;
+                log.error("文件化工作流定时任务初始化失败: workflow={}, error={}",
+                        definition.getId(), e.getMessage(), e);
+            }
+        }
+
+        log.info("文件化工作流定时任务初始化完成，成功: {}, 失败: {}", successCount, errorCount);
+        return successCount;
+    }
+
+    private Long buildFileWorkflowJobId(String workflowKey) {
+        return 900000000000L + Integer.toUnsignedLong(workflowKey.hashCode());
     }
 }

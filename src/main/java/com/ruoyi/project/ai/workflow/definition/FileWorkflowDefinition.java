@@ -21,6 +21,14 @@ public class FileWorkflowDefinition {
 
     private String onFailure = "stop";
 
+    private String scheduleEnabled = "N";
+
+    private String cronExpression;
+
+    private String misfirePolicy = "3";
+
+    private String concurrent = "1";
+
     private List<Long> legacyWorkflowIds = new ArrayList<>();
 
     private List<FileWorkflowStepDefinition> steps = new ArrayList<>();

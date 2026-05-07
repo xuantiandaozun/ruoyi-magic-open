@@ -19,6 +19,7 @@ import com.ruoyi.common.utils.spring.SpringUtils;
 import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.strategy.AiClientStrategy;
 import com.ruoyi.project.ai.tool.LangChain4jToolRegistry;
+import com.ruoyi.project.system.service.ISysConfigService;
 
 import cn.hutool.core.util.StrUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -75,12 +76,53 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
         this.provider = config.getProvider();
         this.model = config.getModel();
         this.endpoint = config.getEndpoint();
-        this.apiKey = config.getApiKey();
+        this.apiKey = resolveApiKey(config);
         this.toolCallDelay = config.getToolCallDelay(); // 直接使用配置值，可能为空
         this.chatModel = buildChatModel();
         this.streamingChatModel = buildStreamingChatModel();
         // 初始化工具注册器
         this.toolRegistry = SpringUtils.getBean(LangChain4jToolRegistry.class);
+    }
+
+    private String resolveApiKey(AiModelConfig config) {
+        String apiKeyRef = config.getApiKeyRef();
+        if (StrUtil.isNotBlank(apiKeyRef)) {
+            String keyName = apiKeyRef;
+            if (StrUtil.startWithIgnoreCase(apiKeyRef, "env:")) {
+                keyName = apiKeyRef.substring(4);
+                String value = System.getenv(keyName);
+                if (StrUtil.isNotBlank(value)) {
+                    return value;
+                }
+            } else if (StrUtil.startWithIgnoreCase(apiKeyRef, "config:")) {
+                keyName = apiKeyRef.substring(7);
+                String value = SpringUtils.getBean(ISysConfigService.class).selectConfigByKey(keyName);
+                if (StrUtil.isNotBlank(value)) {
+                    return value;
+                }
+            } else if (StrUtil.startWithIgnoreCase(apiKeyRef, "sys:")) {
+                keyName = apiKeyRef.substring(4);
+                String value = System.getProperty(keyName);
+                if (StrUtil.isNotBlank(value)) {
+                    return value;
+                }
+            } else {
+                String envValue = System.getenv(keyName);
+                if (StrUtil.isNotBlank(envValue)) {
+                    return envValue;
+                }
+                String propertyValue = System.getProperty(keyName);
+                if (StrUtil.isNotBlank(propertyValue)) {
+                    return propertyValue;
+                }
+                String configValue = SpringUtils.getBean(ISysConfigService.class).selectConfigByKey(keyName);
+                if (StrUtil.isNotBlank(configValue)) {
+                    return configValue;
+                }
+            }
+            log.warn("模型配置 apiKeyRef 未解析到有效密钥，回退到明文apiKey: configId={}, ref={}", config.getId(), apiKeyRef);
+        }
+        return config.getApiKey();
     }
 
     /**
@@ -504,22 +546,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("- **状态字段含义**：'0' 通常表示正常/启用，'1' 表示停用/禁用\n");
             enhancedPrompt.append("- **关联查询优化**：使用适当的JOIN类型，注意性能影响\n\n");
 
-            // 添加工作流功能说明
-            enhancedPrompt.append("# AI工作流管理能力说明\n");
-            enhancedPrompt.append("你现在具备了AI工作流管理能力！可以帮助用户管理和执行AI工作流，实现复杂的多步骤AI任务自动化。\n\n");
-            
-            enhancedPrompt.append("## 工作流核心概念\n");
-            enhancedPrompt.append("**工作流（Workflow）**：由多个AI步骤组成的自动化任务流程，每个步骤可以配置不同的AI模型和提示词\n");
-            enhancedPrompt.append("**工作流步骤（Workflow Step）**：工作流中的单个AI处理节点，包含系统提示词、用户提示词、输入输出变量等配置\n");
-            enhancedPrompt.append("**顺序执行**：步骤按照设定的顺序依次执行，前一步的输出可作为后一步的输入\n");
-            enhancedPrompt.append("**变量传递**：通过输入变量名和输出变量名实现步骤间的数据传递\n\n");
-            
-            enhancedPrompt.append("## 工作流类型\n");
-            enhancedPrompt.append("- **sequential（顺序工作流）**：最常用的类型，步骤按顺序依次执行\n");
-            enhancedPrompt.append("- **langchain4j_agent（LangChain4j代理）**：基于LangChain4j框架的智能代理工作流\n");
-            enhancedPrompt.append("- **conditional（条件工作流）**：支持条件分支的工作流\n");
-            enhancedPrompt.append("- **loop（循环工作流）**：支持循环执行的工作流\n\n");
-            
             enhancedPrompt.append("## 支持的工具类型\n");
             enhancedPrompt.append("- **database_query**：执行SQL查询获取数据\n");
             enhancedPrompt.append("- **blog_save**：保存中文博客文章\n");
@@ -529,64 +555,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("- **oss_file_read**：通过OSS URL获取远程文件内容，支持README文档等文件的读取\n");
             enhancedPrompt.append("- **github_repo_tree**：通过GitHub API获取指定仓库的文件目录结构，支持递归查看和分支选择\n");
             enhancedPrompt.append("- **github_file_content**：通过GitHub API获取指定仓库中特定文件的完整内容，支持代码文件、配置文件等\n\n");
-            
-            enhancedPrompt.append("## 工作流数据结构\n");
-            enhancedPrompt.append("**ai_workflow表字段说明：**\n");
-            enhancedPrompt.append("- `id`：工作流唯一标识\n");
-            enhancedPrompt.append("- `workflow_name`：工作流名称\n");
-            enhancedPrompt.append("- `workflow_description`：工作流描述\n");
-            enhancedPrompt.append("- `workflow_type`：工作流类型（sequential/langchain4j_agent/conditional/loop）\n");
-            enhancedPrompt.append("- `workflow_version`：版本号\n");
-            enhancedPrompt.append("- `enabled`：启用状态（1=启用，0=禁用）\n");
-            enhancedPrompt.append("- `status`：状态（0=正常，1=停用）\n");
-            enhancedPrompt.append("- `config_json`：额外配置参数（JSON格式）\n\n");
-            
-            enhancedPrompt.append("**ai_workflow_step表字段说明：**\n");
-            enhancedPrompt.append("- `id`：步骤唯一标识\n");
-            enhancedPrompt.append("- `workflow_id`：所属工作流ID\n");
-            enhancedPrompt.append("- `step_name`：步骤名称\n");
-            enhancedPrompt.append("- `step_description`：步骤描述\n");
-            enhancedPrompt.append("- `step_order`：执行顺序（数字越小越先执行）\n");
-            enhancedPrompt.append("- `model_config_id`：使用的AI模型配置ID（工作流默认使用deepseek配置ID=19）\n");
-            enhancedPrompt.append("- `system_prompt`：系统提示词\n");
-            enhancedPrompt.append("- `user_prompt`：用户提示词（支持变量占位符，如：{{input_variable}}）\n");
-            enhancedPrompt.append("- `input_variable`：输入变量名（从前一步或外部输入获取）\n");
-            enhancedPrompt.append("- `output_variable`：输出变量名（供后续步骤使用）\n");
-            enhancedPrompt.append("- `tool_type`：工具类型（使用英文工具名称，如：database_query、blog_save、blog_en_save、social_media_article_save、github_trending、oss_file_read、github_repo_tree、github_file_content等，多个工具用逗号分隔）\n");
-            enhancedPrompt.append("- `tool_enabled`：工具启用状态（1=启用，0=禁用）\n");
-            enhancedPrompt.append("- `enabled`：启用状态（1=启用，0=禁用）\n\n");
-            
-            enhancedPrompt.append("## 工作流管理工具\n");
-            enhancedPrompt.append("你可以使用以下工具来管理工作流：\n");
-            enhancedPrompt.append("1. **getWorkflowList**：获取系统中配置的工作流列表，包括名称和步骤信息\n");
-            enhancedPrompt.append("2. **addWorkflow**：新增工作流，包括工作流基本信息和步骤配置\n");
-            enhancedPrompt.append("3. **updateWorkflow**：修改现有工作流，可以更新工作流信息和步骤配置\n");
-            enhancedPrompt.append("4. **updateWorkflowStep**：修改工作流中的单个步骤，无需重新配置整个工作流，支持更新步骤名称、描述、顺序、提示词、变量配置、工具配置等\n");
-            enhancedPrompt.append("5. **getWorkflowStep**：获取工作流中特定步骤的详细信息，用于查看步骤的当前配置，便于进行精确修改\n\n");
-            
-            enhancedPrompt.append("## 工作流使用场景示例\n");
-            enhancedPrompt.append("- **内容创作流程**：文案生成 → 内容优化 → 格式调整 → 质量检查\n");
-            enhancedPrompt.append("- **数据分析流程**：数据查询 → 数据清洗 → 统计分析 → 报告生成\n");
-            enhancedPrompt.append("- **代码审查流程**：代码分析 → 问题识别 → 优化建议 → 文档生成\n");
-            enhancedPrompt.append("- **客服处理流程**：问题分类 → 知识库查询 → 答案生成 → 质量评估\n");
-            enhancedPrompt.append("- **项目文档分析流程**：GitHub仓库目录获取 → 关键文件识别 → 文件内容读取 → 项目总结生成\n");
-            enhancedPrompt.append("- **开源项目调研流程**：GitHub趋势获取 → 项目README读取 → 代码结构分析 → 技术评估报告\n");
-            enhancedPrompt.append("- **技术文档整理流程**：OSS文档读取 → 内容结构化 → 知识点提取 → 学习指南生成\n\n");
-            
-            enhancedPrompt.append("## 工作流最佳实践\n");
-            enhancedPrompt.append("1. **合理设计步骤顺序**：确保前后步骤的逻辑关系正确\n");
-            enhancedPrompt.append("2. **明确变量传递**：为每个步骤设置清晰的输入输出变量名，并遵循以下规则：\n");
-            enhancedPrompt.append("   - 第一步：输入变量可以为空（从外部获取数据），但输出变量不能为空\n");
-            enhancedPrompt.append("   - 后续步骤：输入变量和输出变量都不能为空，必须明确指定变量名\n");
-            enhancedPrompt.append("   - 变量名使用有意义的英文命名，如：user_input, analysis_result, final_report\n");
-            enhancedPrompt.append("   - 确保前一步的输出变量名与后一步的输入变量名匹配，实现数据正确传递\n");
-            enhancedPrompt.append("3. **优化提示词**：为每个步骤编写专门的系统提示词和用户提示词\n");
-            enhancedPrompt.append("4. **选择合适模型**：工作流默认使用deepseek模型配置(ID=19)，确保所有步骤统一使用此配置\n");
-            enhancedPrompt.append("5. **工具配置要求**：如果步骤需要调用工具，必须同时配置tool_type和tool_enabled字段，tool_type必须使用英文工具名称（如database_query、blog_save等），不能使用中文名称\n");
-            enhancedPrompt.append("6. **用户提示词工具调用规范**：在用户提示词中必须**显式指定工具名称**，AI才能正确调用相应的工具\n");
-            enhancedPrompt.append("   - ✅ **正确写法**：\"请使用 github_trending 查询今天上榜的热门仓库信息，选择2-3个最有意思的项目...\"\n");
-            enhancedPrompt.append("   - ❌ **错误写法**：\"请分析今天的GitHub热门项目，选择2-3个最有意思的项目...\"\n");
-            enhancedPrompt.append("7. **测试验证**：创建工作流后进行充分测试，确保各步骤正常运行\n\n");
             
             // 添加工具调用示例
             enhancedPrompt.append("## 🔧 工具调用示例\n");
@@ -603,28 +571,9 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("正确做法：提示用户需要明确指定使用 database_query 工具\n");
             enhancedPrompt.append("```\n\n");
             
-            enhancedPrompt.append("### 2. 工作流管理示例\n");
-            enhancedPrompt.append("```\n");
-            enhancedPrompt.append("用户问：\"显示所有工作流\"\n");
-            enhancedPrompt.append("正确调用：get_workflow_list\n");
-            enhancedPrompt.append("参数：{}\n");
-            enhancedPrompt.append("```\n\n");
-            
-            enhancedPrompt.append("### 3. 创建工作流示例\n");
-            enhancedPrompt.append("```\n");
-            enhancedPrompt.append("用户问：\"创建一个数据分析工作流\"\n");
-            enhancedPrompt.append("正确调用：add_workflow\n");
-            enhancedPrompt.append("参数：{\n");
-            enhancedPrompt.append("  \"name\": \"数据分析工作流\",\n");
-            enhancedPrompt.append("  \"description\": \"用于数据分析的工作流\",\n");
-            enhancedPrompt.append("  \"type\": \"sequential\",\n");
-            enhancedPrompt.append("  \"steps\": [...]\n");
-            enhancedPrompt.append("}\n");
-            enhancedPrompt.append("```\n\n");
-            
             enhancedPrompt.append("## ⚠️ 重要提醒\n");
             enhancedPrompt.append("- **database_query 工具使用限制**：只有当用户在提示词中显式指定使用 database_query 或明确要求查询数据库时才能使用，否则不能使用\n");
-            enhancedPrompt.append("- 工具名称必须完全匹配：database_query、get_workflow_list、add_workflow、update_workflow\n");
+            enhancedPrompt.append("- 工具名称必须完全匹配工具列表中的英文名称，例如：database_query、blog_save、github_trending\n");
             enhancedPrompt.append("- 参数格式必须是有效的JSON\n");
             enhancedPrompt.append("- SQL查询必须使用反引号包围字段名和表名\n");
             enhancedPrompt.append("- 所有查询都必须包含LIMIT子句\n");

@@ -1,6 +1,7 @@
 package com.ruoyi.project.ai.service;
 
 import java.util.List;
+import java.util.Map;
 
 import com.mybatisflex.core.service.IService;
 import com.ruoyi.project.ai.domain.AiModelConfig;
@@ -21,4 +22,10 @@ public interface IAiModelConfigService extends IService<AiModelConfig> {
 
     /** 设置默认配置（保证唯一） */
     boolean setDefault(Long configId);
+
+    /** 根据模型名称获取启用配置 */
+    AiModelConfig getEnabledByModel(String model);
+
+    /** 同步 OpenRouter 免费模型池 */
+    Map<String, Object> syncOpenRouterFreeModels();
 }

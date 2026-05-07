@@ -10,7 +10,9 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.util.StreamUtils;
 import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
 
@@ -23,7 +25,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 从 classpath 加载文件化工作流定义。
+ * 从 classpath 加载文件化工作流定义，仅用于管理端查询展示。
  */
 @Slf4j
 @Component
@@ -66,14 +68,6 @@ public class FileWorkflowDefinitionLoader {
         }
     }
 
-    public boolean supports(String workflowKey) {
-        return StrUtil.isNotBlank(workflowKey) && workflows.containsKey(workflowKey);
-    }
-
-    public boolean supportsLegacyWorkflowId(Long workflowId) {
-        return workflowId != null && legacyIdIndex.containsKey(workflowId);
-    }
-
     public Optional<FileWorkflowDefinition> findByKey(String workflowKey) {
         return Optional.ofNullable(workflows.get(workflowKey));
     }
@@ -83,26 +77,40 @@ public class FileWorkflowDefinitionLoader {
         return findByKey(workflowKey);
     }
 
+    public boolean supports(String workflowKey) {
+        return StrUtil.isNotBlank(workflowKey) && workflows.containsKey(workflowKey);
+    }
+
+    public boolean supportsLegacyWorkflowId(Long workflowId) {
+        return workflowId != null && legacyIdIndex.containsKey(workflowId);
+    }
+
     public List<Map<String, Object>> listWorkflowSummaries() {
-        List<Map<String, Object>> summaries = new ArrayList<>();
-        for (FileWorkflowDefinition definition : workflows.values()) {
-            Map<String, Object> summary = new LinkedHashMap<>();
-            summary.put("id", definition.getId());
-            summary.put("name", definition.getName());
-            summary.put("version", definition.getVersion());
-            summary.put("modelConfigId", definition.getModelConfigId());
-            summary.put("legacyWorkflowIds", definition.getLegacyWorkflowIds());
-            summary.put("stepCount", definition.getSteps() != null ? definition.getSteps().size() : 0);
-            summaries.add(summary);
+        return listManagementSummaries();
+    }
+
+    public String loadPrompt(String promptPath) {
+        if (StrUtil.isBlank(promptPath)) {
+            throw new ServiceException("文件化工作流步骤缺少prompt配置");
         }
-        return summaries;
+        String normalizedPath = promptPath.startsWith("ai-prompts/")
+                ? promptPath
+                : "ai-prompts/" + promptPath;
+        ClassPathResource resource = new ClassPathResource(normalizedPath);
+        if (!resource.exists()) {
+            throw new ServiceException("提示词文件不存在: " + normalizedPath);
+        }
+        try (InputStream inputStream = resource.getInputStream()) {
+            return StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new ServiceException("读取提示词文件失败: " + normalizedPath + ", " + e.getMessage());
+        }
     }
 
     public List<Map<String, Object>> listManagementSummaries() {
         List<Map<String, Object>> summaries = new ArrayList<>();
         for (FileWorkflowDefinition definition : workflows.values()) {
-            Map<String, Object> summary = toManagementSummary(definition);
-            summaries.add(summary);
+            summaries.add(toManagementSummary(definition));
         }
         return summaries;
     }
@@ -157,26 +165,13 @@ public class FileWorkflowDefinitionLoader {
         summary.put("enabled", "1");
         summary.put("status", "0");
         summary.put("modelConfigId", definition.getModelConfigId());
+        summary.put("scheduleEnabled", definition.getScheduleEnabled());
+        summary.put("cronExpression", definition.getCronExpression());
+        summary.put("misfirePolicy", definition.getMisfirePolicy());
+        summary.put("concurrent", definition.getConcurrent());
         summary.put("legacyWorkflowIds", definition.getLegacyWorkflowIds());
         summary.put("stepCount", definition.getSteps() != null ? definition.getSteps().size() : 0);
         return summary;
-    }
-
-    public String loadPrompt(String promptPath) {
-        if (StrUtil.isBlank(promptPath)) {
-            return "";
-        }
-        String normalizedPath = promptPath.startsWith("/") ? promptPath.substring(1) : promptPath;
-        Resource resource = new PathMatchingResourcePatternResolver()
-                .getResource("classpath:ai-prompts/" + normalizedPath);
-        try {
-            if (!resource.exists()) {
-                throw new ServiceException("提示词文件不存在: " + promptPath);
-            }
-            return resource.getContentAsString(StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new ServiceException("读取提示词文件失败: " + promptPath + ", " + e.getMessage());
-        }
     }
 
     private FileWorkflowDefinition toDefinition(Map<?, ?> source) {
@@ -187,6 +182,7 @@ public class FileWorkflowDefinitionLoader {
         definition.setModelConfigId(asLong(source.get("modelConfigId")));
         definition.setOnFailure(defaultString(source.get("onFailure"), "stop"));
         definition.setLegacyWorkflowIds(asLongList(source.get("legacyWorkflowIds")));
+        applySchedule(definition, source.get("schedule"));
 
         List<FileWorkflowStepDefinition> steps = new ArrayList<>();
         Object rawSteps = source.get("steps");
@@ -199,6 +195,18 @@ public class FileWorkflowDefinitionLoader {
         }
         definition.setSteps(steps);
         return definition;
+    }
+
+    private void applySchedule(FileWorkflowDefinition definition, Object rawSchedule) {
+        if (!(rawSchedule instanceof Map)) {
+            definition.setScheduleEnabled("N");
+            return;
+        }
+        Map<?, ?> schedule = (Map<?, ?>) rawSchedule;
+        definition.setScheduleEnabled(asEnabled(schedule.get("enabled")));
+        definition.setCronExpression(asString(schedule.get("cron")));
+        definition.setMisfirePolicy(defaultString(schedule.get("misfirePolicy"), "3"));
+        definition.setConcurrent(defaultString(schedule.get("concurrent"), "1"));
     }
 
     private FileWorkflowStepDefinition toStepDefinition(Map<?, ?> source) {
@@ -223,6 +231,20 @@ public class FileWorkflowDefinitionLoader {
     private String defaultString(Object value, String defaultValue) {
         String text = asString(value);
         return StrUtil.isBlank(text) ? defaultValue : text;
+    }
+
+    private String asEnabled(Object value) {
+        if (value == null) {
+            return "N";
+        }
+        if (value instanceof Boolean) {
+            return Boolean.TRUE.equals(value) ? "Y" : "N";
+        }
+        String text = String.valueOf(value);
+        if ("Y".equalsIgnoreCase(text) || "true".equalsIgnoreCase(text) || "1".equals(text)) {
+            return "Y";
+        }
+        return "N";
     }
 
     private Long asLong(Object value) {

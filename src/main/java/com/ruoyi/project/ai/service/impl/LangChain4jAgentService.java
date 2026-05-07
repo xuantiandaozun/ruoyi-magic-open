@@ -16,10 +16,12 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.utils.spring.SpringUtils;
 import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.service.IAiModelConfigService;
 import com.ruoyi.project.ai.tool.LangChain4jToolRegistry;
 import com.ruoyi.project.ai.util.ToolResultProcessor;
+import com.ruoyi.project.system.service.ISysConfigService;
 
 import cn.hutool.core.util.StrUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -37,6 +39,7 @@ import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
+import dev.langchain4j.model.output.TokenUsage;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -48,6 +51,16 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class LangChain4jAgentService {
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class ChatExecutionResult {
+        private String content;
+        private Integer inputTokens;
+        private Integer outputTokens;
+        private Integer totalTokens;
+        private String finishReason;
+    }
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -160,6 +173,24 @@ public class LangChain4jAgentService {
         
         return executeChatWithMessages(chatModel, messages, availableTools, true);
     }
+
+    public String chatWithMessages(Long modelConfigId, List<ChatMessage> messages) {
+        try {
+            return executeChatWithMessages(getChatModel(modelConfigId), messages, null, true);
+        } catch (Exception e) {
+            log.error("使用消息列表聊天失败: {}", e.getMessage(), e);
+            throw new ServiceException("使用消息列表聊天失败: " + e.getMessage());
+        }
+    }
+
+    public ChatExecutionResult chatWithMessagesDetailed(Long modelConfigId, List<ChatMessage> messages) {
+        try {
+            return executeChatWithMessagesDetailed(getChatModel(modelConfigId), messages, null, true);
+        } catch (Exception e) {
+            log.error("使用消息列表聊天失败: {}", e.getMessage(), e);
+            throw new ServiceException("使用消息列表聊天失败: " + e.getMessage());
+        }
+    }
     
     /**
      * 使用消息列表执行聊天，支持递归工具调用
@@ -171,6 +202,11 @@ public class LangChain4jAgentService {
 
     private String executeChatWithMessages(ChatModel chatModel, List<ChatMessage> messages, 
                                          List<String> availableTools, boolean allowRecovery) throws Exception {
+        return executeChatWithMessagesDetailed(chatModel, messages, availableTools, allowRecovery).getContent();
+    }
+
+    private ChatExecutionResult executeChatWithMessagesDetailed(ChatModel chatModel, List<ChatMessage> messages,
+            List<String> availableTools, boolean allowRecovery) throws Exception {
         // 构建聊天请求
         ChatRequest.Builder requestBuilder = ChatRequest.builder().messages(messages);
         
@@ -223,7 +259,7 @@ public class LangChain4jAgentService {
                     }
                 });
 
-                return executeChatWithMessages(chatModel, messages, availableTools, allowRecovery);
+                return executeChatWithMessagesDetailed(chatModel, messages, availableTools, allowRecovery);
             }
         }
 
@@ -237,12 +273,18 @@ public class LangChain4jAgentService {
                 && allowRecovery) {
             log.warn("模型返回 TOOL_EXECUTION_FAILED 但工具执行均成功，触发一次恢复重试");
             messages.add(SystemMessage.from("工具均已成功返回，请继续完成任务。禁止返回TOOL_EXECUTION_FAILED。"));
-            return executeChatWithMessages(chatModel, messages, availableTools, false);
+            return executeChatWithMessagesDetailed(chatModel, messages, availableTools, false);
         }
         log.debug("模型最终响应: length={}, snippet={}",
                 response != null ? response.length() : 0,
                 abbreviate(response, 500));
-        return response;
+        TokenUsage tokenUsage = completeResponse == null ? null : completeResponse.tokenUsage();
+        return new ChatExecutionResult(
+                response,
+                tokenUsage == null ? 0 : tokenUsage.inputTokenCount(),
+                tokenUsage == null ? 0 : tokenUsage.outputTokenCount(),
+                tokenUsage == null ? 0 : tokenUsage.totalTokenCount(),
+                completeResponse == null || completeResponse.finishReason() == null ? null : completeResponse.finishReason().name());
     }
     
     /**
@@ -377,21 +419,36 @@ public class LangChain4jAgentService {
     /**
      * 使用消息列表执行流式聊天，支持递归工具调用
      */
-    private void streamChatWithMessages(StreamingChatModel streamingChatModel, List<ChatMessage> messages, 
-                                       List<String> availableTools, Consumer<String> onToken, 
-                                       Runnable onComplete, Consumer<Throwable> onError) {
+    private void streamChatWithMessages(StreamingChatModel streamingChatModel, List<ChatMessage> messages,
+                                      List<String> availableTools, Consumer<String> onToken,
+                                      Runnable onComplete, Consumer<Throwable> onError) {
+        streamChatWithMessagesDetailed(streamingChatModel, messages, availableTools, onToken,
+                result -> onComplete.run(), onError);
+    }
+
+    public void streamChatWithMessagesDetailed(Long modelConfigId, List<ChatMessage> messages,
+            Consumer<String> onToken, Consumer<ChatExecutionResult> onComplete, Consumer<Throwable> onError) {
         try {
-            // 构建聊天请求
+            streamChatWithMessagesDetailed(getStreamingChatModel(modelConfigId), messages, null, onToken, onComplete, onError);
+        } catch (Exception e) {
+            log.error("使用消息列表流式聊天失败: {}", e.getMessage(), e);
+            onError.accept(new ServiceException("使用消息列表流式聊天失败: " + e.getMessage()));
+        }
+    }
+
+    private void streamChatWithMessagesDetailed(StreamingChatModel streamingChatModel, List<ChatMessage> messages,
+                                      List<String> availableTools, Consumer<String> onToken,
+                                      Consumer<ChatExecutionResult> onComplete, Consumer<Throwable> onError) {
+        try {
             ChatRequest.Builder requestBuilder = ChatRequest.builder().messages(messages);
-            
-            // 如果有工具，添加工具规范
+
             if (availableTools != null && !availableTools.isEmpty()) {
                 List<ToolSpecification> toolSpecs = toolRegistry.getToolSpecifications(availableTools);
                 requestBuilder.toolSpecifications(toolSpecs);
             }
-            
+
             ChatRequest chatRequest = requestBuilder.build();
-            
+
             streamingChatModel.chat(chatRequest, new StreamingChatResponseHandler() {
                 @Override
                 public void onPartialResponse(String partialResponse) {
@@ -399,28 +456,23 @@ public class LangChain4jAgentService {
                         onToken.accept(partialResponse);
                     }
                 }
-                
+
                 @Override
                 public void onPartialToolCall(PartialToolCall partialToolCall) {
-                    // 记录部分工具调用信息
                     log.debug("部分工具调用: {}", partialToolCall);
                 }
-                
+
                 @Override
                 public void onCompleteResponse(ChatResponse completeResponse) {
                     try {
-                        // 检查是否有工具调用请求
                         if (completeResponse != null && completeResponse.aiMessage() != null) {
                             AiMessage aiMessage = completeResponse.aiMessage();
                             if (aiMessage.hasToolExecutionRequests()) {
-                                // 添加AI消息到对话历史
                                 messages.add(aiMessage);
-                                
-                                // 执行所有工具调用
+
                                 aiMessage.toolExecutionRequests().forEach(toolRequest -> {
                                     try {
                                         String result = toolRegistry.executeTool(toolRequest.name(), toolRequest.arguments());
-                                        // 创建工具执行结果消息
                                         messages.add(ToolExecutionResultMessage.from(toolRequest, result));
                                         log.debug("工具调用成功: {} -> {}", toolRequest.name(), result);
                                     } catch (Exception e) {
@@ -428,20 +480,27 @@ public class LangChain4jAgentService {
                                         messages.add(ToolExecutionResultMessage.from(toolRequest, "工具调用失败: " + e.getMessage()));
                                     }
                                 });
-                                
-                                // 递归调用，继续对话
-                                streamChatWithMessages(streamingChatModel, messages, availableTools, onToken, onComplete, onError);
+
+                                streamChatWithMessagesDetailed(streamingChatModel, messages, availableTools, onToken, onComplete, onError);
                                 return;
                             }
                         }
-                        
-                        // 没有工具调用，完成对话
-                        onComplete.run();
+
+                        TokenUsage tokenUsage = completeResponse == null ? null : completeResponse.tokenUsage();
+                        String content = completeResponse != null && completeResponse.aiMessage() != null
+                                ? completeResponse.aiMessage().text()
+                                : null;
+                        onComplete.accept(new ChatExecutionResult(
+                                content,
+                                tokenUsage == null ? 0 : tokenUsage.inputTokenCount(),
+                                tokenUsage == null ? 0 : tokenUsage.outputTokenCount(),
+                                tokenUsage == null ? 0 : tokenUsage.totalTokenCount(),
+                                completeResponse == null || completeResponse.finishReason() == null ? null : completeResponse.finishReason().name()));
                     } catch (Exception e) {
                         onError.accept(e);
                     }
                 }
-                
+
                 @Override
                 public void onError(Throwable error) {
                     onError.accept(error);
@@ -467,6 +526,16 @@ public class LangChain4jAgentService {
         } catch (Exception e) {
             log.error("获取StreamingChatModel失败: {}", e.getMessage(), e);
             throw new ServiceException("获取StreamingChatModel失败: " + e.getMessage());
+        }
+    }
+
+    public void streamChatWithMessages(Long modelConfigId, List<ChatMessage> messages,
+            Consumer<String> onToken, Runnable onComplete, Consumer<Throwable> onError) {
+        try {
+            streamChatWithMessages(getStreamingChatModel(modelConfigId), messages, null, onToken, onComplete, onError);
+        } catch (Exception e) {
+            log.error("使用消息列表流式聊天失败: {}", e.getMessage(), e);
+            onError.accept(new ServiceException("使用消息列表流式聊天失败: " + e.getMessage()));
         }
     }
 
@@ -504,7 +573,7 @@ public class LangChain4jAgentService {
      */
     private StreamingChatModel createStreamingChatModelFromConfig(AiModelConfig config) {
         try {
-            String apiKey = config.getApiKey();
+            String apiKey = resolveApiKey(config);
             String model = config.getModel();
             String endpoint = config.getEndpoint();
             
@@ -542,7 +611,7 @@ public class LangChain4jAgentService {
      */
     private ChatModel createChatModelFromConfig(AiModelConfig config) {
         try {
-            String apiKey = config.getApiKey();
+            String apiKey = resolveApiKey(config);
             String model = config.getModel();
             String endpoint = config.getEndpoint();
 
@@ -713,5 +782,49 @@ public class LangChain4jAgentService {
             return node.numberValue();
         }
         return node.asText();
+    }
+
+    private String resolveApiKey(AiModelConfig config) {
+        if (config == null) {
+            return null;
+        }
+        String apiKeyRef = config.getApiKeyRef();
+        if (StrUtil.isNotBlank(apiKeyRef)) {
+            String keyName = apiKeyRef;
+            if (StrUtil.startWithIgnoreCase(apiKeyRef, "env:")) {
+                keyName = apiKeyRef.substring(4);
+                String value = System.getenv(keyName);
+                if (StrUtil.isNotBlank(value)) {
+                    return value;
+                }
+            } else if (StrUtil.startWithIgnoreCase(apiKeyRef, "config:")) {
+                keyName = apiKeyRef.substring(7);
+                String value = SpringUtils.getBean(ISysConfigService.class).selectConfigByKey(keyName);
+                if (StrUtil.isNotBlank(value)) {
+                    return value;
+                }
+            } else if (StrUtil.startWithIgnoreCase(apiKeyRef, "sys:")) {
+                keyName = apiKeyRef.substring(4);
+                String value = System.getProperty(keyName);
+                if (StrUtil.isNotBlank(value)) {
+                    return value;
+                }
+            } else {
+                String envValue = System.getenv(keyName);
+                if (StrUtil.isNotBlank(envValue)) {
+                    return envValue;
+                }
+                String propertyValue = System.getProperty(keyName);
+                if (StrUtil.isNotBlank(propertyValue)) {
+                    return propertyValue;
+                }
+                String configValue = SpringUtils.getBean(ISysConfigService.class).selectConfigByKey(keyName);
+                if (StrUtil.isNotBlank(configValue)) {
+                    return configValue;
+                }
+            }
+            log.warn("模型配置 apiKeyRef 未解析到有效密钥，回退到明文apiKey: configId={}, ref={}", config.getId(), apiKeyRef);
+        }
+        return config.getApiKey();
     }
 }

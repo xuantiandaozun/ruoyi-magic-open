@@ -11,10 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.ruoyi.common.exception.ServiceException;
-import com.ruoyi.project.ai.domain.AiToolRun;
-import com.ruoyi.project.ai.service.IAiToolRunService;
 import com.ruoyi.project.ai.util.ToolResultProcessor;
-import com.ruoyi.project.ai.workflow.WorkflowRunContext;
 
 import cn.hutool.json.JSONUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -33,14 +30,12 @@ public class LangChain4jToolRegistry {
     
     private final Map<String, ToolSpecification> toolSpecifications = new HashMap<>();
     private final Map<String, LangChain4jTool> tools = new HashMap<>();
-    private final IAiToolRunService toolRunService;
     
     /**
      * 通过构造函数注入所有工具实现
      */
     @Autowired
-    public LangChain4jToolRegistry(List<LangChain4jTool> toolList, IAiToolRunService toolRunService) {
-        this.toolRunService = toolRunService;
+    public LangChain4jToolRegistry(List<LangChain4jTool> toolList) {
         for (LangChain4jTool tool : toolList) {
             String toolName = tool.getToolName();
             toolSpecifications.put(toolName, tool.getToolSpecification());
@@ -101,7 +96,6 @@ public class LangChain4jToolRegistry {
         }
         
         long start = System.currentTimeMillis();
-        AiToolRun toolRun = createToolRun(toolName, arguments);
         try {
                 String result = tool.execute(params);
                 long cost = System.currentTimeMillis() - start;
@@ -114,21 +108,16 @@ public class LangChain4jToolRegistry {
                 log.warn("[LangChain4jToolRegistry] 工具返回失败状态: name={}, operationType={}, message={}",
                     toolName, parsedResult.getOperationType(), parsedResult.getMessage());
                 }
-                completeToolRun(toolRun,
-                        parsedResult != null && Boolean.FALSE.equals(parsedResult.getSuccess()) ? "failed" : "completed",
-                        cost, result, parsedResult != null ? parsedResult.getMessage() : null);
                 return result;
         } catch (IllegalArgumentException e) {
             long cost = System.currentTimeMillis() - start;
             log.warn("[LangChain4jToolRegistry] 工具参数错误: name={}, cost={}ms, params={}, error={}",
                     toolName, cost, arguments, e.getMessage());
-            completeToolRun(toolRun, "failed", cost, null, e.getMessage());
             return ToolExecutionResult.failure("operation", "工具参数错误: " + e.getMessage());
         } catch (Exception e) {
             long cost = System.currentTimeMillis() - start;
             log.error("[LangChain4jToolRegistry] 工具执行异常: name={}, cost={}ms, params={}, error={}",
                     toolName, cost, arguments, e.getMessage(), e);
-            completeToolRun(toolRun, "failed", cost, null, e.getMessage());
             return ToolExecutionResult.failure("operation", "工具执行失败: " + e.getMessage());
         }
     }
@@ -189,49 +178,6 @@ public class LangChain4jToolRegistry {
         return toolsInfo;
     }
 
-    private AiToolRun createToolRun(String toolName, String arguments) {
-        AiToolRun toolRun = new AiToolRun();
-        WorkflowRunContext.Context context = WorkflowRunContext.get();
-        if (context != null) {
-            toolRun.setExecutionId(context.getExecutionId());
-            toolRun.setStepRunId(context.getStepRunId());
-            toolRun.setWorkflowKey(context.getWorkflowKey());
-            toolRun.setStepKey(context.getStepKey());
-        }
-        toolRun.setToolName(toolName);
-        toolRun.setStatus("running");
-        toolRun.setArgumentsJson(truncate(arguments, 12000));
-        try {
-            toolRunService.save(toolRun);
-        } catch (Exception e) {
-            log.warn("[LangChain4jToolRegistry] 工具调用记录写入失败，继续执行主流程: {}", e.getMessage());
-        }
-        return toolRun;
-    }
-
-    private void completeToolRun(AiToolRun toolRun, String status, long durationMs,
-            String result, String errorMessage) {
-        if (toolRun == null || toolRun.getId() == null) {
-            return;
-        }
-        toolRun.setStatus(status);
-        toolRun.setDurationMs(durationMs);
-        toolRun.setResultJson(truncate(result, 12000));
-        toolRun.setErrorMessage(truncate(errorMessage, 2000));
-        try {
-            toolRunService.updateById(toolRun);
-        } catch (Exception e) {
-            log.warn("[LangChain4jToolRegistry] 工具调用记录更新失败，继续执行主流程: {}", e.getMessage());
-        }
-    }
-
-    private String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength);
-    }
-    
     /**
      * 根据工具名称列表获取工具规范
      * 

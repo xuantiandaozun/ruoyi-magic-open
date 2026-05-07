@@ -5,6 +5,11 @@ modelConfigId: 22
 legacyWorkflowIds:
   - 3
 onFailure: stop
+schedule:
+  enabled: true
+  cron: "0 0 10 * * ?"
+  misfirePolicy: "3"
+  concurrent: "1"
 steps:
   - id: topic
     name: 智能选题与项目筛选

@@ -39,11 +39,32 @@ public class AiModelConfig extends BaseEntity {
     /** API密钥 */
     private String apiKey;
 
+    /** 密钥引用（环境变量或密钥管理Key，优先于明文api_key） */
+    private String apiKeyRef;
+
     /** API端点 */
     private String endpoint;
 
     /** 额外参数（JSON） */
     private String extraParams;
+
+    /** 上下文窗口Token数量 */
+    private Integer contextWindow;
+
+    /** 最大输出Token数量 */
+    private Integer maxOutputTokens;
+
+    /** 是否支持流式输出 */
+    private String supportsStream;
+
+    /** 是否支持视觉输入 */
+    private String supportsVision;
+
+    /** 是否支持厂商侧缓存 */
+    private String supportsCache;
+
+    /** 是否可用于免费用户 */
+    private String freeAvailable;
 
     /** 工具调用后延时（毫秒），防止频率限制 */
     @Excel(name = "工具调用延时")

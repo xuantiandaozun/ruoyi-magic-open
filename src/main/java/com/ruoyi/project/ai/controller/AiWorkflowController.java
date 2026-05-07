@@ -1,45 +1,37 @@
 package com.ruoyi.project.ai.controller;
 
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
-import com.ruoyi.framework.aspectj.lang.annotation.Log;
-import com.ruoyi.framework.aspectj.lang.enums.BusinessType;
+import com.ruoyi.common.utils.job.CronUtils;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.framework.web.page.PageDomain;
 import com.ruoyi.framework.web.page.TableDataInfo;
 import com.ruoyi.framework.web.page.TableSupport;
-import com.ruoyi.project.ai.domain.AiWorkflow;
-import com.ruoyi.project.ai.domain.AiWorkflowSchedule;
-import com.ruoyi.project.ai.service.IAiWorkflowService;
-import com.ruoyi.project.ai.service.IAiWorkflowScheduleService;
+import com.ruoyi.project.ai.service.FileWorkflowRunLogService;
+import com.ruoyi.project.ai.task.FileWorkflowScheduleTask;
 import com.ruoyi.project.ai.workflow.FileWorkflowDefinitionLoader;
+import com.ruoyi.project.ai.workflow.definition.FileWorkflowDefinition;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.hutool.core.util.StrUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * AI工作流 控制器
- * 
- * @author ruoyi-magic
- * @date 2024-12-15
+ * 文件化AI工作流查询接口。
  */
 @Tag(name = "AI工作流")
 @RestController
@@ -47,21 +39,25 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class AiWorkflowController extends BaseController {
 
     @Autowired
-    private IAiWorkflowService workflowService;
-
-    @Autowired
-    private IAiWorkflowScheduleService scheduleService;
-
-    @Autowired
     private FileWorkflowDefinitionLoader fileWorkflowDefinitionLoader;
 
+    @Autowired
+    private FileWorkflowRunLogService runLogService;
+
+    @Autowired
+    private FileWorkflowScheduleTask fileWorkflowScheduleTask;
+
+    @Autowired
+    @Qualifier("threadPoolTaskExecutor")
+    private Executor executor;
+
     /**
-     * 分页查询工作流列表
+     * 查询 yml 配置的工作流列表。
      */
     @Operation(summary = "查询工作流列表")
     @SaCheckPermission("ai:workflow:list")
     @GetMapping("/list")
-    public TableDataInfo list(AiWorkflow query) {
+    public TableDataInfo list() {
         List<Map<String, Object>> workflows = fileWorkflowDefinitionLoader.listManagementSummaries();
         TableDataInfo dataInfo = new TableDataInfo();
         dataInfo.setCode(200);
@@ -72,7 +68,7 @@ public class AiWorkflowController extends BaseController {
     }
 
     /**
-     * 获取工作流详情
+     * 获取 yml 工作流详情。
      */
     @Operation(summary = "获取工作流详情")
     @SaCheckPermission("ai:workflow:query")
@@ -86,217 +82,139 @@ public class AiWorkflowController extends BaseController {
     }
 
     /**
-     * 新增工作流
-     */
-    @Operation(summary = "新增工作流")
-    @SaCheckPermission("ai:workflow:add")
-    @Log(title = "AI工作流", businessType = BusinessType.INSERT)
-    @PostMapping
-    public AjaxResult add(@Validated @RequestBody AiWorkflow workflow) {
-        return error("工作流已改为文件化管理，请修改 src/main/resources/ai-workflows 下的 yml 文件");
-    }
-
-    /**
-     * 修改工作流
-     */
-    @Operation(summary = "修改工作流")
-    @SaCheckPermission("ai:workflow:edit")
-    @Log(title = "AI工作流", businessType = BusinessType.UPDATE)
-    @PutMapping
-    public AjaxResult edit(@Validated @RequestBody AiWorkflow workflow) {
-        return error("工作流已改为文件化管理，请修改 src/main/resources/ai-workflows 下的 yml 文件");
-    }
-
-    /**
-     * 删除工作流
-     */
-    @Operation(summary = "删除工作流")
-    @SaCheckPermission("ai:workflow:remove")
-    @Log(title = "AI工作流", businessType = BusinessType.DELETE)
-    @DeleteMapping("/{ids}")
-    public AjaxResult remove(@PathVariable Long[] ids) {
-        return error("文件化工作流不能在管理端删除，请删除对应 yml 文件");
-    }
-
-    /**
-     * 启用/禁用工作流
-     */
-    @Operation(summary = "启用/禁用工作流")
-    @SaCheckPermission("ai:workflow:edit")
-    @Log(title = "AI工作流", businessType = BusinessType.UPDATE)
-    @PutMapping("/toggle/{id}")
-    public AjaxResult toggleStatus(@PathVariable Long id) {
-        return error("工作流启停已由 yml 文件控制，管理端不再修改工作流定义");
-    }
-
-    /**
-     * 获取所有启用的工作流列表
+     * 获取所有启用的 yml 工作流列表。
      */
     @Operation(summary = "获取启用的工作流列表")
     @SaCheckPermission("ai:workflow:list")
     @GetMapping("/enabled")
     public AjaxResult getEnabledWorkflows() {
-        try {
-            List<Map<String, Object>> workflows = fileWorkflowDefinitionLoader.listManagementSummaries();
-            return success(workflows);
-        } catch (Exception e) {
-            logger.error("获取启用工作流列表失败: {}", e.getMessage(), e);
-            return error("获取启用工作流列表失败: " + e.getMessage());
-        }
+        return success(fileWorkflowDefinitionLoader.listManagementSummaries());
     }
 
-    // ==================== 定时任务管理接口 ====================
-
     /**
-     * 获取工作流的定时调度配置列表
+     * 查看 yml 工作流的定时任务，只读。
      */
-    @Operation(summary = "获取工作流的定时调度配置列表")
+    @Operation(summary = "查看工作流定时任务")
     @SaCheckPermission("ai:workflow:schedule:list")
-    @GetMapping("/{id}/schedules")
-    public AjaxResult getWorkflowSchedules(@PathVariable Long id) {
-        try {
-            List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(id);
-            return success(schedules);
-        } catch (Exception e) {
-            logger.error("获取工作流定时调度配置失败: {}", e.getMessage(), e);
-            return error("获取工作流定时调度配置失败: " + e.getMessage());
+    @GetMapping("/{workflowId}/schedules")
+    public AjaxResult listSchedules(@PathVariable String workflowId) {
+        FileWorkflowDefinition definition = resolveDefinition(workflowId);
+        if (definition == null) {
+            return error("文件化工作流不存在");
         }
+        return success(List.of(toScheduleView(definition)));
     }
 
     /**
-     * 为工作流创建定时调度配置
+     * 查看 yml 工作流定时任务统计。
      */
-    @Operation(summary = "为工作流创建定时调度配置")
-    @SaCheckPermission("ai:workflow:schedule:add")
-    @Log(title = "AI工作流定时调度", businessType = BusinessType.INSERT)
-    @PostMapping("/{id}/schedule")
-    public AjaxResult createSchedule(@PathVariable Long id, @Validated @RequestBody AiWorkflowSchedule schedule) {
-        try {
-            // 验证工作流是否存在
-            AiWorkflow workflow = workflowService.getById(id);
-            if (workflow == null) {
-                return error("工作流不存在");
-            }
-
-            // 设置工作流ID
-            schedule.setWorkflowId(id);
-            
-            // 设置默认值
-            if (schedule.getEnabled() == null) {
-                schedule.setEnabled("N");
-            }
-            if (schedule.getStatus() == null) {
-                schedule.setStatus("1"); // 暂停状态
-            }
-            if (schedule.getMisfirePolicy() == null) {
-                schedule.setMisfirePolicy("3"); // 放弃执行
-            }
-            if (schedule.getConcurrent() == null) {
-                schedule.setConcurrent("N"); // 不允许并发
-            }
-            if (schedule.getRetryCount() == null) {
-                schedule.setRetryCount(0);
-            }
-            if (schedule.getExecutionTimeout() == null) {
-                schedule.setExecutionTimeout(3600); // 默认1小时超时
-            }
-            if (schedule.getPriority() == null) {
-                schedule.setPriority(5); // 默认优先级
-            }
-
-            boolean result = scheduleService.save(schedule);
-            return toAjax(result);
-        } catch (Exception e) {
-            logger.error("创建工作流定时调度配置失败: {}", e.getMessage(), e);
-            return error("创建工作流定时调度配置失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 启用工作流的所有定时调度
-     */
-    @Operation(summary = "启用工作流的所有定时调度")
-    @SaCheckPermission("ai:workflow:schedule:edit")
-    @Log(title = "AI工作流定时调度", businessType = BusinessType.UPDATE)
-    @PutMapping("/{id}/schedules/enable")
-    public AjaxResult enableAllSchedules(@PathVariable Long id) {
-        try {
-            List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(id);
-            int successCount = 0;
-            
-            for (AiWorkflowSchedule schedule : schedules) {
-                if ("Y".equals(schedule.getEnabled())) {
-                    try {
-                        if (scheduleService.startSchedule(schedule.getId())) {
-                            successCount++;
-                        }
-                    } catch (Exception e) {
-                        logger.error("启用调度任务失败，ID：{}", schedule.getId(), e);
-                    }
-                }
-            }
-            
-            return success("成功启用 " + successCount + " 个调度任务");
-        } catch (Exception e) {
-            logger.error("启用工作流所有定时调度失败: {}", e.getMessage(), e);
-            return error("启用工作流所有定时调度失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 禁用工作流的所有定时调度
-     */
-    @Operation(summary = "禁用工作流的所有定时调度")
-    @SaCheckPermission("ai:workflow:schedule:edit")
-    @Log(title = "AI工作流定时调度", businessType = BusinessType.UPDATE)
-    @PutMapping("/{id}/schedules/disable")
-    public AjaxResult disableAllSchedules(@PathVariable Long id) {
-        try {
-            List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(id);
-            int successCount = 0;
-            
-            for (AiWorkflowSchedule schedule : schedules) {
-                try {
-                    if (scheduleService.pauseSchedule(schedule.getId())) {
-                        successCount++;
-                    }
-                } catch (Exception e) {
-                    logger.error("禁用调度任务失败，ID：{}", schedule.getId(), e);
-                }
-            }
-            
-            return success("成功禁用 " + successCount + " 个调度任务");
-        } catch (Exception e) {
-            logger.error("禁用工作流所有定时调度失败: {}", e.getMessage(), e);
-            return error("禁用工作流所有定时调度失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 获取工作流定时调度统计信息
-     */
-    @Operation(summary = "获取工作流定时调度统计信息")
+    @Operation(summary = "查看工作流定时任务统计")
     @SaCheckPermission("ai:workflow:schedule:list")
-    @GetMapping("/{id}/schedules/statistics")
-    public AjaxResult getScheduleStatistics(@PathVariable Long id) {
-        try {
-            List<AiWorkflowSchedule> schedules = scheduleService.listByWorkflowId(id);
-            
-            long totalCount = schedules.size();
-            long enabledCount = schedules.stream().filter(s -> "Y".equals(s.getEnabled())).count();
-            long runningCount = schedules.stream().filter(s -> "0".equals(s.getStatus())).count();
-            long pausedCount = schedules.stream().filter(s -> "1".equals(s.getStatus())).count();
-            
-            Map<String, Object> statistics = new HashMap<>();
-            statistics.put("total", totalCount);
-            statistics.put("enabled", enabledCount);
-            statistics.put("running", runningCount);
-            statistics.put("paused", pausedCount);
-            
-            return success(statistics);
-        } catch (Exception e) {
-            logger.error("获取工作流定时调度统计信息失败: {}", e.getMessage(), e);
-            return error("获取工作流定时调度统计信息失败: " + e.getMessage());
+    @GetMapping("/{workflowId}/schedules/statistics")
+    public AjaxResult getScheduleStatistics(@PathVariable String workflowId,
+            @RequestParam(defaultValue = "7") int days) {
+        FileWorkflowDefinition definition = resolveDefinition(workflowId);
+        if (definition == null) {
+            return error("文件化工作流不存在");
         }
+        Map<String, Object> statistics = runLogService.statistics(definition.getId(), getLegacyWorkflowId(definition), days);
+        statistics.put("schedule", toScheduleView(definition));
+        return success(statistics);
+    }
+
+    /**
+     * 查看 yml 工作流运行日志。
+     */
+    @Operation(summary = "查看工作流运行日志")
+    @SaCheckPermission("ai:workflow:schedule:list")
+    @GetMapping("/{workflowId}/schedules/logs")
+    public TableDataInfo listScheduleLogs(@PathVariable String workflowId) {
+        FileWorkflowDefinition definition = resolveDefinition(workflowId);
+        if (definition == null) {
+            TableDataInfo dataInfo = new TableDataInfo();
+            dataInfo.setCode(200);
+            dataInfo.setMsg("查询成功");
+            dataInfo.setRows(List.of());
+            dataInfo.setTotal(0);
+            return dataInfo;
+        }
+        PageDomain pageDomain = TableSupport.buildPageRequest();
+        List<Map<String, Object>> logs = runLogService.listLogs(definition.getId(), getLegacyWorkflowId(definition),
+                pageDomain.getPageNum(), pageDomain.getPageSize());
+        TableDataInfo dataInfo = new TableDataInfo();
+        dataInfo.setCode(200);
+        dataInfo.setMsg("查询成功");
+        dataInfo.setRows(logs);
+        dataInfo.setTotal(runLogService.countLogs(definition.getId(), getLegacyWorkflowId(definition)));
+        return dataInfo;
+    }
+
+    /**
+     * 立即执行 yml 工作流。
+     */
+    @Operation(summary = "立即执行工作流定时任务")
+    @SaCheckPermission("ai:workflow:schedule:execute")
+    @PutMapping("/{workflowId}/schedules/{scheduleId}/execute")
+    public AjaxResult executeSchedule(@PathVariable String workflowId, @PathVariable String scheduleId) {
+        FileWorkflowDefinition definition = resolveDefinition(workflowId);
+        if (definition == null) {
+            return error("文件化工作流不存在");
+        }
+        executor.execute(() -> fileWorkflowScheduleTask.executeManual(definition.getId()));
+        return success("执行任务已启动，请查看运行日志获取结果");
+    }
+
+    /**
+     * 兼容旧页面的立即执行入口。
+     */
+    @Operation(summary = "立即执行工作流定时任务")
+    @SaCheckPermission("ai:workflow:schedule:execute")
+    @PutMapping("/schedule/execute/{id}")
+    public AjaxResult executeScheduleCompat(@PathVariable String id) {
+        FileWorkflowDefinition definition = resolveDefinition(id);
+        if (definition == null) {
+            return error("文件化工作流不存在");
+        }
+        executor.execute(() -> fileWorkflowScheduleTask.executeManual(definition.getId()));
+        return success("执行任务已启动，请查看运行日志获取结果");
+    }
+
+    private FileWorkflowDefinition resolveDefinition(String idOrKey) {
+        FileWorkflowDefinition definition = fileWorkflowDefinitionLoader.findByKey(idOrKey).orElse(null);
+        if (definition != null) {
+            return definition;
+        }
+        try {
+            return fileWorkflowDefinitionLoader.findByLegacyWorkflowId(Long.valueOf(idOrKey)).orElse(null);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private Map<String, Object> toScheduleView(FileWorkflowDefinition definition) {
+        Map<String, Object> schedule = new LinkedHashMap<>();
+        Long legacyWorkflowId = getLegacyWorkflowId(definition);
+        schedule.put("id", legacyWorkflowId != null ? legacyWorkflowId : definition.getId());
+        schedule.put("workflowId", legacyWorkflowId);
+        schedule.put("workflowKey", definition.getId());
+        schedule.put("workflowName", definition.getName());
+        schedule.put("scheduleName", definition.getName() + " 自动执行");
+        schedule.put("cronExpression", definition.getCronExpression());
+        schedule.put("enabled", definition.getScheduleEnabled());
+        schedule.put("status", "Y".equalsIgnoreCase(definition.getScheduleEnabled()) ? "0" : "1");
+        schedule.put("misfirePolicy", definition.getMisfirePolicy());
+        schedule.put("concurrent", definition.getConcurrent());
+        schedule.put("nextExecutionTime", StrUtil.isNotBlank(definition.getCronExpression())
+                ? CronUtils.getNextExecution(definition.getCronExpression())
+                : null);
+        schedule.put("readonly", true);
+        return schedule;
+    }
+
+    private Long getLegacyWorkflowId(FileWorkflowDefinition definition) {
+        if (definition.getLegacyWorkflowIds() == null || definition.getLegacyWorkflowIds().isEmpty()) {
+            return null;
+        }
+        return definition.getLegacyWorkflowIds().get(0);
     }
 }

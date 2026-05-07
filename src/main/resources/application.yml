@@ -73,6 +73,18 @@ github:
   # 可在 https://github.com/settings/tokens 生成personal access token
   token: 
 
+# OpenRouter 免费模型同步配置
+openrouter:
+  free-model-sync:
+    # 是否启用自动同步任务
+    enabled: true
+    # 每2小时同步一次
+    cron: 0 15 0/2 * * ?
+    # /models/count 未变化时跳过全量同步
+    skip-when-count-unchanged: true
+    # 请求 OpenRouter 时的 User-Agent
+    user-agent: RuoyiMagic/1.0
+
 # 飞书应用配置
 feishu:
   # 飞书应用ID
