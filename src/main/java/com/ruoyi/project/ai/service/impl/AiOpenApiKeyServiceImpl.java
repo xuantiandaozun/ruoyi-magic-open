@@ -4,7 +4,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -33,10 +32,10 @@ public class AiOpenApiKeyServiceImpl extends ServiceImpl<AiOpenApiKeyMapper, AiO
     @Override
     @Transactional
     public Map<String, Object> createKey(AiOpenApiKey entity) {
-        String publicId = randomUrlSafe(10);
-        String secret = randomUrlSafe(32);
+        String publicId = randomHex(10);
+        String secret = randomHex(32);
         String rawKey = KEY_PREFIX + "_" + publicId + "_" + secret;
-        String salt = randomUrlSafe(16);
+        String salt = randomHex(16);
 
         AiOpenApiKey openApiKey = new AiOpenApiKey();
         openApiKey.setName(entity.getName());
@@ -73,26 +72,30 @@ public class AiOpenApiKeyServiceImpl extends ServiceImpl<AiOpenApiKeyMapper, AiO
         if (StrUtil.isBlank(rawKey) || !rawKey.startsWith(KEY_PREFIX + "_")) {
             return null;
         }
-        String[] parts = rawKey.split("_", 3);
-        if (parts.length != 3) {
-            return null;
+        for (int i = rawKey.indexOf('_', KEY_PREFIX.length() + 1); i > 0; i = rawKey.indexOf('_', i + 1)) {
+            AiOpenApiKey entity = getActiveKeyByPrefix(rawKey.substring(0, i));
+            if (entity == null) {
+                continue;
+            }
+            if (entity.getExpiresAt() != null && entity.getExpiresAt().toInstant().isBefore(Instant.now())) {
+                return null;
+            }
+            String expectedHash = hash(rawKey, entity.getSalt());
+            if (StrUtil.equals(expectedHash, entity.getKeyHash())) {
+                return entity;
+            }
         }
-        String keyPrefix = parts[0] + "_" + parts[1];
+        return null;
+    }
+
+    private AiOpenApiKey getActiveKeyByPrefix(String keyPrefix) {
         QueryWrapper qw = QueryWrapper.create()
             .from("ai_open_api_key")
             .where(new QueryColumn("key_prefix").eq(keyPrefix))
             .and(new QueryColumn("enabled").eq("Y"))
             .and(new QueryColumn("status").eq("0"))
             .and(new QueryColumn("del_flag").eq("0"));
-        AiOpenApiKey entity = getOne(qw);
-        if (entity == null) {
-            return null;
-        }
-        if (entity.getExpiresAt() != null && entity.getExpiresAt().toInstant().isBefore(Instant.now())) {
-            return null;
-        }
-        String expectedHash = hash(rawKey, entity.getSalt());
-        return StrUtil.equals(expectedHash, entity.getKeyHash()) ? entity : null;
+        return getOne(qw);
     }
 
     @Override
@@ -114,10 +117,14 @@ public class AiOpenApiKeyServiceImpl extends ServiceImpl<AiOpenApiKeyMapper, AiO
         updateById(entity);
     }
 
-    private String randomUrlSafe(int byteLength) {
+    private String randomHex(int byteLength) {
         byte[] bytes = new byte[byteLength];
         SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        StringBuilder sb = new StringBuilder(byteLength * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     private String hash(String rawKey, String salt) {

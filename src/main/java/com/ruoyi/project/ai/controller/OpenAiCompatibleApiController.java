@@ -49,7 +49,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/openai/v1")
+@RequestMapping({ "/api/openai/v1", "/openai/v1" })
 public class OpenAiCompatibleApiController {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -102,7 +102,8 @@ public class OpenAiCompatibleApiController {
     }
 
     @PostMapping("/chat/completions")
-    public ResponseEntity<?> chatCompletions(@RequestBody JsonNode requestBody, HttpServletRequest request) {
+    public Object chatCompletions(@RequestBody JsonNode requestBody, HttpServletRequest request,
+            jakarta.servlet.http.HttpServletResponse httpResponse) {
         ensureCompatConfigs();
         AuthResult authResult = validateAuthorization(request);
         if (authResult.errorResponse() != null) {
@@ -135,9 +136,9 @@ public class OpenAiCompatibleApiController {
 
         boolean stream = requestBody.path("stream").asBoolean(false);
         if (stream) {
-            return ResponseEntity.ok()
-                .contentType(MediaType.TEXT_EVENT_STREAM)
-                .body(buildStreamEmitter(modelConfig, openApiKey, messages, request));
+            httpResponse.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8");
+            httpResponse.setCharacterEncoding("UTF-8");
+            return buildStreamEmitter(modelConfig, openApiKey, messages, request);
         }
 
         long start = System.currentTimeMillis();
@@ -172,6 +173,17 @@ public class OpenAiCompatibleApiController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/embeddings")
+    public ResponseEntity<?> embeddings(HttpServletRequest request) {
+        AuthResult authResult = validateAuthorization(request);
+        if (authResult.errorResponse() != null) {
+            return authResult.errorResponse();
+        }
+        // Embeddings will be added later when the downstream model layer is ready.
+        return error(HttpStatus.BAD_REQUEST, "unsupported_endpoint",
+                "当前暂不支持 embeddings 接口，后续版本再升级");
+    }
+
     private SseEmitter buildStreamEmitter(AiModelConfig modelConfig, AiOpenApiKey openApiKey,
             List<ChatMessage> messages, HttpServletRequest request) {
         SseEmitter emitter = new SseEmitter(0L);
@@ -187,18 +199,19 @@ public class OpenAiCompatibleApiController {
                         delta.put("role", "assistant");
                         firstChunk.set(false);
                     }
-                    delta.put("content", token);
-                    emitter.send(SseEmitter.event().data(toJson(Map.of(
-                        "id", completionId,
-                        "object", "chat.completion.chunk",
-                        "created", created,
-                        "model", modelConfig.getModel(),
-                        "choices", List.of(Map.of(
-                            "index", 0,
-                            "delta", delta,
-                            "finish_reason", null
-                        ))
-                    ))));
+                    // token 可能为 null（某些模型的 reasoning chunk），空串降级，不丢给 Map.of() 否则 NPE
+                    delta.put("content", token == null ? "" : token);
+                    Map<String, Object> chunk = new LinkedHashMap<>();
+                    chunk.put("id", completionId);
+                    chunk.put("object", "chat.completion.chunk");
+                    chunk.put("created", created);
+                    chunk.put("model", modelConfig.getModel());
+                    Map<String, Object> choice = new LinkedHashMap<>();
+                    choice.put("index", 0);
+                    choice.put("delta", delta);
+                    choice.put("finish_reason", null);   // LinkedHashMap 支持 null value
+                    chunk.put("choices", List.of(choice));
+                    emitter.send(SseEmitter.event().data(toJson(chunk)));
                 } catch (IOException e) {
                     emitter.completeWithError(e);
                 }
@@ -244,8 +257,8 @@ public class OpenAiCompatibleApiController {
                 throw new IllegalArgumentException("messages.role 不能为空");
             }
             switch (role) {
-                case "system" -> messages.add(SystemMessage.from(content));
-                case "user" -> messages.add(UserMessage.from(content));
+                case "system", "developer" -> messages.add(SystemMessage.from(content));
+                case "user", "tool", "function" -> messages.add(UserMessage.from(content));
                 case "assistant" -> messages.add(AiMessage.from(content));
                 default -> throw new IllegalArgumentException("暂不支持的 role: " + role);
             }
@@ -263,7 +276,12 @@ public class OpenAiCompatibleApiController {
         if (contentNode.isArray()) {
             StringBuilder builder = new StringBuilder();
             for (JsonNode item : contentNode) {
-                if ("text".equals(textValue(item.get("type")))) {
+                String itemType = textValue(item.get("type"));
+                if ("image_url".equals(itemType)) {
+                    // image_url will be supported later when multimodal routing is added.
+                    throw new IllegalArgumentException("暂不支持 image_url 内容，后续版本再升级");
+                }
+                if ("text".equals(itemType)) {
                     if (builder.length() > 0) {
                         builder.append('\n');
                     }
@@ -362,7 +380,16 @@ public class OpenAiCompatibleApiController {
         record.setDurationMs(System.currentTimeMillis() - startMillis);
         record.setClientIp(request.getRemoteAddr());
         record.setUserAgent(request.getHeader(HttpHeaders.USER_AGENT));
-        record.setRequestMeta(request.getRequestURI());
+        // request_meta 是 JSON 类型字段，存结构化信息
+        try {
+            record.setRequestMeta(toJson(Map.of(
+                "uri", request.getRequestURI(),
+                "method", request.getMethod(),
+                "userAgent", StrUtil.nullToDefault(request.getHeader(HttpHeaders.USER_AGENT), "")
+            )));
+        } catch (IOException e) {
+            record.setRequestMeta("{\"uri\":\"" + request.getRequestURI() + "\"}");
+        }
         record.setCreateBy("open-api");
         record.setUpdateBy("open-api");
         record.setDelFlag("0");

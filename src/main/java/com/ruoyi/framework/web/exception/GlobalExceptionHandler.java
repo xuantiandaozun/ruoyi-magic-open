@@ -1,6 +1,8 @@
 package com.ruoyi.framework.web.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.validation.BindException;
@@ -118,12 +120,18 @@ public class GlobalExceptionHandler
 
     /**
      * 拦截未知的运行时异常
+     * SSE 请求（Content-Type: text/event-stream）已建立长连接，此时无法再写 AjaxResult，
+     * 直接返回 null 让 Spring 跳过响应体写入，异常已由 SseEmitter.completeWithError() 处理。
      */
     @ExceptionHandler(RuntimeException.class)
-    public AjaxResult handleRuntimeException(RuntimeException e, HttpServletRequest request)
+    public AjaxResult handleRuntimeException(RuntimeException e, HttpServletRequest request, HttpServletResponse response)
     {
         String requestURI = request.getRequestURI();
         log.error("请求地址'{}',发生未知异常.", requestURI, e);
+        if (MediaType.TEXT_EVENT_STREAM_VALUE.equals(response.getContentType())
+                || (response.getContentType() != null && response.getContentType().startsWith(MediaType.TEXT_EVENT_STREAM_VALUE))) {
+            return null;
+        }
         return AjaxResult.error(e.getMessage());
     }
 
@@ -131,10 +139,14 @@ public class GlobalExceptionHandler
      * 系统异常
      */
     @ExceptionHandler(Exception.class)
-    public AjaxResult handleException(Exception e, HttpServletRequest request)
+    public AjaxResult handleException(Exception e, HttpServletRequest request, HttpServletResponse response)
     {
         String requestURI = request.getRequestURI();
         log.error("请求地址'{}',发生系统异常.", requestURI, e);
+        if (MediaType.TEXT_EVENT_STREAM_VALUE.equals(response.getContentType())
+                || (response.getContentType() != null && response.getContentType().startsWith(MediaType.TEXT_EVENT_STREAM_VALUE))) {
+            return null;
+        }
         return AjaxResult.error(e.getMessage());
     }
 
