@@ -85,12 +85,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
                                                 "/swagger-ui/**",
                                                 "/*/api-docs",
                                                 "/doc.html",
-                                                // magic-api 接口
+                                                // magic-api 和 OpenAI 兼容接口
                                                 "/magic/**",
+                                                "/openai/**",
                                                 "/api/**",
                                                 // GitHub Trending 数据接入接口（使用签名验证，不需要登录）
                                                 "/github/trending/ingest",
-                                                "/github/trending/push/feishu")
+                                                "/github/trending/push/feishu",
+                                                // 插件用户认证接口（Google OAuth 登录，无需已登录）
+                                                "/plugin/auth/google/login",
+                                                "/plugin/auth/logout")
                                 .order(2); // 优先级2，在签名拦截器之后执行
         }
 }

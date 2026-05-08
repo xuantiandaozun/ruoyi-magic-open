@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chrome 插件 API 文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --surface: #111520;
+    --border: #1e2535;
+    --accent: #4ade80;
+    --accent2: #38bdf8;
+    --accent3: #f472b6;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --get: #34d399;
+    --post: #60a5fa;
+    --tag-bg: #1a2540;
+    --code-bg: #0d1117;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(74,222,128,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(74,222,128,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .layout {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 32px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .sidebar-logo {
+    padding: 0 24px 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .sidebar-logo .logo-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #000;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+  .sidebar-logo h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .sidebar-logo p {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .nav-group { margin-bottom: 8px; }
+  .nav-group-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 6px 24px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 24px;
+    cursor: pointer;
+    transition: background .15s;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 13px;
+  }
+  .nav-item:hover { background: rgba(255,255,255,.04); }
+  .nav-item .method-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .method-get { background: rgba(52,211,153,.15); color: var(--get); }
+  .method-post { background: rgba(96,165,250,.15); color: var(--post); }
+
+  /* Main content */
+  .main {
+    flex: 1;
+    padding: 48px 56px;
+    max-width: 900px;
+  }
+
+  /* Header */
+  .page-header {
+    margin-bottom: 56px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-header .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .page-header h1 {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.2;
+    background: linear-gradient(135deg, var(--text) 40%, var(--muted));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .page-header p {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 560px;
+  }
+  .base-url {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .base-url .label {
+    font-family: 'Sora', sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+    letter-spacing: .05em;
+  }
+  .base-url .url { color: var(--accent2); }
+
+  /* Section */
+  .section {
+    margin-bottom: 64px;
+  }
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Endpoint card */
+  .endpoint {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+  .endpoint-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+  .method-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    letter-spacing: .05em;
+  }
+  .endpoint-path {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--text);
+    flex: 1;
+  }
+  .endpoint-path .path-param { color: var(--accent3); }
+  .auth-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(244,114,182,.12);
+    color: var(--accent3);
+  }
+  .endpoint-desc {
+    padding: 16px 20px;
+    color: var(--muted);
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .endpoint-body { padding: 20px; }
+
+  /* Params table */
+  .params-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    background: rgba(255,255,255,.03);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: .06em;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(30,37,53,.8);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  .param-name {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent2);
+    font-size: 12px;
+  }
+  .param-type {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .required { color: var(--accent3); font-size: 10px; font-weight: 700; }
+  .optional { color: var(--muted); font-size: 10px; }
+
+  /* Code block */
+  .code-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(255,255,255,.03);
+    border-bottom: 1px solid var(--border);
+  }
+  .code-block-lang {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .code-block pre {
+    padding: 16px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .kw { color: #c792ea; }
+  .str { color: #c3e88d; }
+  .num { color: #f78c6c; }
+  .key { color: var(--accent2); }
+  .cmt { color: #546e7a; font-style: italic; }
+  .fn { color: var(--accent); }
+
+  /* Response boxes */
+  .response-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 16px 0 8px;
+  }
+  .status-200 { color: var(--get); }
+  .status-401 { color: #fbbf24; }
+  .status-429 { color: var(--accent3); }
+
+  /* Info box */
+  .info-box {
+    background: rgba(56,189,248,.07);
+    border: 1px solid rgba(56,189,248,.2);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 13px;
+    color: var(--accent2);
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+  .info-box strong { font-weight: 600; }
+  .warn-box {
+    background: rgba(251,191,36,.07);
+    border: 1px solid rgba(251,191,36,.2);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 13px;
+    color: #fbbf24;
+    margin-bottom: 20px;
+  }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 24px 0;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .flow-step {
+    background: var(--tag-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .flow-arrow {
+    color: var(--muted);
+    font-size: 16px;
+    padding: 0 4px;
+  }
+  .flow-step.highlight {
+    background: rgba(74,222,128,.1);
+    border-color: rgba(74,222,128,.3);
+    color: var(--accent);
+  }
+
+  /* Divider */
+  hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+  /* Model table */
+  .model-priority {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .model-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--tag-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+  }
+  .model-rank {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(74,222,128,.15);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .model-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent2);
+    flex: 1;
+  }
+  .model-desc { font-size: 12px; color: var(--muted); }
+  .model-stream-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(74,222,128,.15);
+    color: var(--accent);
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-badge">API DOCS</div>
+      <h2>Plugin API</h2>
+      <p>v1.0 · Chrome Extension</p>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">认证</div>
+      <a class="nav-item" href="#login"><span class="method-tag method-post">POST</span>Google 登录</a>
+      <a class="nav-item" href="#userinfo"><span class="method-tag method-get">GET</span>用户信息</a>
+      <a class="nav-item" href="#quota"><span class="method-tag method-get">GET</span>查询配额</a>
+      <a class="nav-item" href="#logout"><span class="method-tag method-post">POST</span>退出登录</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">AI 对话</div>
+      <a class="nav-item" href="#chat"><span class="method-tag method-post">POST</span>对话补全</a>
+      <a class="nav-item" href="#stream">└ 流式模式</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title">参考</div>
+      <a class="nav-item" href="#models">模型优先级</a>
+      <a class="nav-item" href="#errors">错误码</a>
+      <a class="nav-item" href="#example">完整示例</a>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="page-header">
+      <div class="eyebrow">Chrome Extension Backend</div>
+      <h1>Plugin API<br/>接口文档</h1>
+      <p>为 Chrome 插件提供 Google OAuth 登录、用户配额管理及 AI 对话能力（基于 OpenRouter 免费模型）。</p>
+      <div class="base-url">
+        <span class="label">BASE URL</span>
+        <span class="url">https://ai.zhoudw.vip/api</span>
+      </div>
+    </div>
+
+    <!-- ==================== 认证 ==================== -->
+    <div class="section">
+      <div class="section-title">认证接口</div>
+
+      <!-- Google Login -->
+      <div class="endpoint" id="login">
+        <div class="endpoint-header">
+          <span class="method-badge method-post">POST</span>
+          <span class="endpoint-path">/plugin/auth/google/login</span>
+        </div>
+        <div class="endpoint-desc">
+          插件通过 Google Identity Services 获取 <code>credential</code>（id_token）后，POST 到此接口完成登录或自动注册。
+          成功后返回 Sa-Token，后续请求通过 <code>Authorization: Bearer &lt;token&gt;</code> 携带。
+        </div>
+        <div class="endpoint-body">
+          <div class="params-label">Request Body (JSON)</div>
+          <table>
+            <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
+            <tr>
+              <td class="param-name">idToken</td>
+              <td class="param-type">string</td>
+              <td><span class="required">必填</span></td>
+              <td>Google Identity Services 返回的 credential（JWT id_token）</td>
+            </tr>
+          </table>
+
+          <div class="code-block">
+            <div class="code-block-header"><span class="code-block-lang">Request</span></div>
+            <pre><span class="cmt">// 插件端 Google 登录触发</span>
+google.accounts.id.initialize({
+  client_id: <span class="str">'YOUR_GOOGLE_CLIENT_ID'</span>,
+  callback: <span class="kw">async</span> (response) => {
+    <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">'https://ai.zhoudw.vip/api/plugin/auth/google/login'</span>, {
+      method: <span class="str">'POST'</span>,
+      headers: { <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span> },
+      body: JSON.stringify({ <span class="key">idToken</span>: response.credential })
+    });
+    <span class="kw">const</span> data = <span class="kw">await</span> res.json();
+    <span class="cmt">// data.data.token → 保存到 chrome.storage.local</span>
+  }
+});</pre>
+          </div>
+
+          <div class="response-label status-200">200 成功</div>
+          <div class="code-block">
+            <div class="code-block-header"><span class="code-block-lang">Response JSON</span></div>
+            <pre>{
+  <span class="key">"code"</span>: <span class="num">200</span>,
+  <span class="key">"msg"</span>: <span class="str">"操作成功"</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"token"</span>: <span class="str">"&lt;Sa-Token&gt;"</span>,       <span class="cmt">// 后续请求 Bearer 此 token</span>
+    <span class="key">"tokenName"</span>: <span class="str">"Authorization"</span>,
+    <span class="key">"userId"</span>: <span class="num">10001</span>,
+    <span class="key">"email"</span>: <span class="str">"user@gmail.com"</span>,
+    <span class="key">"nickname"</span>: <span class="str">"张三"</span>,
+    <span class="key">"isNewUser"</span>: <span class="kw">false</span>
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Userinfo -->
+      <div class="endpoint" id="userinfo">
+        <div class="endpoint-header">
+          <span class="method-badge method-get">GET</span>
+          <span class="endpoint-path">/plugin/auth/userinfo</span>
+          <span class="auth-badge">需登录</span>
+        </div>
+        <div class="endpoint-desc">获取当前登录用户基本信息及今日配额状态。</div>
+        <div class="endpoint-body">
+          <div class="code-block">
+            <div class="code-block-header"><span class="code-block-lang">Response JSON</span></div>
+            <pre>{
+  <span class="key">"code"</span>: <span class="num">200</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"userId"</span>: <span class="num">10001</span>,
+    <span class="key">"userTier"</span>: <span class="str">"free"</span>,
+    <span class="key">"todayUsedRequests"</span>: <span class="num">3</span>,
+    <span class="key">"todayRequestLimit"</span>: <span class="num">20</span>,
+    <span class="key">"remainingRequests"</span>: <span class="num">17</span>,
+    <span class="key">"todayUsedTokens"</span>: <span class="num">12500</span>,
+    <span class="key">"tokenLimit"</span>: <span class="num">100000</span>
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quota -->
+      <div class="endpoint" id="quota">
+        <div class="endpoint-header">
+          <span class="method-badge method-get">GET</span>
+          <span class="endpoint-path">/plugin/auth/quota</span>
+          <span class="auth-badge">需登录</span>
+        </div>
+        <div class="endpoint-desc">
+          仅查询今日配额使用情况，<strong>不消耗配额</strong>。插件可在对话后调用此接口刷新剩余次数显示。
+        </div>
+        <div class="endpoint-body">
+          <div class="code-block">
+            <div class="code-block-header"><span class="code-block-lang">Response JSON</span></div>
+            <pre>{
+  <span class="key">"code"</span>: <span class="num">200</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"todayUsedRequests"</span>: <span class="num">3</span>,
+    <span class="key">"requestLimit"</span>: <span class="num">20</span>,
+    <span class="key">"remainingRequests"</span>: <span class="num">17</span>,
+    <span class="key">"todayUsedTokens"</span>: <span class="num">12500</span>,
+    <span class="key">"tokenLimit"</span>: <span class="num">100000</span>,
+    <span class="key">"remainingTokens"</span>: <span class="num">87500</span>
+  }
+}</pre>
+          </div>
+          <div class="info-box">
+            <strong>使用建议：</strong>每次 AI 对话完成后调用此接口更新 UI 中的「剩余次数」显示，
+            频率无需太高，每次对话后刷新一次即可。
+          </div>
+        </div>
+      </div>
+
+      <!-- Logout -->
+      <div class="endpoint" id="logout">
+        <div class="endpoint-header">
+          <span class="method-badge method-post">POST</span>
+          <span class="endpoint-path">/plugin/auth/logout</span>
+          <span class="auth-badge">需登录</span>
+        </div>
+        <div class="endpoint-desc">退出登录，服务端销毁 Sa-Token。</div>
+        <div class="endpoint-body">
+          <div class="code-block">
+            <div class="code-block-header"><span class="code-block-lang">Response JSON</span></div>
+            <pre>{ <span class="key">"code"</span>: <span class="num">200</span>, <span class="key">"msg"</span>: <span class="str">"已退出登录"</span> }</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== AI ==================== -->
+    <div class="section">
+      <div class="section-title">AI 对话接口</div>
+
+      <div class="endpoint" id="chat">
+        <div class="endpoint-header">
+          <span class="method-badge method-post">POST</span>
+          <span class="endpoint-path">/plugin/ai/chat/completions</span>
+          <span class="auth-badge">需登录</span>
+        </div>
+        <div class="endpoint-desc">
+          OpenAI 兼容格式的对话补全接口。支持 <code>stream: true</code> 开启 SSE 流式输出。
+          遇到上游 429 限速时自动轮询候选模型重试（非流式），流式使用 openrouter/free 自动路由。
+        </div>
+        <div class="endpoint-body">
+          <div class="params-label">Request Body (JSON)</div>
+          <table>
+            <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
+            <tr>
+              <td class="param-name">messages</td>
+              <td class="param-type">array</td>
+              <td><span class="required">必填</span></td>
+              <td>消息列表，格式见下方示例</td>
+            </tr>
+            <tr>
+              <td class="param-name">stream</td>
+              <td class="param-type">boolean</td>
+              <td><span class="optional">可选</span></td>
+              <td>是否启用 SSE 流式输出，默认 <code>false</code></td>
+            </tr>
+          </table>
+
+          <div class="params-label">messages[].role 支持值</div>
+          <table>
+            <tr><th>role</th><th>说明</th></tr>
+            <tr><td class="param-name">system</td><td>系统提示词</td></tr>
+            <tr><td class="param-name">user</td><td>用户消息</td></tr>
+            <tr><td class="param-name">assistant</td><td>AI 历史消息（多轮对话）</td></tr>
+          </table>
+
+          <hr/>
+
+          <!-- Non-stream -->
+          <div class="params-label">非流式示例（stream: false）</div>
+          <div class="code-block">
+            <div class="code-block-header"><span class="code-block-lang">Request</span></div>
+            <pre><span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">'https://ai.zhoudw.vip/api/plugin/ai/chat/completions'</span>, {
+  method: <span class="str">'POST'</span>,
+  headers: {
+    <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span>,
+    <span class="str">'Authorization'</span>: <span class="str">`Bearer ${token}`</span>
+  },
+  body: JSON.stringify({
+    <span class="key">messages</span>: [
+      { <span class="key">role</span>: <span class="str">'system'</span>, <span class="key">content</span>: <span class="str">'你是一个文档助手，擅长解析中文技术文档。'</span> },
+      { <span class="key">role</span>: <span class="str">'user'</span>,   <span class="key">content</span>: <span class="str">'请总结这段内容：...'</span> }
+    ],
+    <span class="key">stream</span>: <span class="kw">false</span>
+  })
+});
+<span class="kw">const</span> data = <span class="kw">await</span> res.json();</pre>
+          </div>
+
+          <div class="response-label status-200">200 成功（非流式）</div>
+          <div class="code-block">
+            <div class="code-block-header"><span class="code-block-lang">Response JSON</span></div>
+            <pre>{
+  <span class="key">"id"</span>: <span class="str">"chatcmpl-abc123"</span>,
+  <span class="key">"object"</span>: <span class="str">"chat.completion"</span>,
+  <span class="key">"created"</span>: <span class="num">1748320000</span>,
+  <span class="key">"model"</span>: <span class="str">"qwen/qwen3-next-80b-a3b-instruct:free"</span>,
+  <span class="key">"choices"</span>: [{
+    <span class="key">"index"</span>: <span class="num">0</span>,
+    <span class="key">"message"</span>: { <span class="key">"role"</span>: <span class="str">"assistant"</span>, <span class="key">"content"</span>: <span class="str">"该文档介绍了..."</span> },
+    <span class="key">"finish_reason"</span>: <span class="str">"stop"</span>
+  }],
+  <span class="key">"usage"</span>: {
+    <span class="key">"prompt_tokens"</span>: <span class="num">120</span>,
+    <span class="key">"completion_tokens"</span>: <span class="num">380</span>,
+    <span class="key">"total_tokens"</span>: <span class="num">500</span>
+  }
+}</pre>
+          </div>
+
+          <hr/>
+
+          <!-- Stream -->
+          <div id="stream" class="params-label">流式示例（stream: true）</div>
+          <div class="info-box">
+            流式模式使用 <strong>openrouter/free 自动路由</strong>，由 OpenRouter 服务端自动选择可用的免费模型，
+            返回标准 SSE 格式（OpenAI 兼容），最后发送 <code>data: [DONE]</code> 标记结束。
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header"><span class="code-block-lang">Request + SSE 消费</span></div>
+            <pre><span class="kw">async function</span> <span class="fn">streamChat</span>(token, messages, onChunk) {
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">'https://ai.zhoudw.vip/api/plugin/ai/chat/completions'</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: {
+      <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span>,
+      <span class="str">'Authorization'</span>: <span class="str">`Bearer ${token}`</span>
+    },
+    body: JSON.stringify({ messages, <span class="key">stream</span>: <span class="kw">true</span> })
+  });
+
+  <span class="kw">const</span> reader = res.body.getReader();
+  <span class="kw">const</span> decoder = <span class="kw">new</span> TextDecoder();
+  <span class="kw">let</span> buf = <span class="str">''</span>;
+
+  <span class="kw">while</span> (<span class="kw">true</span>) {
+    <span class="kw">const</span> { done, value } = <span class="kw">await</span> reader.read();
+    <span class="kw">if</span> (done) <span class="kw">break</span>;
+    buf += decoder.decode(value, { stream: <span class="kw">true</span> });
+    <span class="kw">const</span> lines = buf.split(<span class="str">'\n'</span>);
+    buf = lines.pop();                 <span class="cmt">// 保留未完整的行</span>
+
+    <span class="kw">for</span> (<span class="kw">const</span> line <span class="kw">of</span> lines) {
+      <span class="kw">if</span> (!line.startsWith(<span class="str">'data: '</span>)) <span class="kw">continue</span>;
+      <span class="kw">const</span> raw = line.slice(<span class="num">6</span>).trim();
+      <span class="kw">if</span> (raw === <span class="str">'[DONE]'</span>) <span class="kw">return</span>;     <span class="cmt">// 流结束</span>
+      <span class="kw">try</span> {
+        <span class="kw">const</span> chunk = JSON.parse(raw);
+        <span class="kw">const</span> content = chunk.choices?.[<span class="num">0</span>]?.delta?.content;
+        <span class="kw">if</span> (content) onChunk(content);
+      } <span class="kw">catch</span> {}
+    }
+  }
+}
+
+<span class="cmt">// 使用示例</span>
+<span class="kw">let</span> output = <span class="str">''</span>;
+<span class="kw">await</span> <span class="fn">streamChat</span>(token, [
+  { role: <span class="str">'user'</span>, content: <span class="str">'用三句话总结这篇文档...'</span> }
+], (chunk) => {
+  output += chunk;
+  updateUI(output);   <span class="cmt">// 实时更新插件 UI</span>
+});</pre>
+          </div>
+
+          <div class="response-label status-200">SSE 流格式（每行一个 chunk）</div>
+          <div class="code-block">
+            <div class="code-block-header"><span class="code-block-lang">SSE Stream</span></div>
+            <pre><span class="cmt">// 第一个 chunk（含 role）</span>
+data: {"id":"chatcmpl-abc","object":"chat.completion.chunk","created":1748320000,
+       "model":"openrouter/auto","choices":[{"index":0,
+       "delta":{"role":"assistant","content":"该"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc","object":"chat.completion.chunk","created":1748320000,
+       "model":"openrouter/auto","choices":[{"index":0,
+       "delta":{"content":"文档"},"finish_reason":null}]}
+
+<span class="cmt">// ... 更多 chunk ...</span>
+
+<span class="cmt">// 最后一个 chunk（含 finish_reason）</span>
+data: {"id":"chatcmpl-abc","object":"chat.completion.chunk","created":1748320000,
+       "model":"openrouter/auto","choices":[{"index":0,
+       "delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 模型优先级 ==================== -->
+    <div class="section" id="models">
+      <div class="section-title">模型优先级（非流式）</div>
+
+      <div class="info-box">
+        非流式模式依序尝试以下模型，遇上游 429 限速自动切换下一个。全部限速时返回「AI 服务繁忙」。
+        流式模式统一使用 <strong>openrouter/free</strong> 自动路由，由 OpenRouter 服务端处理故障转移。
+      </div>
+
+      <div class="model-priority">
+        <div class="model-row">
+          <div class="model-rank">流</div>
+          <div class="model-name">openrouter/auto</div>
+          <div class="model-desc">流式专用，OpenRouter 自动路由</div>
+          <span class="model-stream-badge">STREAM</span>
+        </div>
+        <div class="model-row">
+          <div class="model-rank">1</div>
+          <div class="model-name">qwen/qwen3-next-80b-a3b-instruct:free</div>
+          <div class="model-desc">中文最强，首选</div>
+        </div>
+        <div class="model-row">
+          <div class="model-rank">2</div>
+          <div class="model-name">z-ai/glm-4.5-air:free</div>
+          <div class="model-desc">智谱 GLM，国产中文极强</div>
+        </div>
+        <div class="model-row">
+          <div class="model-rank">3</div>
+          <div class="model-name">minimax/minimax-m2.5:free</div>
+          <div class="model-desc">MiniMax，中文场景好</div>
+        </div>
+        <div class="model-row">
+          <div class="model-rank">4</div>
+          <div class="model-name">meta-llama/llama-3.3-70b-instruct:free</div>
+          <div class="model-desc">英文强，中文可用</div>
+        </div>
+        <div class="model-row">
+          <div class="model-rank">5</div>
+          <div class="model-name">google/gemma-4-31b-it:free</div>
+          <div class="model-desc">兜底候选</div>
+        </div>
+        <div class="model-row">
+          <div class="model-rank">6</div>
+          <div class="model-name">nousresearch/hermes-3-llama-3.1-405b:free</div>
+          <div class="model-desc">大模型兜底</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 错误码 ==================== -->
+    <div class="section" id="errors">
+      <div class="section-title">错误码</div>
+
+      <table>
+        <tr><th>code</th><th>场景</th><th>说明</th></tr>
+        <tr>
+          <td class="param-name">200</td>
+          <td>所有成功响应</td>
+          <td>操作成功</td>
+        </tr>
+        <tr>
+          <td class="param-name status-401">401</td>
+          <td>未携带 token 或 token 已过期</td>
+          <td>请重新登录获取新 token</td>
+        </tr>
+        <tr>
+          <td class="param-name status-429">429</td>
+          <td>今日配额已耗尽</td>
+          <td>免费用户每日 20 次 / 10 万 tokens，次日重置</td>
+        </tr>
+        <tr>
+          <td class="param-name">500</td>
+          <td>全部候选模型均不可用</td>
+          <td>返回 msg: "AI 服务繁忙，请稍后重试"</td>
+        </tr>
+      </table>
+
+      <div class="warn-box">
+        流式连接中断（网络错误）时，插件端应捕获异常并提示用户重试，服务端不做流式 fallback。
+      </div>
+    </div>
+
+    <!-- ==================== 完整示例 ==================== -->
+    <div class="section" id="example">
+      <div class="section-title">插件端完整集成示例</div>
+
+      <div class="flow">
+        <div class="flow-step highlight">Google 登录</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">保存 token</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step highlight">流式 AI 对话</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">刷新配额显示</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">渲染结果</div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-block-header"><span class="code-block-lang">plugin/ai-client.js</span></div>
+        <pre><span class="kw">const</span> BASE = <span class="str">'https://ai.zhoudw.vip/api'</span>;
+
+<span class="cmt">/** 从 chrome.storage 取 token */</span>
+<span class="kw">async function</span> <span class="fn">getToken</span>() {
+  <span class="kw">const</span> { pluginToken } = <span class="kw">await</span> chrome.storage.local.get(<span class="str">'pluginToken'</span>);
+  <span class="kw">return</span> pluginToken;
+}
+
+<span class="cmt">/** Google 登录 */</span>
+<span class="kw">export async function</span> <span class="fn">googleLogin</span>(idToken) {
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">`${BASE}/plugin/auth/google/login`</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: { <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span> },
+    body: JSON.stringify({ idToken })
+  });
+  <span class="kw">const</span> { data } = <span class="kw">await</span> res.json();
+  <span class="kw">await</span> chrome.storage.local.set({ pluginToken: data.token });
+  <span class="kw">return</span> data;
+}
+
+<span class="cmt">/** 刷新配额显示 */</span>
+<span class="kw">export async function</span> <span class="fn">refreshQuota</span>() {
+  <span class="kw">const</span> token = <span class="kw">await</span> <span class="fn">getToken</span>();
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">`${BASE}/plugin/auth/quota`</span>, {
+    headers: { <span class="str">'Authorization'</span>: <span class="str">`Bearer ${token}`</span> }
+  });
+  <span class="kw">const</span> { data } = <span class="kw">await</span> res.json();
+  <span class="kw">return</span> data; <span class="cmt">// { remainingRequests, requestLimit, remainingTokens, ... }</span>
+}
+
+<span class="cmt">/** 流式 AI 对话 */</span>
+<span class="kw">export async function</span> <span class="fn">streamChat</span>(messages, onChunk, onDone) {
+  <span class="kw">const</span> token = <span class="kw">await</span> <span class="fn">getToken</span>();
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">`${BASE}/plugin/ai/chat/completions`</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: {
+      <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span>,
+      <span class="str">'Authorization'</span>: <span class="str">`Bearer ${token}`</span>
+    },
+    body: JSON.stringify({ messages, <span class="key">stream</span>: <span class="kw">true</span> })
+  });
+
+  <span class="kw">if</span> (!res.ok) {
+    <span class="kw">const</span> err = <span class="kw">await</span> res.json();
+    <span class="kw">throw new</span> Error(err.msg || <span class="str">'请求失败'</span>);
+  }
+
+  <span class="kw">const</span> reader = res.body.getReader();
+  <span class="kw">const</span> decoder = <span class="kw">new</span> TextDecoder();
+  <span class="kw">let</span> buf = <span class="str">''</span>, fullText = <span class="str">''</span>;
+
+  <span class="kw">while</span> (<span class="kw">true</span>) {
+    <span class="kw">const</span> { done, value } = <span class="kw">await</span> reader.read();
+    <span class="kw">if</span> (done) <span class="kw">break</span>;
+    buf += decoder.decode(value, { stream: <span class="kw">true</span> });
+    <span class="kw">const</span> lines = buf.split(<span class="str">'\n'</span>);
+    buf = lines.pop();
+
+    <span class="kw">for</span> (<span class="kw">const</span> line <span class="kw">of</span> lines) {
+      <span class="kw">if</span> (!line.startsWith(<span class="str">'data: '</span>)) <span class="kw">continue</span>;
+      <span class="kw">const</span> raw = line.slice(<span class="num">6</span>).trim();
+      <span class="kw">if</span> (raw === <span class="str">'[DONE]'</span>) { onDone?.(fullText); <span class="kw">return</span>; }
+      <span class="kw">try</span> {
+        <span class="kw">const</span> chunk = JSON.parse(raw);
+        <span class="kw">const</span> content = chunk.choices?.[<span class="num">0</span>]?.delta?.content ?? <span class="str">''</span>;
+        <span class="kw">if</span> (content) { fullText += content; onChunk(content); }
+      } <span class="kw">catch</span> {}
+    }
+  }
+}
+
+<span class="cmt">// ---- 调用示例 ----</span>
+<span class="kw">let</span> output = <span class="str">''</span>;
+<span class="kw">await</span> <span class="fn">streamChat</span>(
+  [{ role: <span class="str">'user'</span>, content: <span class="str">'总结这段文档：...'</span> }],
+  (chunk) => { output += chunk; renderOutput(output); },
+  <span class="kw">async</span> () => {
+    <span class="kw">const</span> quota = <span class="kw">await</span> <span class="fn">refreshQuota</span>();
+    updateQuotaBadge(quota.remainingRequests); <span class="cmt">// 对话后刷新次数</span>
+  }
+);</pre>
+      </div>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>
