@@ -7,6 +7,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -21,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.framework.redis.RedisCache;
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.project.ai.domain.AiModelConfig;
 import com.ruoyi.project.ai.domain.AiModelRoute;
@@ -29,6 +32,7 @@ import com.ruoyi.project.ai.service.IAiModelConfigService;
 import com.ruoyi.project.ai.service.IAiModelRouteService;
 import com.ruoyi.project.ai.service.IAiQuotaCheckService;
 import com.ruoyi.project.ai.service.IAiUsageRecordService;
+import com.ruoyi.project.ai.service.IAiUsageSummaryDailyService;
 import com.ruoyi.project.ai.service.impl.LangChain4jAgentService;
 
 import cn.dev33.satoken.stp.StpUtil;
@@ -46,7 +50,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 插件 AI 调用接口
  * <p>
- * 所有接口需要已登录（Sa-Token），配额检查通过后路由到 OpenRouter 免费模型。
+ * 所有接口需要已登录（Sa-Token），配额检查通过后路由到 DeepSeek 模型。
  * 对外保持 OpenAI 兼容格式，方便插件直接复用。
  */
 @Slf4j
@@ -59,6 +63,9 @@ public class PluginAiController {
     private static final String USER_TIER_FREE = "free";
     private static final String SCENE_CODE_CHAT = "chat";
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    /** Redis 熔断 key 前缀，TTL 1天，标记不稳定模型 */
+    private static final String CIRCUIT_KEY_PREFIX = "plugin:ai:circuit:";
+    private static final int CIRCUIT_TTL_HOURS = 24;
 
     @Autowired
     private IAiQuotaCheckService quotaCheckService;
@@ -73,7 +80,13 @@ public class PluginAiController {
     private IAiUsageRecordService usageRecordService;
 
     @Autowired
+    private IAiUsageSummaryDailyService usageSummaryDailyService;
+
+    @Autowired
     private LangChain4jAgentService langChain4jAgentService;
+
+    @Autowired
+    private RedisCache redisCache;
 
     /**
      * 对话接口（支持流式 / 非流式）
@@ -115,7 +128,7 @@ public class PluginAiController {
             return AjaxResult.error("暂无可用的 AI 模型，请联系管理员");
         }
 
-        // 5. 调用（流式：使用 openrouter/free 自动路由模式，由 OpenRouter 自动选可用免费模型）
+        // 5. 调用（流式 / 非流式均走 resolveStreamModel / 候选链）
         boolean stream = requestBody.path("stream").asBoolean(false);
         if (stream) {
             httpResponse.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8");
@@ -127,7 +140,7 @@ public class PluginAiController {
             return buildStreamEmitter(userId, streamModel, messages, request);
         }
 
-        // 6. 非流式：依次轮询候选模型，遇到上游 429 自动切下一个
+        // 6. 非流式：依次轮询候选模型，遇到上游 429/500 自动切下一个
         long start = System.currentTimeMillis();
         Exception lastError = null;
         for (AiModelConfig modelConfig : candidates) {
@@ -143,8 +156,12 @@ public class PluginAiController {
                 if (isUpstreamRateLimit(e)) {
                     log.warn("插件 AI 上游限速，切换模型: {} -> 下一个候选", modelConfig.getModel());
                     saveUsageRecord(userId, modelConfig, request, start, 0, 0, 0, "rate_limited", e.getMessage());
+                } else if (isUpstreamServerError(e)) {
+                    // 上游 500：熔断该模型 24h，切下一个候选
+                    tripCircuit(modelConfig.getId(), modelConfig.getModel(), e.getMessage());
+                    saveUsageRecord(userId, modelConfig, request, start, 0, 0, 0, "failed", e.getMessage());
                 } else {
-                    // 非限速错误（网络、模型错误等），直接记录并终止
+                    // 其他错误（网络、配置等），直接终止
                     log.error("插件 AI 调用失败: model={}", modelConfig.getModel(), e);
                     saveUsageRecord(userId, modelConfig, request, start, 0, 0, 0, "failed", e.getMessage());
                     return AjaxResult.error("AI 服务暂时不可用，请稍后重试");
@@ -152,8 +169,8 @@ public class PluginAiController {
             }
         }
 
-        // 所有候选都被限速了
-        log.error("插件 AI 全部候选模型均被限速，lastError={}", lastError != null ? lastError.getMessage() : "unknown");
+        // 所有候选都不可用
+        log.error("插件 AI 全部候选模型均不可用，lastError={}", lastError != null ? lastError.getMessage() : "unknown");
         return AjaxResult.error("AI 服务繁忙，请稍后重试");
     }
 
@@ -162,9 +179,9 @@ public class PluginAiController {
     // -----------------------------------------------------------------------
 
     /**
-     * 构建有序的模型候选链（中文文档场景优先）
+     * 构建有序的模型候选链
      * <p>
-     * 优先级：路由表主模型 → 路由表 fallback → 预设中文友好模型列表 → 任意可用免费模型
+     * 优先级：路由表主模型（id=55 deepseek-v4-flash）→ 路由表 fallback（id=56 deepseek-v4-pro）
      */
     private List<AiModelConfig> resolveModelConfigChain() {
         List<AiModelConfig> chain = new ArrayList<>();
@@ -184,49 +201,50 @@ public class PluginAiController {
             addIfEnabled(chain, route.getFallbackModelConfigId());
         }
 
-        // 2. 预设中文友好模型（按优先级排列），自动跳过已加入的
-        List<Long> preferredIds = List.of(
-                45L,  // qwen/qwen3-next-80b-a3b-instruct:free  — 中文最强
-                49L,  // z-ai/glm-4.5-air:free                  — 智谱国产中文极强
-                39L,  // minimax/minimax-m2.5:free               — 国产中文好
-                52L,  // meta-llama/llama-3.3-70b-instruct:free  — 英文强，中文可用
-                35L,  // google/gemma-4-31b-it:free              — 兜底
-                54L   // nousresearch/hermes-3-llama-3.1-405b:free — 大模型兜底
-        );
-        for (Long id : preferredIds) {
-            addIfEnabled(chain, id);
-        }
+        // 2. 兜底：直接加载 deepseek-v4-flash / deepseek-v4-pro（防路由表未配置场景）
+        addIfEnabled(chain, 55L); // deepseek-v4-flash
+        addIfEnabled(chain, 56L); // deepseek-v4-pro
 
         return chain;
     }
 
     /**
-     * 流式模式专用：使用 openrouter/free 自动路由模型（id=40）
-     * OpenRouter 会自动从可用免费模型中选择，无需客户端处理限速重试
+     * 流式模式专用：优先使用 deepseek-v4-flash（id=55），熔断时降级到 deepseek-v4-pro（id=56）
      */
     private AiModelConfig resolveStreamModel() {
-        // 优先用 openrouter/free 自动模式
-        AiModelConfig auto = modelConfigService.getById(40L);
-        if (auto != null && "Y".equals(auto.getEnabled()) && "0".equals(auto.getStatus())) {
-            return auto;
-        }
-        // 降级：取候选链第一个
+        // 取候选链第一个（addIfEnabled 已过滤熔断模型）
         List<AiModelConfig> chain = resolveModelConfigChain();
         return chain.isEmpty() ? null : chain.get(0);
     }
 
-    /** 根据 configId 查模型，若启用则加入链（去重） */
+    /** 根据 configId 查模型，若启用且未熔断则加入链（去重） */
     private void addIfEnabled(List<AiModelConfig> chain, Long configId) {
         if (configId == null) return;
         if (chain.stream().anyMatch(c -> c.getId().equals(configId))) return;
+        if (isCircuitOpen(configId)) {
+            log.debug("模型 id={} 熔断中，跳过", configId);
+            return;
+        }
         AiModelConfig cfg = modelConfigService.getById(configId);
         if (cfg != null && "Y".equals(cfg.getEnabled()) && "0".equals(cfg.getStatus())) {
             chain.add(cfg);
         }
     }
 
+    /** 打开熔断器：将模型标记为不稳定，TTL = CIRCUIT_TTL_HOURS 小时 */
+    private void tripCircuit(Long modelConfigId, String modelName, String reason) {
+        String key = CIRCUIT_KEY_PREFIX + modelConfigId;
+        redisCache.setCacheObject(key, reason, CIRCUIT_TTL_HOURS, TimeUnit.HOURS);
+        log.warn("模型熔断: id={}, model={}, reason={}, TTL={}h", modelConfigId, modelName, reason, CIRCUIT_TTL_HOURS);
+    }
+
+    /** 检查模型熔断器是否打开 */
+    private boolean isCircuitOpen(Long modelConfigId) {
+        return Boolean.TRUE.equals(redisCache.hasKey(CIRCUIT_KEY_PREFIX + modelConfigId));
+    }
+
     /**
-     * 判断异常是否为上游 429 限速（OpenRouter 返回的 rate-limited 错误）
+     * 判断异常是否为上游 429 限速
      */
     private boolean isUpstreamRateLimit(Exception e) {
         if (e == null) return false;
@@ -237,6 +255,18 @@ public class PluginAiController {
                 || msg.contains("rate_limited")
                 || msg.contains("Rate limit")
                 || msg.contains("temporarily rate");
+    }
+
+    /**
+     * 判断是否为上游 500 服务器错误（可降级重试）
+     */
+    private boolean isUpstreamServerError(Throwable e) {
+        if (e == null) return false;
+        String type = e.getClass().getSimpleName();
+        String msg = e.getMessage();
+        return type.contains("InternalServerException")
+                || type.contains("ServerErrorException")
+                || (msg != null && (msg.contains("500") || msg.contains("Internal Server Error")));
     }
 
     private List<ChatMessage> parseChatMessages(JsonNode messagesNode) {
@@ -280,12 +310,16 @@ public class PluginAiController {
 
     private SseEmitter buildStreamEmitter(Long userId, AiModelConfig modelConfig,
             List<ChatMessage> messages, HttpServletRequest request) {
+        return buildStreamEmitter(userId, modelConfig, messages, request, false);
+    }
+
+    private SseEmitter buildStreamEmitter(Long userId, AiModelConfig modelConfig,
+            List<ChatMessage> messages, HttpServletRequest request, boolean isFallback) {
         SseEmitter emitter = new SseEmitter(0L);
         String completionId = "chatcmpl-" + UUID.randomUUID().toString().replace("-", "");
         long created = System.currentTimeMillis() / 1000;
         long start = System.currentTimeMillis();
-        java.util.concurrent.atomic.AtomicBoolean firstChunk =
-                new java.util.concurrent.atomic.AtomicBoolean(true);
+        AtomicBoolean firstChunk = new AtomicBoolean(true);
 
         langChain4jAgentService.streamChatWithMessagesDetailed(modelConfig.getId(), messages,
                 token -> {
@@ -324,18 +358,33 @@ public class PluginAiController {
                                 StrUtil.blankToDefault(result.getFinishReason(), "stop").toLowerCase()
                         )));
                         emitter.send(SseEmitter.event().data(MAPPER.writeValueAsString(doneChunk)));
-                        emitter.send(SseEmitter.event().data("[DONE]"));
                         saveUsageRecord(userId, modelConfig, request, start,
                                 result.getInputTokens(), result.getOutputTokens(), result.getTotalTokens(),
                                 "success", null);
+                        emitter.send(SseEmitter.event().data("[DONE]"));
                         emitter.complete();
                     } catch (Exception e) {
                         emitter.completeWithError(e);
                     }
                 },
                 error -> {
-                    log.error("插件流式 AI 调用失败: model={}", modelConfig.getModel(), error);
+                    log.error("插件流式 AI 调用失败: model={}, fallback={}", modelConfig.getModel(), isFallback, error);
                     saveUsageRecord(userId, modelConfig, request, start, 0, 0, 0, "failed", error.getMessage());
+
+                    // flash(id=55) 500 时：熔断 → 降级到 pro(id=56) 重试一次（isFallback=true 防递归）
+                    if (!isFallback && firstChunk.get() && isUpstreamServerError(error)) {
+                        // 熔断当前模型
+                        tripCircuit(modelConfig.getId(), modelConfig.getModel(), error.getMessage());
+                        List<AiModelConfig> chain = resolveModelConfigChain();
+                        if (!chain.isEmpty()) {
+                            AiModelConfig fallbackModel = chain.get(0);
+                            log.warn("流式自动降级: {} -> {}", modelConfig.getModel(), fallbackModel.getModel());
+                            SseEmitter fallbackEmitter = buildStreamEmitter(userId, fallbackModel, messages, request, true);
+                            fallbackEmitter.onCompletion(emitter::complete);
+                            fallbackEmitter.onError(emitter::completeWithError);
+                            return;
+                        }
+                    }
                     emitter.completeWithError(error);
                 });
         return emitter;
@@ -371,6 +420,15 @@ public class PluginAiController {
             record.setUpdateBy("plugin");
             record.setDelFlag("0");
             usageRecordService.save(record);
+
+            // 实时更新每日汇总（保证配额检查能拿到最新用量）
+            int successDelta = "success".equals(status) ? 1 : 0;
+            int failedDelta  = "failed".equals(status)  ? 1 : 0;
+            usageSummaryDailyService.upsertDailyRecord(
+                    userId, PRODUCT_TYPE,
+                    modelConfig.getProvider(), modelConfig.getModel(),
+                    1, successDelta, failedDelta,
+                    defaultInt(inputTokens), defaultInt(outputTokens), defaultInt(totalTokens));
         } catch (Exception e) {
             log.error("保存插件用量记录失败", e);
         }
