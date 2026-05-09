@@ -23,6 +23,7 @@ import com.ruoyi.framework.web.domain.AjaxResult;
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
 import cn.dev33.satoken.exception.NotRoleException;
+import cn.dev33.satoken.exception.SaTokenContextException;
 
 /**
  * 全局异常处理器
@@ -126,6 +127,12 @@ public class GlobalExceptionHandler
     @ExceptionHandler(RuntimeException.class)
     public AjaxResult handleRuntimeException(RuntimeException e, HttpServletRequest request, HttpServletResponse response)
     {
+        // Sa-Token ThreadLocal 在 SSE 异步线程中不可用，此处捕获后静默忽略，
+        // 真正的错误已由 SseEmitter.completeWithError() 或业务日志记录
+        if (e instanceof SaTokenContextException) {
+            log.debug("Sa-Token context unavailable in async thread, ignored: {}", e.getMessage());
+            return null;
+        }
         String requestURI = request.getRequestURI();
         log.error("请求地址'{}',发生未知异常.", requestURI, e);
         if (MediaType.TEXT_EVENT_STREAM_VALUE.equals(response.getContentType())

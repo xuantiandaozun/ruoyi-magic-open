@@ -2,7 +2,6 @@ package com.ruoyi.project.ai.controller;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -111,17 +110,6 @@ public class AiModelConfigController extends BaseController {
     public AjaxResult setDefault(@PathVariable Long id) {
         boolean ok = modelConfigService.setDefault(id);
         return toAjax(ok);
-    }
-
-    /**
-     * 手动同步 OpenRouter 免费模型池
-     */
-    @Operation(summary = "同步 OpenRouter 免费模型池")
-    @SaCheckPermission("ai:modelConfig:config")
-    @PutMapping("/syncOpenRouterFree")
-    public AjaxResult syncOpenRouterFreeModels() {
-        Map<String, Object> result = modelConfigService.syncOpenRouterFreeModels();
-        return success(result);
     }
 
     /**
