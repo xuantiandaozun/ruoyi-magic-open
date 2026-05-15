@@ -37,9 +37,11 @@ import com.ruoyi.project.ai.service.impl.LangChain4jAgentService;
 
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.util.StrUtil;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -276,11 +278,54 @@ public class PluginAiController {
         List<ChatMessage> messages = new ArrayList<>();
         for (JsonNode node : messagesNode) {
             String role = node.path("role").asText();
-            String content = node.path("content").asText("");
             switch (role) {
-                case "system", "developer" -> messages.add(SystemMessage.from(content));
-                case "user" -> messages.add(UserMessage.from(content));
-                case "assistant" -> messages.add(AiMessage.from(content));
+                case "system", "developer" -> {
+                    String content = node.path("content").asText("");
+                    messages.add(SystemMessage.from(content));
+                }
+                case "user" -> {
+                    String content = node.path("content").asText("");
+                    messages.add(UserMessage.from(content));
+                }
+                case "assistant" -> {
+                    // 支持带 tool_calls 的 assistant 消息
+                    JsonNode toolCallsNode = node.get("tool_calls");
+                    if (toolCallsNode != null && toolCallsNode.isArray() && !toolCallsNode.isEmpty()) {
+                        List<ToolExecutionRequest> requests = new ArrayList<>();
+                        for (JsonNode tc : toolCallsNode) {
+                            String id = tc.path("id").asText();
+                            JsonNode fnNode = tc.get("function");
+                            if (fnNode == null) continue;
+                            String name = fnNode.path("name").asText();
+                            String arguments = fnNode.path("arguments").asText("{}");
+                            requests.add(ToolExecutionRequest.builder()
+                                    .id(id).name(name).arguments(arguments).build());
+                        }
+                        messages.add(AiMessage.from(requests));
+                    } else {
+                        messages.add(AiMessage.from(node.path("content").asText("")));
+                    }
+                }
+                case "tool" -> {
+                    // 客户端执行工具后把结果发回来
+                    String toolCallId = node.path("tool_call_id").asText();
+                    String content = node.path("content").asText("");
+                    String name = node.path("name").asText(toolCallId);
+                    if (StrUtil.isBlank(toolCallId)) {
+                        throw new IllegalArgumentException("role=tool 的消息必须提供 tool_call_id");
+                    }
+                    ToolExecutionRequest req = ToolExecutionRequest.builder()
+                            .id(toolCallId).name(name).arguments("{}").build();
+                    messages.add(ToolExecutionResultMessage.from(req, content));
+                }
+                case "function" -> {
+                    // 旧版 function 格式兼容
+                    String name = node.path("name").asText("function");
+                    String content = node.path("content").asText("");
+                    ToolExecutionRequest req = ToolExecutionRequest.builder()
+                            .id(name).name(name).arguments("{}").build();
+                    messages.add(ToolExecutionResultMessage.from(req, content));
+                }
                 default -> throw new IllegalArgumentException("不支持的 role: " + role);
             }
         }

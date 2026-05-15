@@ -40,6 +40,7 @@ import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.model.output.TokenUsage;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -433,6 +434,126 @@ public class LangChain4jAgentService {
         } catch (Exception e) {
             log.error("使用消息列表流式聊天失败: {}", e.getMessage(), e);
             onError.accept(new ServiceException("使用消息列表流式聊天失败: " + e.getMessage()));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // 客户端工具代理模式（Client-side tool proxy）
+    // 服务端透传工具定义给 LLM，不自己执行 tool，把 tool_calls 原样返回给调用方
+    // -----------------------------------------------------------------------
+
+    /**
+     * 代理模式非流式聊天：将客户端提供的 ToolSpecification 传给 LLM，
+     * LLM 决策后若要调用工具则直接返回含 tool_calls 的 AiMessage，由调用方处理。
+     */
+    public ProxyChatExecutionResult proxyChat(Long modelConfigId, List<ChatMessage> messages,
+            List<ToolSpecification> clientToolSpecs) {
+        try {
+            ChatModel chatModel = getChatModel(modelConfigId);
+            ChatRequest.Builder builder = ChatRequest.builder().messages(messages);
+            if (clientToolSpecs != null && !clientToolSpecs.isEmpty()) {
+                builder.toolSpecifications(clientToolSpecs);
+            }
+            ChatResponse response = chatModel.chat(builder.build());
+            AiMessage aiMessage = response != null ? response.aiMessage() : null;
+            TokenUsage tokenUsage = response != null ? response.tokenUsage() : null;
+            String content = aiMessage != null ? aiMessage.text() : null;
+            // 若有 tool_calls，content 通常为 null，finishReason 为 TOOL_EXECUTION_REQUESTED
+            String finishReason = (response != null && response.finishReason() != null)
+                    ? response.finishReason().name() : null;
+            return new ProxyChatExecutionResult(
+                    content,
+                    tokenUsage == null ? 0 : tokenUsage.inputTokenCount(),
+                    tokenUsage == null ? 0 : tokenUsage.outputTokenCount(),
+                    tokenUsage == null ? 0 : tokenUsage.totalTokenCount(),
+                    finishReason,
+                    aiMessage != null && aiMessage.hasToolExecutionRequests()
+                            ? aiMessage.toolExecutionRequests() : null);
+        } catch (Exception e) {
+            log.error("代理模式聊天失败: {}", e.getMessage(), e);
+            throw new ServiceException("代理模式聊天失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 代理模式流式聊天：将客户端提供的 ToolSpecification 传给 LLM，
+     * 流式输出 token；若 LLM 返回 tool_calls 则通过 onComplete 回调携带 tool_calls，
+     * 由调用方决定如何处理（不在服务端执行）。
+     */
+    public void proxyChatStream(Long modelConfigId, List<ChatMessage> messages,
+            List<ToolSpecification> clientToolSpecs,
+            Consumer<String> onToken,
+            Consumer<ProxyChatExecutionResult> onComplete,
+            Consumer<Throwable> onError) {
+        try {
+            StreamingChatModel streamModel = getStreamingChatModel(modelConfigId);
+            ChatRequest.Builder builder = ChatRequest.builder().messages(messages);
+            if (clientToolSpecs != null && !clientToolSpecs.isEmpty()) {
+                builder.toolSpecifications(clientToolSpecs);
+            }
+            streamModel.chat(builder.build(), new StreamingChatResponseHandler() {
+                @Override
+                public void onPartialResponse(String partialResponse) {
+                    if (partialResponse != null) {
+                        onToken.accept(partialResponse);
+                    }
+                }
+
+                @Override
+                public void onPartialToolCall(PartialToolCall partialToolCall) {
+                    // 流式 tool_calls 分片，由外层 SSE 逻辑处理
+                    log.debug("代理模式部分工具调用: id={}, name={}, argsFragment={}",
+                            partialToolCall.id(), partialToolCall.name(), partialToolCall.partialArguments());
+                }
+
+                @Override
+                public void onCompleteResponse(ChatResponse response) {
+                    try {
+                        AiMessage aiMessage = response != null ? response.aiMessage() : null;
+                        TokenUsage tokenUsage = response != null ? response.tokenUsage() : null;
+                        String finishReason = (response != null && response.finishReason() != null)
+                                ? response.finishReason().name() : null;
+                        List<ToolExecutionRequest> toolCalls = (aiMessage != null && aiMessage.hasToolExecutionRequests())
+                                ? aiMessage.toolExecutionRequests() : null;
+                        onComplete.accept(new ProxyChatExecutionResult(
+                                aiMessage != null ? aiMessage.text() : null,
+                                tokenUsage == null ? 0 : tokenUsage.inputTokenCount(),
+                                tokenUsage == null ? 0 : tokenUsage.outputTokenCount(),
+                                tokenUsage == null ? 0 : tokenUsage.totalTokenCount(),
+                                finishReason,
+                                toolCalls));
+                    } catch (Exception e) {
+                        onError.accept(e);
+                    }
+                }
+
+                @Override
+                public void onError(Throwable error) {
+                    onError.accept(error);
+                }
+            });
+        } catch (Exception e) {
+            log.error("代理模式流式聊天失败: {}", e.getMessage(), e);
+            onError.accept(new ServiceException("代理模式流式聊天失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 代理模式的执行结果，在 ChatExecutionResult 基础上增加了 tool_calls 字段。
+     */
+    @lombok.Getter
+    public static class ProxyChatExecutionResult extends ChatExecutionResult {
+        /** LLM 要求执行的工具调用列表，null 表示正常文本回复 */
+        private final List<ToolExecutionRequest> toolCalls;
+
+        public ProxyChatExecutionResult(String content, Integer inputTokens, Integer outputTokens,
+                Integer totalTokens, String finishReason, List<ToolExecutionRequest> toolCalls) {
+            super(content, inputTokens, outputTokens, totalTokens, finishReason);
+            this.toolCalls = toolCalls;
+        }
+
+        public boolean hasToolCalls() {
+            return toolCalls != null && !toolCalls.isEmpty();
         }
     }
 
