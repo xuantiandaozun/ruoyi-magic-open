@@ -46,6 +46,11 @@ nbdist/
 !*/build/*.xml
 
 ######################################################################
+# Deploy
+deploy/node_modules/
+deploy/package-lock.json
+
+######################################################################
 # Application specific
 src/main/resources/application-dev.yml
 src/main/resources/application-prod.yml
