@@ -8,6 +8,7 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.ruoyi.framework.security.sign.ApiSignInterceptor;
+import com.ruoyi.project.miniapp.util.MiniAppStpUtil;
 
 import cn.dev33.satoken.interceptor.SaInterceptor;
 
@@ -94,7 +95,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
                                                 "/github/trending/push/feishu",
                                                 // 插件用户认证接口（Google OAuth 登录，无需已登录）
                                                 "/plugin/auth/google/login",
-                                                "/plugin/auth/logout")
+                                                "/plugin/auth/logout",
+                                                "/miniapp/**")
+                                .order(2); // 优先级2，在签名拦截器之后执行
+
+                registry.addInterceptor(new SaInterceptor(handle -> MiniAppStpUtil.checkLogin()))
+                                .addPathPatterns("/miniapp/**")
+                                .excludePathPatterns("/miniapp/auth/login")
                                 .order(2); // 优先级2，在签名拦截器之后执行
         }
 }

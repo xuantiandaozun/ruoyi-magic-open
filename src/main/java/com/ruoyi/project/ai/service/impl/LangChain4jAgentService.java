@@ -72,8 +72,9 @@ public class LangChain4jAgentService {
     private LangChain4jToolRegistry toolRegistry;
 
     // 重试配置
-    private static final int MAX_RETRIES = 3;
-    private static final long RETRY_DELAY_MS = 1000;
+    private static final int MAX_RETRIES = 2;
+    private static final long RETRY_DELAY_MS = 500;
+    private static final Duration CHAT_TIMEOUT = Duration.ofSeconds(90);
 
     /**
      * 基础聊天功能
@@ -709,7 +710,7 @@ public class LangChain4jAgentService {
             OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder = OpenAiStreamingChatModel.builder()
                     .apiKey(apiKey)
                     .modelName(model)
-                    .timeout(Duration.ofMinutes(5))
+                    .timeout(CHAT_TIMEOUT)
                     .logRequests(false)
                     .logResponses(true)
                     .customHeaders(Collections.singletonMap("Accept-Charset", "utf-8"));
@@ -747,7 +748,7 @@ public class LangChain4jAgentService {
             OpenAiChatModel.OpenAiChatModelBuilder builder = OpenAiChatModel.builder()
                     .apiKey(apiKey)
                     .modelName(model)
-                    .timeout(Duration.ofMinutes(5))
+                    .timeout(CHAT_TIMEOUT)
                     .logRequests(false)
                     .logResponses(true)
                     .customHeaders(Collections.singletonMap("Accept-Charset", "utf-8"));

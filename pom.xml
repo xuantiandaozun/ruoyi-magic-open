@@ -407,6 +407,12 @@
             <version>${langchain4j.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.github.binarywang</groupId>
+            <artifactId>weixin-java-miniapp</artifactId>
+            <version>4.6.0</version>
+        </dependency>
+
         <!-- OpenAI兼容接口集成，用于通义千问compatible-mode等模型 -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
