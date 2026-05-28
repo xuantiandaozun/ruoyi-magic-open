@@ -21,4 +21,17 @@ public class MiniUserAuthServiceImpl extends ServiceImpl<MiniUserAuthMapper, Min
                 .limit(1);
         return getOne(qw);
     }
+
+    @Override
+    public MiniUserAuth getByMiniUserAndApp(Long miniUserId, Long miniAppId) {
+        QueryWrapper qw = QueryWrapper.create()
+                .from("mini_user_auth")
+                .where("mini_user_id = ?", miniUserId)
+                .and("mini_app_id = ?", miniAppId)
+                .and("status = '0'")
+                .and("del_flag = '0'")
+                .orderBy("last_login_time desc")
+                .limit(1);
+        return getOne(qw);
+    }
 }

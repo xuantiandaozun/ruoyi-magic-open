@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS `mini_feedback` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `mini_user_id` bigint NOT NULL,
+  `mini_app_id` bigint NOT NULL,
+  `app_code` varchar(64) NOT NULL,
+  `feedback_type` varchar(32) NOT NULL DEFAULT 'general',
+  `content` varchar(2000) NOT NULL,
+  `contact` varchar(128) DEFAULT NULL,
+  `images` varchar(2000) DEFAULT NULL,
+  `status` varchar(32) NOT NULL DEFAULT 'pending',
+  `reply_content` varchar(2000) DEFAULT NULL,
+  `reply_time` datetime DEFAULT NULL,
+  `remark` varchar(500) DEFAULT NULL,
+  `create_by` varchar(64) DEFAULT '',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+  `update_by` varchar(64) DEFAULT '',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `del_flag` char(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_mini_feedback_owner` (`mini_user_id`, `mini_app_id`),
+  KEY `idx_mini_feedback_app` (`app_code`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='小程序问题反馈';

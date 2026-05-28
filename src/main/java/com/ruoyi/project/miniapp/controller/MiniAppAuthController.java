@@ -3,12 +3,16 @@ package com.ruoyi.project.miniapp.controller;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.project.miniapp.domain.dto.MiniAppLoginRequest;
+import com.ruoyi.project.miniapp.domain.dto.UpdateMiniUserProfileRequest;
 import com.ruoyi.project.miniapp.domain.vo.MiniAppLoginUser;
 import com.ruoyi.project.miniapp.service.IMiniAppAuthService;
 import com.ruoyi.project.miniapp.util.MiniAppSecurityUtils;
@@ -38,6 +42,20 @@ public class MiniAppAuthController {
     public AjaxResult me() {
         MiniAppLoginUser loginUser = MiniAppSecurityUtils.getLoginUser();
         return AjaxResult.success(miniAppAuthService.currentUser(loginUser));
+    }
+
+    @Operation(summary = "更新当前用户资料")
+    @PutMapping("/profile")
+    public AjaxResult updateProfile(@Validated @RequestBody UpdateMiniUserProfileRequest request) {
+        MiniAppLoginUser loginUser = MiniAppSecurityUtils.getLoginUser();
+        return AjaxResult.success(miniAppAuthService.updateProfile(request, loginUser));
+    }
+
+    @Operation(summary = "上传用户头像")
+    @PostMapping("/avatar/upload")
+    public AjaxResult uploadAvatar(@RequestParam("file") MultipartFile file) throws Exception {
+        MiniAppLoginUser loginUser = MiniAppSecurityUtils.getLoginUser();
+        return AjaxResult.success(miniAppAuthService.uploadAvatar(file, loginUser));
     }
 
     @Operation(summary = "小程序退出登录")

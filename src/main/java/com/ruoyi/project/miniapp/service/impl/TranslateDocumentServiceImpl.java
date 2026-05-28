@@ -35,11 +35,11 @@ public class TranslateDocumentServiceImpl extends ServiceImpl<TranslateDocumentM
     }
 
     @Override
-    public TranslateDocument upload(MultipartFile file, MiniAppLoginUser loginUser) throws Exception {
+    public TranslateDocument upload(MultipartFile file, String clientFileName, MiniAppLoginUser loginUser) throws Exception {
         if (file == null || file.isEmpty()) {
             throw new ServiceException("上传文件不能为空");
         }
-        String originalName = file.getOriginalFilename();
+        String originalName = resolveOriginalName(clientFileName, file.getOriginalFilename());
         String extension = StrUtil.nullToDefault(FilenameUtils.getExtension(originalName), "").toLowerCase();
         if (!isAllowedExtension(extension)) {
             throw new ServiceException("当前支持 txt 和 docx 文件上传，md 即将支持");
@@ -104,5 +104,52 @@ public class TranslateDocumentServiceImpl extends ServiceImpl<TranslateDocumentM
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(file.getBytes());
         return HexFormat.of().formatHex(hash);
+    }
+
+    public String resolveOriginalName(String clientFileName, String multipartFileName) {
+        if (isMeaningfulFileName(clientFileName)) {
+            return StrUtil.trim(clientFileName);
+        }
+        if (isMeaningfulFileName(multipartFileName)) {
+            return StrUtil.trim(multipartFileName);
+        }
+        String extension = StrUtil.nullToDefault(FilenameUtils.getExtension(multipartFileName), "txt").toLowerCase();
+        if (!isAllowedExtension(extension)) {
+            extension = "txt";
+        }
+        return "document." + extension;
+    }
+
+    public boolean isMeaningfulFileName(String fileName) {
+        if (StrUtil.isBlank(fileName)) {
+            return false;
+        }
+        String trimmed = StrUtil.trim(fileName);
+        String lower = trimmed.toLowerCase();
+        if (!trimmed.contains(".")) {
+            return false;
+        }
+        if (lower.startsWith("tmp") || lower.contains("wxfile") || lower.contains("temp")) {
+            return false;
+        }
+        return isAllowedExtension(FilenameUtils.getExtension(trimmed));
+    }
+
+    @Override
+    public void ensureOriginalName(TranslateDocument document, String preferredFileName) {
+        if (document == null) {
+            return;
+        }
+        if (isMeaningfulFileName(document.getOriginalName())) {
+            return;
+        }
+        String resolved = resolveOriginalName(preferredFileName, document.getOriginalName());
+        document.setOriginalName(resolved);
+        String extension = FilenameUtils.getExtension(resolved);
+        if (StrUtil.isNotBlank(extension)) {
+            document.setFileExt(extension.toLowerCase());
+            document.setSourceType(extension.toLowerCase());
+        }
+        updateById(document);
     }
 }

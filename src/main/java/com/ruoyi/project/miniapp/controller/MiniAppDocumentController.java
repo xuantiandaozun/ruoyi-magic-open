@@ -30,9 +30,10 @@ public class MiniAppDocumentController {
 
     @Operation(summary = "上传翻译文档")
     @PostMapping("/upload")
-    public AjaxResult upload(@RequestParam("file") MultipartFile file) throws Exception {
+    public AjaxResult upload(@RequestParam("file") MultipartFile file,
+            @RequestParam(value = "fileName", required = false) String fileName) throws Exception {
         MiniAppLoginUser loginUser = MiniAppSecurityUtils.getLoginUser();
-        TranslateDocument document = documentService.upload(file, loginUser);
+        TranslateDocument document = documentService.upload(file, fileName, loginUser);
         return AjaxResult.success(document);
     }
 

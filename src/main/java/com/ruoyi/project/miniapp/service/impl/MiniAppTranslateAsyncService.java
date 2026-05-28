@@ -28,17 +28,20 @@ public class MiniAppTranslateAsyncService {
     private final LangChain4jAgentService langChain4jAgentService;
     private final FileStorageService fileStorageService;
     private final DocxTranslateHelper docxTranslateHelper;
+    private final MiniAppSubscribeMessageService subscribeMessageService;
 
     public MiniAppTranslateAsyncService(TranslateTaskServiceImpl translateTaskService,
             TranslateDocumentServiceImpl documentService,
             LangChain4jAgentService langChain4jAgentService,
             FileStorageService fileStorageService,
-            DocxTranslateHelper docxTranslateHelper) {
+            DocxTranslateHelper docxTranslateHelper,
+            MiniAppSubscribeMessageService subscribeMessageService) {
         this.translateTaskService = translateTaskService;
         this.documentService = documentService;
         this.langChain4jAgentService = langChain4jAgentService;
         this.fileStorageService = fileStorageService;
         this.docxTranslateHelper = docxTranslateHelper;
+        this.subscribeMessageService = subscribeMessageService;
     }
 
     @Async("taskExecutor")
@@ -143,9 +146,12 @@ public class MiniAppTranslateAsyncService {
         document.setStatus("success");
         document.setParseStatus("done");
         documentService.updateById(document);
+
+        subscribeMessageService.sendTranslateTaskCompleteNotice(task, document);
     }
 
     private void startTask(TranslateTask task, TranslateDocument document) {
+        documentService.ensureOriginalName(document, null);
         task.setStatus("parsing");
         task.setProgress(10);
         task.setStartedAt(new Date());

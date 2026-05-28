@@ -8,6 +8,8 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.ruoyi.framework.security.sign.ApiSignInterceptor;
+import com.ruoyi.project.miniapp.interceptor.MiniAppCrawlerInterceptor;
+import com.ruoyi.project.miniapp.util.MiniAppCrawlerContext;
 import com.ruoyi.project.miniapp.util.MiniAppStpUtil;
 
 import cn.dev33.satoken.interceptor.SaInterceptor;
@@ -20,6 +22,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
         @Autowired
         private ApiSignInterceptor apiSignInterceptor;
+
+        @Autowired
+        private MiniAppCrawlerInterceptor miniAppCrawlerInterceptor;
 
         @SuppressWarnings("null")
         @Override
@@ -99,9 +104,21 @@ public class WebMvcConfig implements WebMvcConfigurer {
                                                 "/miniapp/**")
                                 .order(2); // 优先级2，在签名拦截器之后执行
 
-                registry.addInterceptor(new SaInterceptor(handle -> MiniAppStpUtil.checkLogin()))
+                registry.addInterceptor(miniAppCrawlerInterceptor)
                                 .addPathPatterns("/miniapp/**")
-                                .excludePathPatterns("/miniapp/auth/login")
+                                .order(1);
+
+                registry.addInterceptor(new SaInterceptor(handle -> {
+                        if (!MiniAppCrawlerContext.isVerified()) {
+                                MiniAppStpUtil.checkLogin();
+                        }
+                }))
+                                .addPathPatterns("/miniapp/**")
+                                .excludePathPatterns(
+                                                "/miniapp/auth/login",
+                                                "/miniapp/common/client-region",
+                                                "/miniapp/common/subscribe-templates",
+                                                "/miniapp/seo/**")
                                 .order(2); // 优先级2，在签名拦截器之后执行
         }
 }

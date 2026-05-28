@@ -4,7 +4,12 @@ import java.io.UnsupportedEncodingException;
 import java.io.InputStream;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.context.annotation.Lazy;
@@ -70,6 +75,7 @@ public class TranslateTaskServiceImpl extends ServiceImpl<TranslateTaskMapper, T
     @Transactional
     public TranslateTask createTask(CreateTranslateTaskRequest request, MiniAppLoginUser loginUser) {
         TranslateDocument document = documentService.getOwnedDocument(request.getDocumentId(), loginUser);
+        documentService.ensureOriginalName(document, request.getFileName());
         validateCreateRequest(request, document);
 
         String lockKey = StrUtil.format("miniapp:translate:{}:{}:{}", loginUser.getMiniAppId(), loginUser.getMiniUserId(),
@@ -121,6 +127,7 @@ public class TranslateTaskServiceImpl extends ServiceImpl<TranslateTaskMapper, T
                 translateAsyncService.executeTask(task.getId());
             }
         });
+        enrichTaskWithDocumentName(task, document);
         return task;
     }
 
@@ -137,6 +144,7 @@ public class TranslateTaskServiceImpl extends ServiceImpl<TranslateTaskMapper, T
         if (task == null) {
             throw new ServiceException("任务不存在或无权访问");
         }
+        enrichTaskWithDocumentName(task);
         return task;
     }
 
@@ -148,7 +156,9 @@ public class TranslateTaskServiceImpl extends ServiceImpl<TranslateTaskMapper, T
                 .and("mini_app_id = ?", loginUser.getMiniAppId())
                 .and("del_flag = '0'")
                 .orderBy("id desc");
-        return list(qw);
+        List<TranslateTask> tasks = list(qw);
+        enrichTasksWithDocumentNames(tasks);
+        return tasks;
     }
 
     @Override
@@ -245,6 +255,42 @@ public class TranslateTaskServiceImpl extends ServiceImpl<TranslateTaskMapper, T
         String extension = StrUtil.blankToDefault(task.getOutputFormat(), document.getFileExt());
         String baseName = FilenameUtils.getBaseName(document.getOriginalName());
         return baseName + "_" + task.getTargetLanguage() + "." + extension;
+    }
+
+    private void enrichTasksWithDocumentNames(List<TranslateTask> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return;
+        }
+        Set<Long> documentIds = tasks.stream()
+                .map(TranslateTask::getDocumentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (documentIds.isEmpty()) {
+            return;
+        }
+        Map<Long, TranslateDocument> documentMap = documentService.listByIds(documentIds).stream()
+                .filter(document -> document != null && "0".equals(document.getDelFlag()))
+                .collect(Collectors.toMap(TranslateDocument::getId, Function.identity(), (left, right) -> left));
+        for (TranslateTask task : tasks) {
+            enrichTaskWithDocumentName(task, documentMap.get(task.getDocumentId()));
+        }
+    }
+
+    private void enrichTaskWithDocumentName(TranslateTask task) {
+        if (task == null || task.getDocumentId() == null) {
+            return;
+        }
+        TranslateDocument document = documentService.getById(task.getDocumentId());
+        enrichTaskWithDocumentName(task, document);
+    }
+
+    private void enrichTaskWithDocumentName(TranslateTask task, TranslateDocument document) {
+        if (task == null || document == null) {
+            return;
+        }
+        String displayName = StrUtil.blankToDefault(document.getOriginalName(), "未命名文件");
+        task.setFileName(displayName);
+        task.setDocumentName(displayName);
     }
 
     private AiModelConfig resolveModelConfig() {

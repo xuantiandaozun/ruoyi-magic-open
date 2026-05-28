@@ -7,7 +7,9 @@ import com.ruoyi.project.miniapp.domain.TranslateDocument;
 import com.ruoyi.project.miniapp.domain.vo.MiniAppLoginUser;
 
 public interface ITranslateDocumentService extends IService<TranslateDocument> {
-    TranslateDocument upload(MultipartFile file, MiniAppLoginUser loginUser) throws Exception;
+    TranslateDocument upload(MultipartFile file, String clientFileName, MiniAppLoginUser loginUser) throws Exception;
 
     TranslateDocument getOwnedDocument(Long documentId, MiniAppLoginUser loginUser);
+
+    void ensureOriginalName(TranslateDocument document, String preferredFileName);
 }

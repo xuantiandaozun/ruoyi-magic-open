@@ -65,4 +65,12 @@ public class TranslateTask extends BaseEntity {
 
     @Column(isLogicDelete = true)
     private String delFlag;
+
+    /** 关联文档原始文件名，仅用于接口展示 */
+    @Column(ignore = true)
+    private String fileName;
+
+    /** 与 fileName 相同，兼容前端字段 */
+    @Column(ignore = true)
+    private String documentName;
 }
