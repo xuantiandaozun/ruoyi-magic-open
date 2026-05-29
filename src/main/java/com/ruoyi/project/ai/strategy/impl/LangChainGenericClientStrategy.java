@@ -550,7 +550,6 @@ public class LangChainGenericClientStrategy implements AiClientStrategy {
             enhancedPrompt.append("- **database_query**：执行SQL查询获取数据\n");
             enhancedPrompt.append("- **blog_save**：保存中文博客文章\n");
             enhancedPrompt.append("- **blog_en_save**：保存英文博客文章\n");
-            enhancedPrompt.append("- **social_media_article_save**：保存自媒体文章，支持中英文双语内容和多平台发布\n");
             enhancedPrompt.append("- **github_trending**：获取GitHub今日首次上榜热门仓库信息\n");
             enhancedPrompt.append("- **oss_file_read**：通过OSS URL获取远程文件内容，支持README文档等文件的读取\n");
             enhancedPrompt.append("- **github_repo_tree**：通过GitHub API获取指定仓库的文件目录结构，支持递归查看和分支选择\n");
