@@ -73,6 +73,16 @@ github:
   # 可在 https://github.com/settings/tokens 生成personal access token
   token: 
 
+# 微信公众号（服务号）配置 — 用于后台博客同步到草稿箱
+wechat:
+  mp:
+    enabled: false
+    app-id: ${WECHAT_MP_APPID:}
+    app-secret: ${WECHAT_MP_APPSECRET:}
+    author: ${WECHAT_MP_AUTHOR:}
+    # 博客原文链接前缀，同步时拼接 /api/blog/articles/detail/{blogId}
+    public-base-url: ${WECHAT_MP_PUBLIC_BASE_URL:https://ai.zhoudw.vip}
+
 # 飞书应用配置
 feishu:
   # 飞书应用ID

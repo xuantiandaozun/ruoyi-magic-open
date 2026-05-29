@@ -186,6 +186,17 @@
             <version>${fastjson.version}</version>
         </dependency>
 
+        <!-- Markdown 转 HTML（微信公众号草稿同步） -->
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark</artifactId>
+            <version>0.24.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark-ext-gfm-tables</artifactId>
+            <version>0.24.0</version>
+        </dependency>
         <!-- Spring框架基本的核心工具-->
         <dependency>
             <groupId>org.springframework</groupId>

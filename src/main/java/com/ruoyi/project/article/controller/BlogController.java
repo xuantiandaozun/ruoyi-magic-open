@@ -24,6 +24,7 @@ import com.ruoyi.project.ai.domain.AiCoverGenerationRecord;
 import com.ruoyi.project.ai.service.IAiCoverGenerationRecordService;
 import com.ruoyi.project.article.domain.BlogEn;
 import com.ruoyi.project.article.service.IBlogEnService;
+import com.ruoyi.project.wechatmp.service.IWechatMpDraftService;
 import com.ruoyi.framework.web.controller.BaseController;
 import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.common.utils.poi.MagicExcelUtil;
@@ -58,6 +59,9 @@ public class BlogController extends BaseController
     
     @Autowired
     private IBlogEnService blogEnService;
+
+    @Autowired
+    private IWechatMpDraftService wechatMpDraftService;
     
 
 
@@ -175,6 +179,22 @@ public class BlogController extends BaseController
             return success(options);
         } catch (Exception e) {
             return error("获取飞书文档列表失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 同步博客到微信公众号草稿箱
+     */
+    @Operation(summary = "同步到微信公众号草稿箱")
+    @SaCheckPermission("article:blog:edit")
+    @Log(title = "同步微信公众号草稿", businessType = BusinessType.OTHER)
+    @PostMapping("/syncWechatDraft/{blogId}")
+    public AjaxResult syncWechatDraft(@PathVariable("blogId") String blogId)
+    {
+        try {
+            return success(wechatMpDraftService.syncBlogToDraft(blogId));
+        } catch (Exception e) {
+            return error("同步微信公众号草稿失败: " + e.getMessage());
         }
     }
 

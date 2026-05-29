@@ -52,6 +52,7 @@ deploy/package-lock.json
 
 ######################################################################
 # Application specific
+wechat-mp-credentials.txt
 src/main/resources/application-dev.yml
 src/main/resources/application-prod.yml
 test/
