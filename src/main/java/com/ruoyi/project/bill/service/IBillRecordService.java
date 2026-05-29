@@ -58,4 +58,25 @@ public interface IBillRecordService extends IService<BillRecord> {
     java.util.List<Map<String, Object>> selectFamilyCategoryStatistics(Long familyId, String recordType,
             LocalDate startDate,
             LocalDate endDate);
+
+    /**
+     * 将用户个人账单（family_id=0）迁移到家庭组。
+     *
+     * @param userId   用户ID
+     * @param familyId 家庭组ID
+     * @return 迁移条数
+     */
+    int migratePersonalRecordsToFamily(Long userId, Long familyId);
+
+    /**
+     * 查询家庭组统计，同时包含尚未迁移的个人账单。
+     */
+    Map<String, BigDecimal> selectFamilyStatisticsByDateRange(Long familyId, Long userId, LocalDate startDate,
+            LocalDate endDate);
+
+    /**
+     * 查询家庭组分类统计，同时包含尚未迁移的个人账单。
+     */
+    java.util.List<Map<String, Object>> selectFamilyCategoryStatistics(Long familyId, Long userId, String recordType,
+            LocalDate startDate, LocalDate endDate);
 }

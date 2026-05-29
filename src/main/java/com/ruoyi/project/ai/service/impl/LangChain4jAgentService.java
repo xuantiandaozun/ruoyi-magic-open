@@ -27,7 +27,9 @@ import cn.hutool.core.util.StrUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
@@ -108,6 +110,72 @@ public class LangChain4jAgentService {
         } catch (Exception e) {
             log.error("带系统提示的聊天失败: {}", e.getMessage(), e);
             throw new ServiceException("带系统提示的聊天失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 图文多模态对话（用于票据/截图识别）
+     */
+    public String chatWithSystemAndImage(Long modelConfigId, String systemPrompt, String imageBase64,
+            String mimeType, String userText) {
+        try {
+            List<ChatMessage> messages = new ArrayList<>();
+            if (StrUtil.isNotBlank(systemPrompt)) {
+                messages.add(SystemMessage.from(systemPrompt));
+            }
+            messages.add(UserMessage.from(
+                    TextContent.from(StrUtil.blankToDefault(userText, "请识别图片中的账单信息")),
+                    ImageContent.from(imageBase64, mimeType)));
+            return chatWithMessages(modelConfigId, messages);
+        } catch (Exception e) {
+            log.error("图文识别失败: {}", e.getMessage(), e);
+            throw new ServiceException("图文识别失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 账单图片快速识别：关闭思考模式、限制输出长度，降低延迟。
+     */
+    public String chatWithSystemAndImageFast(Long modelConfigId, String systemPrompt, String imageBase64,
+            String mimeType, String userText) {
+        long startMs = System.currentTimeMillis();
+        try {
+            List<ChatMessage> messages = new ArrayList<>();
+            if (StrUtil.isNotBlank(systemPrompt)) {
+                messages.add(SystemMessage.from(systemPrompt));
+            }
+            String prompt = StrUtil.blankToDefault(userText, "请识别图片中的账单信息") + " /no_think";
+            messages.add(UserMessage.from(
+                    TextContent.from(prompt),
+                    ImageContent.from(imageBase64, mimeType)));
+
+            Map<String, Object> customParameters = new HashMap<>();
+            customParameters.put("enable_thinking", false);
+            OpenAiChatRequestParameters requestParameters = OpenAiChatRequestParameters.builder()
+                    .temperature(0.1)
+                    .maxOutputTokens(1024)
+                    .customParameters(customParameters)
+                    .build();
+            ChatRequest chatRequest = ChatRequest.builder()
+                    .messages(messages)
+                    .parameters(requestParameters)
+                    .build();
+
+            ChatModel chatModel = getChatModel(modelConfigId);
+            ChatResponse response = chatModel.chat(chatRequest);
+            String content = response != null && response.aiMessage() != null ? response.aiMessage().text() : null;
+            TokenUsage tokenUsage = response == null ? null : response.tokenUsage();
+            log.info("账单图片识别完成: modelConfigId={}, costMs={}, inputTokens={}, outputTokens={}, responseLength={}",
+                    modelConfigId,
+                    System.currentTimeMillis() - startMs,
+                    tokenUsage == null ? 0 : tokenUsage.inputTokenCount(),
+                    tokenUsage == null ? 0 : tokenUsage.outputTokenCount(),
+                    content == null ? 0 : content.length());
+            return content;
+        } catch (Exception e) {
+            log.error("账单图片快速识别失败: modelConfigId={}, costMs={}, error={}",
+                    modelConfigId, System.currentTimeMillis() - startMs, e.getMessage(), e);
+            throw new ServiceException("图文识别失败: " + e.getMessage());
         }
     }
 

@@ -28,9 +28,12 @@ public class BillUserProfile extends BaseEntity {
     @Id(keyType = KeyType.Auto)
     private Long profileId;
 
-    /** 用户ID（关联sys_user.user_id） */
+    /** 用户ID（小程序端为 mini_user.id；App 端为 sys_user.user_id） */
     @Excel(name = "用户ID")
     private Long userId;
+
+    /** 小程序用户ID（关联 mini_user.id） */
+    private Long miniUserId;
 
     /** 家庭组ID */
     @Excel(name = "家庭组ID")

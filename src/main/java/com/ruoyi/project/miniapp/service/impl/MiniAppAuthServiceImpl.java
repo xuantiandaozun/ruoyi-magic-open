@@ -24,6 +24,7 @@ import com.ruoyi.project.miniapp.service.IMiniAppAuthService;
 import com.ruoyi.project.miniapp.service.IMiniAppService;
 import com.ruoyi.project.miniapp.service.IMiniUserAuthService;
 import com.ruoyi.project.miniapp.service.IMiniUserService;
+import com.ruoyi.project.miniapp.service.impl.BillMiniAppBootstrapService;
 import com.ruoyi.project.miniapp.util.MiniAppSecurityUtils;
 import com.ruoyi.project.miniapp.util.MiniAppStpUtil;
 import com.ruoyi.project.miniapp.util.MiniAppWxServiceFactory;
@@ -43,17 +44,20 @@ public class MiniAppAuthServiceImpl implements IMiniAppAuthService {
     private final IMiniUserAuthService miniUserAuthService;
     private final MiniAppWxServiceFactory wxServiceFactory;
     private final FileStorageService fileStorageService;
+    private final BillMiniAppBootstrapService billMiniAppBootstrapService;
 
     public MiniAppAuthServiceImpl(IMiniAppService miniAppService,
             IMiniUserService miniUserService,
             IMiniUserAuthService miniUserAuthService,
             MiniAppWxServiceFactory wxServiceFactory,
-            FileStorageService fileStorageService) {
+            FileStorageService fileStorageService,
+            BillMiniAppBootstrapService billMiniAppBootstrapService) {
         this.miniAppService = miniAppService;
         this.miniUserService = miniUserService;
         this.miniUserAuthService = miniUserAuthService;
         this.wxServiceFactory = wxServiceFactory;
         this.fileStorageService = fileStorageService;
+        this.billMiniAppBootstrapService = billMiniAppBootstrapService;
     }
 
     @Override
@@ -104,6 +108,16 @@ public class MiniAppAuthServiceImpl implements IMiniAppAuthService {
             isNewUser = true;
         } else {
             miniUser = miniUserService.getById(auth.getMiniUserId());
+            if (miniUser == null) {
+                miniUser = new MiniUser();
+                miniUser.setNickname("微信用户");
+                miniUser.setSourceAppCode(miniApp.getAppCode());
+                miniUser.setStatus("0");
+                miniUser.setDelFlag("0");
+                miniUserService.save(miniUser);
+                auth.setMiniUserId(miniUser.getId());
+                isNewUser = true;
+            }
             auth.setUnionid(sessionResult.getUnionid());
             auth.setSessionKey(sessionResult.getSessionKey());
             auth.setRawJson(JSON.toJSONString(sessionResult));
@@ -120,6 +134,10 @@ public class MiniAppAuthServiceImpl implements IMiniAppAuthService {
         MiniAppLoginUser loginUser = new MiniAppLoginUser(miniUser.getId(), miniApp.getId(), miniApp.getAppCode(),
                 auth.getOpenid());
         MiniAppStpUtil.getSession().set(MiniAppStpUtil.LOGIN_USER_KEY, loginUser);
+
+        if (BillMiniAppBootstrapService.BILL_APP_CODE.equals(miniApp.getAppCode())) {
+            billMiniAppBootstrapService.ensureUserReady(miniUser.getId(), auth.getOpenid());
+        }
 
         Map<String, Object> data = new HashMap<>();
         data.put("token", MiniAppStpUtil.getTokenValue());

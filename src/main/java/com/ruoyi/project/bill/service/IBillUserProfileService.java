@@ -19,6 +19,23 @@ public interface IBillUserProfileService extends IService<BillUserProfile> {
     BillUserProfile selectByUserId(Long userId);
 
     /**
+     * 根据小程序用户ID查询扩展信息
+     *
+     * @param miniUserId 小程序用户ID
+     * @return 用户扩展信息
+     */
+    BillUserProfile selectByMiniUserId(Long miniUserId);
+
+    /**
+     * 确保小程序用户存在记账扩展信息
+     *
+     * @param miniUserId 小程序用户ID
+     * @param openid 微信 openid
+     * @return 用户扩展信息
+     */
+    BillUserProfile ensureForMiniUser(Long miniUserId, String openid);
+
+    /**
      * 创建或更新用户扩展信息
      * 
      * @param profile 用户扩展信息

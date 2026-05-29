@@ -56,28 +56,51 @@ public class BillRecordServiceImpl extends ServiceImpl<BillRecordMapper, BillRec
                 return result;
         }
 
+        private static final String FAMILY_SCOPE_SQL = "(family_id = ? OR (user_id = ? AND (family_id = 0 OR family_id IS NULL)))";
+
+        @Override
+        public int migratePersonalRecordsToFamily(Long userId, Long familyId) {
+                if (userId == null || familyId == null || familyId <= 0) {
+                        return 0;
+                }
+                BillRecord update = new BillRecord();
+                update.setFamilyId(familyId);
+                return getMapper().updateByQuery(update, QueryWrapper.create()
+                                .eq("user_id", userId)
+                                .and("(family_id = 0 OR family_id IS NULL)"));
+        }
+
         @Override
         public Map<String, BigDecimal> selectFamilyStatisticsByDateRange(Long familyId, LocalDate startDate,
                         LocalDate endDate) {
-                Map<String, BigDecimal> result = new HashMap<>();
+                return selectFamilyStatisticsByDateRange(familyId, null, startDate, endDate);
+        }
 
-                // 查询收入
+        @Override
+        public Map<String, BigDecimal> selectFamilyStatisticsByDateRange(Long familyId, Long userId,
+                        LocalDate startDate, LocalDate endDate) {
+                Map<String, BigDecimal> result = new HashMap<>();
+                String scopeSql = userId != null ? FAMILY_SCOPE_SQL : "family_id = ?";
+                Object[] incomeParams = userId != null
+                                ? new Object[] { familyId, userId, "1", startDate, endDate }
+                                : new Object[] { familyId, "1", startDate, endDate };
+                Object[] expenseParams = userId != null
+                                ? new Object[] { familyId, userId, "0", startDate, endDate }
+                                : new Object[] { familyId, "0", startDate, endDate };
+
                 QueryWrapper incomeQuery = QueryWrapper.create()
                                 .select("SUM(amount) as total")
                                 .from("bill_record")
-                                .eq("family_id", familyId)
-                                .eq("record_type", "1")
-                                .where("record_date BETWEEN ? AND ?", startDate, endDate);
+                                .where(scopeSql + " AND record_type = ? AND record_date BETWEEN ? AND ? AND del_flag = '0'",
+                                                incomeParams);
 
                 BigDecimal totalIncome = getMapper().selectObjectByQueryAs(incomeQuery, BigDecimal.class);
 
-                // 查询支出
                 QueryWrapper expenseQuery = QueryWrapper.create()
                                 .select("SUM(amount) as total")
                                 .from("bill_record")
-                                .eq("family_id", familyId)
-                                .eq("record_type", "0")
-                                .where("record_date BETWEEN ? AND ?", startDate, endDate);
+                                .where(scopeSql + " AND record_type = ? AND record_date BETWEEN ? AND ? AND del_flag = '0'",
+                                                expenseParams);
 
                 BigDecimal totalExpense = getMapper().selectObjectByQueryAs(expenseQuery, BigDecimal.class);
 
@@ -153,7 +176,19 @@ public class BillRecordServiceImpl extends ServiceImpl<BillRecordMapper, BillRec
         public List<Map<String, Object>> selectFamilyCategoryStatistics(Long familyId, String recordType,
                         LocalDate startDate,
                         LocalDate endDate) {
-                // 使用Db.selectListBySql执行原生SQL查询（按家庭组ID查询）
+                return selectFamilyCategoryStatistics(familyId, null, recordType, startDate, endDate);
+        }
+
+        @Override
+        public List<Map<String, Object>> selectFamilyCategoryStatistics(Long familyId, Long userId, String recordType,
+                        LocalDate startDate, LocalDate endDate) {
+                String scopeSql = userId != null
+                                ? "(r.family_id = ? OR (r.user_id = ? AND (r.family_id = 0 OR r.family_id IS NULL)))"
+                                : "r.family_id = ?";
+                Object[] params = userId != null
+                                ? new Object[] { familyId, userId, recordType, startDate, endDate }
+                                : new Object[] { familyId, recordType, startDate, endDate };
+
                 String sql = "SELECT " +
                                 "c.category_id AS categoryId, " +
                                 "c.category_name AS categoryName, " +
@@ -163,16 +198,14 @@ public class BillRecordServiceImpl extends ServiceImpl<BillRecordMapper, BillRec
                                 "COUNT(r.record_id) AS count " +
                                 "FROM bill_record r " +
                                 "LEFT JOIN bill_category c ON r.category_id = c.category_id " +
-                                "WHERE r.family_id = ? " +
+                                "WHERE " + scopeSql + " " +
                                 "AND r.record_type = ? " +
                                 "AND r.record_date BETWEEN ? AND ? " +
                                 "AND r.del_flag = '0' " +
                                 "GROUP BY c.category_id, c.category_name, c.icon, c.color " +
                                 "ORDER BY amount DESC";
 
-                // 使用Db执行SQL查询
-                List<Row> rows = Db.selectListBySql(sql,
-                                familyId, recordType, startDate, endDate);
+                List<Row> rows = Db.selectListBySql(sql, params);
 
                 if (rows == null || rows.isEmpty()) {
                         return new java.util.ArrayList<>();
