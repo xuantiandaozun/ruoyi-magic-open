@@ -48,7 +48,8 @@ public class WechatMpDraftServiceImpl implements IWechatMpDraftService {
     public Map<String, Object> syncBlogToDraft(String blogId) {
         if (!properties.isConfigured()) {
             throw new ServiceException(
-                "微信公众号未配置，请在 application-dev.yml 中设置 wechat.mp.enabled=true 及 app-id、app-secret");
+                "微信公众号未配置，请在当前环境的 application-{profile}.yml 中设置 wechat.mp.enabled=true 及 app-id、app-secret，"
+                    + "或设置环境变量 WECHAT_MP_ENABLED=true、WECHAT_MP_APPID、WECHAT_MP_APPSECRET");
         }
 
         Blog blog = blogService.getById(blogId);
