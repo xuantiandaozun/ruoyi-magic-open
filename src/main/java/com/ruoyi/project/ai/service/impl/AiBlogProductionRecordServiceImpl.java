@@ -1,5 +1,7 @@
 package com.ruoyi.project.ai.service.impl;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
 
@@ -80,5 +82,22 @@ public class AiBlogProductionRecordServiceImpl extends ServiceImpl<AiBlogProduct
             .and(new QueryColumn("del_flag").eq("0"))
             .orderBy("production_time", false);
         return list(qw);
+    }
+
+    @Override
+    public AiBlogProductionRecord findTodaySuccessByRepoUrl(String repoUrl) {
+        if (repoUrl == null || repoUrl.isBlank()) {
+            return null;
+        }
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        QueryWrapper qw = QueryWrapper.create()
+            .from("ai_blog_production_record")
+            .where(new QueryColumn("repo_url").eq(repoUrl.trim()))
+            .and(new QueryColumn("status").eq("1"))
+            .and(new QueryColumn("production_time").ge(startOfDay))
+            .and(new QueryColumn("del_flag").eq("0"))
+            .orderBy("production_time", false)
+            .limit(1);
+        return getOne(qw);
     }
 }

@@ -58,4 +58,12 @@ public interface IAiBlogProductionRecordService extends IService<AiBlogProductio
      * @return 进行中的生产记录列表
      */
     List<AiBlogProductionRecord> listRunningRecords();
+
+    /**
+     * 查询今日该仓库已成功生成的博客生产记录（用于幂等防重复）
+     *
+     * @param repoUrl 仓库地址
+     * @return 最新一条今日成功记录，不存在则返回 null
+     */
+    AiBlogProductionRecord findTodaySuccessByRepoUrl(String repoUrl);
 }

@@ -77,6 +77,7 @@ public class LangChain4jAgentService {
     private static final int MAX_RETRIES = 2;
     private static final long RETRY_DELAY_MS = 500;
     private static final Duration CHAT_TIMEOUT = Duration.ofSeconds(90);
+    private static final Duration CHAT_WITH_TOOLS_TIMEOUT = Duration.ofSeconds(180);
 
     /**
      * 基础聊天功能
@@ -199,19 +200,31 @@ public class LangChain4jAgentService {
     }
 
     /**
-     * 带重试机制的聊天核心方法
+     * 带重试机制的聊天核心方法。
+     * 重试时会保留已完成的工具调用上下文，避免 side-effect 工具（如 blog_save）被重复执行。
      */
     private String chatWithRetry(Long modelConfigId, String systemPrompt, String message, 
                                 List<String> availableTools, int retries) {
+        List<ChatMessage> messages = new ArrayList<>();
+        if (StrUtil.isNotBlank(systemPrompt)) {
+            messages.add(SystemMessage.from(systemPrompt));
+        }
+        messages.add(UserMessage.from(message));
+
         Exception lastException = null;
+        Duration timeout = availableTools != null && !availableTools.isEmpty()
+                ? CHAT_WITH_TOOLS_TIMEOUT
+                : CHAT_TIMEOUT;
+        ChatModel chatModel = getChatModel(modelConfigId, timeout);
         
         for (int attempt = 1; attempt <= retries; attempt++) {
             try {
-                log.debug("聊天尝试 {}/{}", attempt, retries);
-                return executeChatSync(modelConfigId, systemPrompt, message, availableTools);
+                log.debug("聊天尝试 {}/{}, preservedMessages={}", attempt, retries, messages.size());
+                return executeChatWithMessages(chatModel, messages, availableTools, true);
             } catch (Exception e) {
                 lastException = e;
-                log.warn("聊天尝试 {}/{} 失败: {}", attempt, retries, e.getMessage());
+                log.warn("聊天尝试 {}/{} 失败: {}, preservedMessages={}",
+                        attempt, retries, e.getMessage(), messages.size());
                 
                 if (attempt < retries) {
                     try {
@@ -228,11 +241,14 @@ public class LangChain4jAgentService {
     }
 
     /**
-     * 同步执行聊天
+     * 同步执行聊天（单次，无外层重试）
      */
     private String executeChatSync(Long modelConfigId, String systemPrompt, String message, 
                                   List<String> availableTools) throws Exception {
-        ChatModel chatModel = getChatModel(modelConfigId);
+        Duration timeout = availableTools != null && !availableTools.isEmpty()
+                ? CHAT_WITH_TOOLS_TIMEOUT
+                : CHAT_TIMEOUT;
+        ChatModel chatModel = getChatModel(modelConfigId, timeout);
         
         // 构建消息列表
         List<ChatMessage> messages = new ArrayList<>();
@@ -733,9 +749,16 @@ public class LangChain4jAgentService {
      * 根据模型配置ID获取非流式ChatModel
      */
     private ChatModel getChatModel(Long modelConfigId) {
+        return getChatModel(modelConfigId, CHAT_TIMEOUT);
+    }
+
+    /**
+     * 根据模型配置ID和超时时间获取非流式ChatModel
+     */
+    private ChatModel getChatModel(Long modelConfigId, Duration timeout) {
         try {
             AiModelConfig config = getModelConfig(modelConfigId);
-            return createChatModelFromConfig(config);
+            return createChatModelFromConfig(config, timeout);
         } catch (Exception e) {
             log.error("获取ChatModel失败: {}", e.getMessage(), e);
             throw new ServiceException("获取ChatModel失败: " + e.getMessage());
@@ -800,6 +823,13 @@ public class LangChain4jAgentService {
      * 根据配置创建非流式ChatModel
      */
     private ChatModel createChatModelFromConfig(AiModelConfig config) {
+        return createChatModelFromConfig(config, CHAT_TIMEOUT);
+    }
+
+    /**
+     * 根据配置和超时时间创建非流式ChatModel
+     */
+    private ChatModel createChatModelFromConfig(AiModelConfig config, Duration timeout) {
         try {
             String apiKey = resolveApiKey(config);
             String model = config.getModel();
@@ -816,7 +846,7 @@ public class LangChain4jAgentService {
             OpenAiChatModel.OpenAiChatModelBuilder builder = OpenAiChatModel.builder()
                     .apiKey(apiKey)
                     .modelName(model)
-                    .timeout(CHAT_TIMEOUT)
+                    .timeout(timeout != null ? timeout : CHAT_TIMEOUT)
                     .logRequests(false)
                     .logResponses(true)
                     .customHeaders(Collections.singletonMap("Accept-Charset", "utf-8"));

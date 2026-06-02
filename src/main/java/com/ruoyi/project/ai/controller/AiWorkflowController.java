@@ -165,6 +165,20 @@ public class AiWorkflowController extends BaseController {
     }
 
     /**
+     * 释放卡住的工作流锁，并结束 running 状态日志。
+     */
+    @Operation(summary = "释放工作流执行锁")
+    @SaCheckPermission("ai:workflow:schedule:execute")
+    @PutMapping("/{workflowId}/schedules/unlock")
+    public AjaxResult unlockSchedule(@PathVariable String workflowId) {
+        FileWorkflowDefinition definition = resolveDefinition(workflowId);
+        if (definition == null) {
+            return error("文件化工作流不存在");
+        }
+        return success(fileWorkflowScheduleTask.forceRelease(definition.getId()));
+    }
+
+    /**
      * 兼容旧页面的立即执行入口。
      */
     @Operation(summary = "立即执行工作流定时任务")

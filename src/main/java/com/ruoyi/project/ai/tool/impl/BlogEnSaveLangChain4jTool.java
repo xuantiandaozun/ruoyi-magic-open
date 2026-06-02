@@ -6,6 +6,8 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.mybatisflex.core.query.QueryColumn;
+import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
 import com.ruoyi.project.ai.tool.ToolExecutionResult;
 import com.ruoyi.project.article.domain.BlogEn;
@@ -75,6 +77,32 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
         if (StrUtil.isBlank(content)) {
             return ToolExecutionResult.failure("save", "Blog content cannot be empty");
         }
+
+        String zhBlogId = getStringParameter(parameters, "zhBlogId");
+        if (StrUtil.isNotBlank(zhBlogId)) {
+            QueryWrapper qw = QueryWrapper.create()
+                    .from("blog_en")
+                    .where(new QueryColumn("zh_blog_id").eq(zhBlogId))
+                    .orderBy("create_time", false)
+                    .limit(1);
+            BlogEn existing = blogEnService.getOne(qw);
+            if (existing != null) {
+                Map<String, Object> resultData = new java.util.HashMap<>();
+                resultData.put("blogId", existing.getBlogId());
+                resultData.put("title", existing.getTitle());
+                resultData.put("zhBlogId", existing.getZhBlogId());
+                resultData.put("duplicateSkipped", true);
+                return ToolExecutionResult.builder()
+                        .success(true)
+                        .operationType("save")
+                        .data(resultData)
+                        .message(String.format("English blog already exists for zhBlogId=%s, skipped duplicate save. Blog ID: %s",
+                                zhBlogId, existing.getBlogId()))
+                        .metadata(Map.of("duplicateSkipped", true))
+                        .build()
+                        .toJsonString();
+            }
+        }
             
             // Create BlogEn entity
             BlogEn blogEn = new BlogEn();
@@ -111,7 +139,6 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
             String isOriginal = getStringParameter(parameters, "isOriginal");
             blogEn.setIsOriginal(StrUtil.isNotBlank(isOriginal) ? isOriginal : "1"); // Default original
             
-            String zhBlogId = getStringParameter(parameters, "zhBlogId");
             if (StrUtil.isNotBlank(zhBlogId)) {
                 blogEn.setZhBlogId(zhBlogId);
             }

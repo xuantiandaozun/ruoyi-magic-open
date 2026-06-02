@@ -12,7 +12,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_name = '小程序管理' AND
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
 SELECT '小程序配置',
        (SELECT menu_id FROM sys_menu WHERE menu_name = '小程序管理' AND parent_id = 0 AND del_flag = '0' LIMIT 1),
-       1, 'appConfig', 'miniapp/appConfig/index', 1, 0, 'C', '0', '0', 'manage:miniapp:list', 'component', 'admin', NOW(), 'admin', NOW(), ''
+       1, 'appConfig', 'miniapp/appConfig/index', 1, 0, 'C', '0', '0', 'manage:miniapp:list', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:miniapp:list' AND del_flag = '0');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
@@ -35,7 +35,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:miniapp:remove' A
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
 SELECT '小程序用户',
        (SELECT menu_id FROM sys_menu WHERE menu_name = '小程序管理' AND parent_id = 0 AND del_flag = '0' LIMIT 1),
-       2, 'miniUser', 'miniapp/user/index', 1, 0, 'C', '0', '0', 'manage:miniuser:list', 'user', 'admin', NOW(), 'admin', NOW(), ''
+       2, 'miniUser', 'miniapp/user/index', 1, 0, 'C', '0', '0', 'manage:miniuser:list', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:miniuser:list' AND del_flag = '0');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
@@ -54,7 +54,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:miniuser:remove' 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
 SELECT '用户反馈',
        (SELECT menu_id FROM sys_menu WHERE menu_name = '小程序管理' AND parent_id = 0 AND del_flag = '0' LIMIT 1),
-       3, 'miniFeedback', 'miniapp/feedback/index', 1, 0, 'C', '0', '0', 'manage:minifeedback:list', 'message', 'admin', NOW(), 'admin', NOW(), ''
+       3, 'miniFeedback', 'miniapp/feedback/index', 1, 0, 'C', '0', '0', 'manage:minifeedback:list', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:minifeedback:list' AND del_flag = '0');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
@@ -73,7 +73,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:minifeedback:remo
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
 SELECT '订阅消息模板',
        (SELECT menu_id FROM sys_menu WHERE menu_name = '小程序管理' AND parent_id = 0 AND del_flag = '0' LIMIT 1),
-       4, 'subscribeTemplate', 'miniapp/subscribeTemplate/index', 1, 0, 'C', '0', '0', 'manage:miniSubscribeTemplate:list', 'email', 'admin', NOW(), 'admin', NOW(), ''
+       4, 'subscribeTemplate', 'miniapp/subscribeTemplate/index', 1, 0, 'C', '0', '0', 'manage:miniSubscribeTemplate:list', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:miniSubscribeTemplate:list' AND del_flag = '0');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
@@ -96,7 +96,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:miniSubscribeTemp
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
 SELECT '翻译任务',
        (SELECT menu_id FROM sys_menu WHERE menu_name = '小程序管理' AND parent_id = 0 AND del_flag = '0' LIMIT 1),
-       5, 'translateTask', 'miniapp/translateTask/index', 1, 0, 'C', '0', '0', 'manage:translateTask:list', 'documentation', 'admin', NOW(), 'admin', NOW(), ''
+       5, 'translateTask', 'miniapp/translateTask/index', 1, 0, 'C', '0', '0', 'manage:translateTask:list', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:translateTask:list' AND del_flag = '0');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
@@ -107,7 +107,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:translateTask:que
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
 SELECT '翻译文档',
        (SELECT menu_id FROM sys_menu WHERE menu_name = '小程序管理' AND parent_id = 0 AND del_flag = '0' LIMIT 1),
-       6, 'translateDocument', 'miniapp/translateDocument/index', 1, 0, 'C', '0', '0', 'manage:translateDocument:list', 'upload', 'admin', NOW(), 'admin', NOW(), ''
+       6, 'translateDocument', 'miniapp/translateDocument/index', 1, 0, 'C', '0', '0', 'manage:translateDocument:list', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:translateDocument:list' AND del_flag = '0');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
@@ -118,7 +118,7 @@ WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'manage:translateDocument
 -- 父菜单「博客」menu_id = 2062
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
-SELECT '博客评论', 2062, 3, 'comment', 'article/comment/index', 1, 0, 'C', '0', '0', 'article:comment:list', 'message', 'admin', NOW(), 'admin', NOW(), ''
+SELECT '博客评论', 2062, 3, 'comment', 'article/comment/index', 1, 0, 'C', '0', '0', 'article:comment:list', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'article:comment:list' AND del_flag = '0');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
@@ -138,7 +138,7 @@ SELECT '博客评论导出', (SELECT menu_id FROM sys_menu WHERE perms = 'articl
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'article:comment:export' AND del_flag = '0');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
-SELECT '博客点赞记录', 2062, 4, 'likeRecord', 'article/likeRecord/index', 1, 0, 'C', '0', '0', 'article:likeRecord:list', 'star', 'admin', NOW(), 'admin', NOW(), ''
+SELECT '博客点赞记录', 2062, 4, 'likeRecord', 'article/likeRecord/index', 1, 0, 'C', '0', '0', 'article:likeRecord:list', '#', 'admin', NOW(), 'admin', NOW(), ''
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'article:likeRecord:list' AND del_flag = '0');
 
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)

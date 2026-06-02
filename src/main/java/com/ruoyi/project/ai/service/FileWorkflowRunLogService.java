@@ -100,6 +100,83 @@ public class FileWorkflowRunLogService {
         }
     }
 
+    /**
+     * 是否存在运行中的日志。
+     */
+    public boolean hasRunningLog(String workflowKey) {
+        try {
+            Long count = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM ai_file_workflow_run_log
+                    WHERE workflow_key = ? AND status = 'running'
+                    """, Long.class, workflowKey);
+            return count != null && count > 0;
+        } catch (DataAccessException e) {
+            log.warn("文件化工作流运行中日志检查失败: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 是否存在超过指定分钟仍未结束的运行日志。
+     */
+    public boolean hasStaleRunningLog(String workflowKey, int staleMinutes) {
+        try {
+            Long count = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM ai_file_workflow_run_log
+                    WHERE workflow_key = ?
+                      AND status = 'running'
+                      AND start_time < DATE_SUB(NOW(), INTERVAL ? MINUTE)
+                    """, Long.class, workflowKey, staleMinutes);
+            return count != null && count > 0;
+        } catch (DataAccessException e) {
+            log.warn("文件化工作流僵死日志检查失败: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 将僵死的 running 日志标记为 failed。
+     */
+    public int markStaleRunningAsFailed(String workflowKey, int staleMinutes, String errorMessage) {
+        try {
+            return jdbcTemplate.update("""
+                    UPDATE ai_file_workflow_run_log
+                    SET status = 'failed',
+                        end_time = NOW(),
+                        duration_ms = TIMESTAMPDIFF(MICROSECOND, start_time, NOW()) / 1000,
+                        message = '执行失败',
+                        error_message = ?
+                    WHERE workflow_key = ?
+                      AND status = 'running'
+                      AND start_time < DATE_SUB(NOW(), INTERVAL ? MINUTE)
+                    """, errorMessage, workflowKey, staleMinutes);
+        } catch (DataAccessException e) {
+            log.warn("文件化工作流僵死日志清理失败: {}", e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * 强制结束指定工作流所有 running 日志（人工解锁场景）。
+     */
+    public int forceFailRunningLogs(String workflowKey, String errorMessage) {
+        try {
+            return jdbcTemplate.update("""
+                    UPDATE ai_file_workflow_run_log
+                    SET status = 'failed',
+                        end_time = NOW(),
+                        duration_ms = TIMESTAMPDIFF(MICROSECOND, start_time, NOW()) / 1000,
+                        message = '执行失败',
+                        error_message = ?
+                    WHERE workflow_key = ?
+                      AND status = 'running'
+                    """, errorMessage, workflowKey);
+        } catch (DataAccessException e) {
+            log.warn("文件化工作流 running 日志强制结束失败: {}", e.getMessage());
+            return 0;
+        }
+    }
+
     public Map<String, Object> statistics(String workflowKey, Long workflowId, int days) {
         Map<String, Object> result = new LinkedHashMap<>();
         int safeDays = Math.max(days, 1);

@@ -21,7 +21,7 @@ steps:
     retry: 1
 
   - id: analysis
-    name: 深度项目分析与内容创作
+    name: 实战教程内容创作
     prompt: blog-auto/02-analysis.md
     tools:
       - oss_file_read
@@ -32,14 +32,14 @@ steps:
     emptyPolicy: continue
 
   - id: save-cn
-    name: 中文博客优化保存
+    name: 中文教程润色保存
     prompt: blog-auto/03-save-cn.md
     tools:
       - blog_save
     input:
       - github_analysis
     output: chinese_article
-    retry: 1
+    retry: 0
 
   - id: translate-en
     name: 英文翻译与本地化
@@ -50,7 +50,7 @@ steps:
       - chinese_article
       - github_analysis
     output: english_article
-    retry: 1
+    retry: 0
 
   - id: cover
     name: 封面图片生成

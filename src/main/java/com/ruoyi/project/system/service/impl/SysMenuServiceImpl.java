@@ -237,6 +237,17 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
      */
     @Override
     public List<RouterVo> buildMenus(List<SysMenu> menus) {
+        return buildMenus(menus, false);
+    }
+
+    /**
+     * 构建前端路由所需要的菜单
+     *
+     * @param menus 菜单列表
+     * @param childLevel 是否为非一级菜单（二级及以下不返回图标）
+     * @return 路由列表
+     */
+    private List<RouterVo> buildMenus(List<SysMenu> menus, boolean childLevel) {
         List<RouterVo> routers = new LinkedList<RouterVo>();
         for (SysMenu menu : menus) {
             RouterVo router = new RouterVo();
@@ -245,13 +256,13 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
             router.setPath(getRouterPath(menu));
             router.setComponent(getComponent(menu));
             router.setQuery(menu.getQuery());
-            router.setMeta(new MetaVo(menu.getMenuName(), menu.getIcon(), StrUtil.equals("1", menu.getIsCache()),
+            router.setMeta(new MetaVo(menu.getMenuName(), resolveMenuIcon(menu, childLevel), StrUtil.equals("1", menu.getIsCache()),
                     menu.getPath()));
             List<SysMenu> cMenus = menu.getChildren();
             if (CollUtil.isNotEmpty(cMenus) && UserConstants.TYPE_DIR.equals(menu.getMenuType())) {
                 router.setAlwaysShow(true);
                 router.setRedirect("noRedirect");
-                router.setChildren(buildMenus(cMenus));
+                router.setChildren(buildMenus(cMenus, true));
             } else if (isMenuFrame(menu)) {
                 router.setMeta(null);
                 List<RouterVo> childrenList = new ArrayList<RouterVo>();
@@ -280,6 +291,16 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
             routers.add(router);
         }
         return routers;
+    }
+
+    /**
+     * 仅一级菜单保留图标，二级及以下统一返回 #
+     */
+    private String resolveMenuIcon(SysMenu menu, boolean childLevel) {
+        if (childLevel) {
+            return "#";
+        }
+        return menu.getIcon();
     }
 
     /**

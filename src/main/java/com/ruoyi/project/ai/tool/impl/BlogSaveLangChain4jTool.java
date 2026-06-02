@@ -3,6 +3,7 @@ package com.ruoyi.project.ai.tool.impl;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.Map;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -81,6 +82,35 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
         if (StrUtil.isBlank(content)) {
             return ToolExecutionResult.failure("save", "博客内容不能为空");
         }
+
+        String repoUrl = (String) parameters.get("repoUrl");
+        String repoName = (String) parameters.get("repoName");
+        String normalizedRepoUrl = normalizeRepoUrl(repoUrl);
+
+        // 幂等：同一仓库今日已成功生成过博客，直接返回已有记录，避免重试导致重复写入
+        if (StrUtil.isNotBlank(normalizedRepoUrl)) {
+            AiBlogProductionRecord existingRecord = aiBlogProductionRecordService.findTodaySuccessByRepoUrl(normalizedRepoUrl);
+            if (existingRecord != null && existingRecord.getBlogId() != null) {
+                Blog existingBlog = blogService.getById(String.valueOf(existingRecord.getBlogId()));
+                if (existingBlog != null) {
+                    Map<String, Object> resultData = new java.util.HashMap<>();
+                    resultData.put("blogId", existingBlog.getBlogId());
+                    resultData.put("title", existingBlog.getTitle());
+                    resultData.put("status", getStatusText(existingBlog.getStatus()));
+                    resultData.put("category", StrUtil.isNotBlank(existingBlog.getCategory()) ? existingBlog.getCategory() : "未分类");
+                    resultData.put("tags", StrUtil.isNotBlank(existingBlog.getTags()) ? existingBlog.getTags() : "无标签");
+                    resultData.put("duplicateSkipped", true);
+                    return ToolExecutionResult.builder()
+                            .success(true)
+                            .operationType("save")
+                            .data(resultData)
+                            .message("该仓库今日博客已存在，跳过重复保存。Blog ID: " + existingBlog.getBlogId())
+                            .metadata(Map.of("duplicateSkipped", true))
+                            .build()
+                            .toJsonString();
+                }
+            }
+        }
             
             // 创建Blog实体
             Blog blog = new Blog();
@@ -143,8 +173,9 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
             
             if (success) {
                 // 获取GitHub仓库关联信息（用于生产记录）
-                String repoUrl = (String) parameters.get("repoUrl");
-                String repoName = (String) parameters.get("repoName");
+                if (StrUtil.isNotBlank(normalizedRepoUrl)) {
+                    repoUrl = normalizedRepoUrl;
+                }
                 
                 // 保存生产记录
                 AiBlogProductionRecord productionRecord = new AiBlogProductionRecord();
@@ -244,8 +275,8 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
         4. 保存置顶原创文章：
            {"title": "重要公告", "content": "重要内容...", "isTop": "1", "isOriginal": "1", "status": "1"}
         
-        5. 保存GitHub项目相关博客（推荐）：
-           {"title": "开源项目解析", "content": "项目分析内容...", "category": "开源项目", "tags": "GitHub,开源", "status": "1", "repoUrl": "https://github.com/owner/repo", "repoName": "owner/repo"}
+        5. 保存 GitHub 项目实战教程（推荐）：
+           {"title": "手把手教你用 XX 完成 YY", "content": "教程正文...", "category": "技术教程", "tags": "GitHub,教程,实战", "status": "1", "repoUrl": "https://github.com/owner/repo", "repoName": "owner/repo"}
         """;
     }
     
@@ -259,5 +290,16 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
             case "2": return "已下线";
             default: return "未知状态";
         }
+    }
+
+    private String normalizeRepoUrl(String repoUrl) {
+        if (StrUtil.isBlank(repoUrl)) {
+            return null;
+        }
+        String normalized = repoUrl.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 }
