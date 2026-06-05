@@ -19,6 +19,9 @@ target/
 .settings
 .springBeans
 
+### VS Code ###
+.vscode/settings.json
+
 ### IntelliJ IDEA ###
 .idea
 *.iws
