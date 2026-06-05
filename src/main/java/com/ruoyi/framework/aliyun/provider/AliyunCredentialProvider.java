@@ -25,6 +25,9 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class AliyunCredentialProvider {
 
+    /** 密钥管理里 OCR 专用密钥别名 */
+    public static final String OCR_KEY_NAME = "OCR";
+
     @Autowired
     private ISecretKeyInfoService secretKeyInfoService;
 
@@ -129,6 +132,74 @@ public class AliyunCredentialProvider {
     public AliyunCredential getDefaultCredential() {
         List<AliyunCredential> credentials = getAllCredentials();
         return credentials.isEmpty() ? null : credentials.get(0);
+    }
+
+    /**
+     * 获取 OCR 专用阿里云凭证（密钥别名 key_name = OCR）
+     */
+    public AliyunCredential getOcrCredential() {
+        SecretKeyInfo secretKey = findOcrSecretKey();
+        if (secretKey == null) {
+            log.warn("未找到 OCR 专用阿里云密钥: provider_brand=aliyun, key_name={}", OCR_KEY_NAME);
+            return null;
+        }
+        AliyunCredential credential = buildOcrCredential(secretKey);
+        log.info("OCR 使用专用阿里云密钥: secretKeyId={}, keyName={}, region={}",
+                credential.getSecretKeyId(), credential.getKeyName(), credential.getRegion());
+        return credential;
+    }
+
+    /**
+     * @deprecated 请使用 {@link #getOcrCredential()}
+     */
+    @Deprecated
+    public AliyunCredential getPersonalOcrCredential() {
+        return getOcrCredential();
+    }
+
+    /**
+     * @deprecated 请使用 {@link #getOcrCredential()}
+     */
+    @Deprecated
+    public AliyunCredential getDefaultOcrCredential() {
+        return getOcrCredential();
+    }
+
+    private SecretKeyInfo findOcrSecretKey() {
+        QueryWrapper queryWrapper = QueryWrapper.create()
+                .eq("provider_brand", "aliyun")
+                .eq("key_name", OCR_KEY_NAME)
+                .eq("status", "0")
+                .orderBy("id", true)
+                .limit(1);
+
+        SecretKeyInfo secretKey = secretKeyInfoService.getOne(queryWrapper);
+        if (secretKey == null
+                || !StringUtils.hasText(secretKey.getAccessKey())
+                || !StringUtils.hasText(secretKey.getSecretKey())) {
+            return null;
+        }
+        return secretKey;
+    }
+
+    private AliyunCredential buildOcrCredential(SecretKeyInfo secretKey) {
+        String region = "cn-hangzhou";
+        if (StringUtils.hasText(secretKey.getRegion())) {
+            region = Arrays.stream(secretKey.getRegion().split(","))
+                    .map(String::trim)
+                    .filter(StringUtils::hasText)
+                    .findFirst()
+                    .orElse(region);
+        }
+
+        return AliyunCredential.builder()
+                .accessKeyId(secretKey.getAccessKey())
+                .accessKeySecret(secretKey.getSecretKey())
+                .region(region)
+                .secretKeyId(secretKey.getId())
+                .keyName(secretKey.getKeyName())
+                .valid(true)
+                .build();
     }
 
     /**
