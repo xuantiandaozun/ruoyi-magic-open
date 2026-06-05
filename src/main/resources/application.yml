@@ -73,6 +73,12 @@ github:
   # 可在 https://github.com/settings/tokens 生成personal access token
   token: 
 
+# 译舟小程序
+miniapp:
+  translate:
+    # 阿里云智能语音交互项目 AppKey（AK/SK 使用密钥管理中的 ALIYUN_RAM）
+    nls-app-key: ${MINIAPP_NLS_APP_KEY:}
+
 # 微信公众号（服务号）配置 — 用于后台博客同步到草稿箱
 wechat:
   mp:

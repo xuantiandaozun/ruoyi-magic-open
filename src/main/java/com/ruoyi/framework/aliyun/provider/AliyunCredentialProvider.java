@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 
 import com.mybatisflex.core.query.QueryWrapper;
 import com.ruoyi.framework.aliyun.config.AliyunCredential;
+import com.ruoyi.framework.aliyun.config.AliyunNlsConfig;
 import com.ruoyi.project.secretkey.domain.SecretKeyInfo;
 import com.ruoyi.project.secretkey.service.ISecretKeyInfoService;
 
@@ -25,8 +26,15 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class AliyunCredentialProvider {
 
-    /** 密钥管理里 OCR 专用密钥别名 */
-    public static final String OCR_KEY_NAME = "OCR";
+    /** 密钥管理里阿里云 RAM 通用密钥别名（OCR / 语音识别等共用） */
+    public static final String ALIYUN_RAM_KEY_NAME = "ALIYUN_RAM";
+
+    /** @deprecated 请使用 {@link #ALIYUN_RAM_KEY_NAME} */
+    @Deprecated
+    public static final String OCR_KEY_NAME = ALIYUN_RAM_KEY_NAME;
+
+    private static final String DEFAULT_NLS_GATEWAY_URL =
+            "https://nls-gateway-cn-shanghai.aliyuncs.com/stream/v1/asr";
 
     @Autowired
     private ISecretKeyInfoService secretKeyInfoService;
@@ -135,18 +143,25 @@ public class AliyunCredentialProvider {
     }
 
     /**
-     * 获取 OCR 专用阿里云凭证（密钥别名 key_name = OCR）
+     * 获取阿里云 RAM 通用凭证（密钥别名 key_name = ALIYUN_RAM）
      */
-    public AliyunCredential getOcrCredential() {
-        SecretKeyInfo secretKey = findOcrSecretKey();
+    public AliyunCredential getAliyunRamCredential() {
+        SecretKeyInfo secretKey = findAliyunRamSecretKey();
         if (secretKey == null) {
-            log.warn("未找到 OCR 专用阿里云密钥: provider_brand=aliyun, key_name={}", OCR_KEY_NAME);
+            log.warn("未找到阿里云 RAM 密钥: provider_brand=aliyun, key_name={}", ALIYUN_RAM_KEY_NAME);
             return null;
         }
-        AliyunCredential credential = buildOcrCredential(secretKey);
-        log.info("OCR 使用专用阿里云密钥: secretKeyId={}, keyName={}, region={}",
+        AliyunCredential credential = buildAliyunCredential(secretKey);
+        log.info("使用阿里云 RAM 密钥: secretKeyId={}, keyName={}, region={}",
                 credential.getSecretKeyId(), credential.getKeyName(), credential.getRegion());
         return credential;
+    }
+
+    /**
+     * 获取 OCR 等视觉能力使用的阿里云凭证
+     */
+    public AliyunCredential getOcrCredential() {
+        return getAliyunRamCredential();
     }
 
     /**
@@ -165,10 +180,27 @@ public class AliyunCredentialProvider {
         return getOcrCredential();
     }
 
-    private SecretKeyInfo findOcrSecretKey() {
+    /**
+     * 获取语音识别配置。与 OCR 共用 ALIYUN_RAM 密钥。
+     */
+    public AliyunNlsConfig getNlsConfig() {
+        SecretKeyInfo secretKey = findAliyunRamSecretKey();
+        if (secretKey == null) {
+            log.warn("未找到语音识别阿里云密钥: provider_brand=aliyun, key_name={}", ALIYUN_RAM_KEY_NAME);
+            return null;
+        }
+
+        AliyunCredential credential = buildAliyunCredential(secretKey);
+        return AliyunNlsConfig.builder()
+                .credential(credential)
+                .gatewayUrl(DEFAULT_NLS_GATEWAY_URL)
+                .build();
+    }
+
+    private SecretKeyInfo findSecretKeyByName(String keyName) {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .eq("provider_brand", "aliyun")
-                .eq("key_name", OCR_KEY_NAME)
+                .eq("key_name", keyName)
                 .eq("status", "0")
                 .orderBy("id", true)
                 .limit(1);
@@ -182,7 +214,16 @@ public class AliyunCredentialProvider {
         return secretKey;
     }
 
-    private AliyunCredential buildOcrCredential(SecretKeyInfo secretKey) {
+    private SecretKeyInfo findAliyunRamSecretKey() {
+        SecretKeyInfo secretKey = findSecretKeyByName(ALIYUN_RAM_KEY_NAME);
+        if (secretKey != null) {
+            return secretKey;
+        }
+        // 兼容历史别名 OCR
+        return findSecretKeyByName("OCR");
+    }
+
+    private AliyunCredential buildAliyunCredential(SecretKeyInfo secretKey) {
         String region = "cn-hangzhou";
         if (StringUtils.hasText(secretKey.getRegion())) {
             region = Arrays.stream(secretKey.getRegion().split(","))

@@ -12,6 +12,7 @@ import com.ruoyi.framework.web.domain.AjaxResult;
 import com.ruoyi.project.miniapp.domain.dto.TranslateTextRequest;
 import com.ruoyi.project.miniapp.service.impl.MiniAppImageTranslateService;
 import com.ruoyi.project.miniapp.service.impl.MiniAppTextTranslateService;
+import com.ruoyi.project.miniapp.service.impl.MiniAppVoiceRecognizeService;
 import com.ruoyi.project.miniapp.util.MiniAppSecurityUtils;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,11 +25,14 @@ public class MiniAppTranslateController {
 
     private final MiniAppTextTranslateService textTranslateService;
     private final MiniAppImageTranslateService imageTranslateService;
+    private final MiniAppVoiceRecognizeService voiceRecognizeService;
 
     public MiniAppTranslateController(MiniAppTextTranslateService textTranslateService,
-            MiniAppImageTranslateService imageTranslateService) {
+            MiniAppImageTranslateService imageTranslateService,
+            MiniAppVoiceRecognizeService voiceRecognizeService) {
         this.textTranslateService = textTranslateService;
         this.imageTranslateService = imageTranslateService;
+        this.voiceRecognizeService = voiceRecognizeService;
     }
 
     @Operation(summary = "文本翻译")
@@ -46,5 +50,15 @@ public class MiniAppTranslateController {
             @RequestParam("targetLanguage") String targetLanguage) {
         MiniAppSecurityUtils.getLoginUser();
         return AjaxResult.success(imageTranslateService.translateImage(file, sourceLanguage, targetLanguage));
+    }
+
+    @Operation(summary = "语音录入识别")
+    @PostMapping("/voice")
+    public AjaxResult recognizeVoice(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "format", required = false, defaultValue = "mp3") String format,
+            @RequestParam(value = "sampleRate", required = false, defaultValue = "16000") Integer sampleRate) {
+        MiniAppSecurityUtils.getLoginUser();
+        return AjaxResult.success(voiceRecognizeService.recognizeVoice(file, format, sampleRate));
     }
 }

@@ -24,7 +24,7 @@ import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 阿里云 OCR 识别服务（凭证来自 secret_key_info，key_name=OCR）
+ * 阿里云 OCR 识别服务（凭证来自 secret_key_info，key_name=ALIYUN_RAM）
  */
 @Slf4j
 @Service
@@ -54,7 +54,7 @@ public class AliyunOcrService {
 
         AliyunCredential credential = credentialProvider.getOcrCredential();
         if (credential == null) {
-            throw new ServiceException("未配置 OCR 专用阿里云密钥，请在密钥管理中维护 provider=aliyun 且别名为 OCR 的 AccessKey");
+            throw new ServiceException("未配置阿里云 RAM 密钥，请在密钥管理中维护 provider=aliyun 且别名为 ALIYUN_RAM 的 AccessKey");
         }
 
         return aliyunService.<Client, String>executeWithCredential("OCR", credential, client -> {
