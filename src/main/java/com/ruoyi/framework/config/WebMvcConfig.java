@@ -7,6 +7,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import com.ruoyi.framework.security.sign.ApiSignConfig;
 import com.ruoyi.framework.security.sign.ApiSignInterceptor;
 import com.ruoyi.project.miniapp.interceptor.MiniAppCrawlerInterceptor;
 import com.ruoyi.project.miniapp.util.MiniAppCrawlerContext;
@@ -22,6 +23,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
         @Autowired
         private ApiSignInterceptor apiSignInterceptor;
+
+        @Autowired
+        private ApiSignConfig apiSignConfig;
 
         @Autowired
         private MiniAppCrawlerInterceptor miniAppCrawlerInterceptor;
@@ -60,9 +64,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
         @Override
         public void addInterceptors(InterceptorRegistry registry) {
                 // 注册 API 签名拦截器（优先级最高，在登录校验之前）
-                registry.addInterceptor(apiSignInterceptor)
-                                .addPathPatterns("/github/trending/ingest", "/github/trending/push/feishu") // 只对数据接入接口启用
-                                .order(1); // 优先级1，最先执行
+                if (!apiSignConfig.getProtectedPaths().isEmpty()) {
+                        registry.addInterceptor(apiSignInterceptor)
+                                        .addPathPatterns(apiSignConfig.getProtectedPaths().toArray(String[]::new))
+                                        .order(1); // 优先级1，最先执行
+                }
 
                 // 注册 Sa-Token 拦截器，校验规则为 StpUtil.checkLogin() 登录校验。
                 registry.addInterceptor(new SaInterceptor(handle -> {

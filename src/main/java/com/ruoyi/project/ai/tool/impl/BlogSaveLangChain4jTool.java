@@ -1,19 +1,14 @@
 package com.ruoyi.project.ai.tool.impl;
 
-import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.Map;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.ruoyi.project.ai.domain.AiBlogProductionRecord;
-import com.ruoyi.project.ai.service.IAiBlogProductionRecordService;
 import com.ruoyi.project.ai.tool.LangChain4jTool;
 import com.ruoyi.project.ai.tool.ToolExecutionResult;
-import com.ruoyi.project.article.domain.Blog;
-import com.ruoyi.project.article.service.IBlogService;
+import com.ruoyi.project.article.service.AiBlogPublishService;
+import com.ruoyi.project.blogapi.domain.dto.AiBlogPublishRequest;
 
 import cn.hutool.core.util.StrUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -29,10 +24,7 @@ import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 public class BlogSaveLangChain4jTool implements LangChain4jTool {
     
     @Autowired
-    private IBlogService blogService;
-    
-    @Autowired
-    private IAiBlogProductionRecordService aiBlogProductionRecordService;
+    private AiBlogPublishService aiBlogPublishService;
     
     @Override
     public String getToolName() {
@@ -83,136 +75,33 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
             return ToolExecutionResult.failure("save", "博客内容不能为空");
         }
 
-        String repoUrl = (String) parameters.get("repoUrl");
-        String repoName = (String) parameters.get("repoName");
-        String normalizedRepoUrl = normalizeRepoUrl(repoUrl);
+        AiBlogPublishRequest request = new AiBlogPublishRequest();
+        request.setTitle(title);
+        request.setContent(content);
+        request.setSummary((String) parameters.get("summary"));
+        request.setCoverImage((String) parameters.get("coverImage"));
+        request.setCategory((String) parameters.get("category"));
+        request.setTags((String) parameters.get("tags"));
+        request.setStatus((String) parameters.get("status"));
+        request.setIsTop((String) parameters.get("isTop"));
+        request.setIsOriginal((String) parameters.get("isOriginal"));
+        request.setFeishuDocToken((String) parameters.get("feishuDocToken"));
+        request.setFeishuDocName((String) parameters.get("feishuDocName"));
+        request.setRepoUrl((String) parameters.get("repoUrl"));
+        request.setRepoName((String) parameters.get("repoName"));
 
-        // 幂等：同一仓库今日已成功生成过博客，直接返回已有记录，避免重试导致重复写入
-        if (StrUtil.isNotBlank(normalizedRepoUrl)) {
-            AiBlogProductionRecord existingRecord = aiBlogProductionRecordService.findTodaySuccessByRepoUrl(normalizedRepoUrl);
-            if (existingRecord != null && existingRecord.getBlogId() != null) {
-                Blog existingBlog = blogService.getById(String.valueOf(existingRecord.getBlogId()));
-                if (existingBlog != null) {
-                    Map<String, Object> resultData = new java.util.HashMap<>();
-                    resultData.put("blogId", existingBlog.getBlogId());
-                    resultData.put("title", existingBlog.getTitle());
-                    resultData.put("status", getStatusText(existingBlog.getStatus()));
-                    resultData.put("category", StrUtil.isNotBlank(existingBlog.getCategory()) ? existingBlog.getCategory() : "未分类");
-                    resultData.put("tags", StrUtil.isNotBlank(existingBlog.getTags()) ? existingBlog.getTags() : "无标签");
-                    resultData.put("duplicateSkipped", true);
-                    return ToolExecutionResult.builder()
-                            .success(true)
-                            .operationType("save")
-                            .data(resultData)
-                            .message("该仓库今日博客已存在，跳过重复保存。Blog ID: " + existingBlog.getBlogId())
-                            .metadata(Map.of("duplicateSkipped", true))
-                            .build()
-                            .toJsonString();
-                }
-            }
+        Map<String, Object> resultData = aiBlogPublishService.publish(request, "0", "blog_generation");
+        if (Boolean.TRUE.equals(resultData.get("duplicateSkipped"))) {
+            return ToolExecutionResult.builder()
+                    .success(true)
+                    .operationType("save")
+                    .data(resultData)
+                    .message("该仓库今日博客已存在，跳过重复保存。Blog ID: " + resultData.get("blogId"))
+                    .metadata(Map.of("duplicateSkipped", true))
+                    .build()
+                    .toJsonString();
         }
-            
-            // 创建Blog实体
-            Blog blog = new Blog();
-            blog.setTitle(title);
-            blog.setContent(content);
-            
-            // 设置可选参数
-            String summary = (String) parameters.get("summary");
-            if (StrUtil.isNotBlank(summary)) {
-                blog.setSummary(summary);
-            }
-            
-            String coverImage = (String) parameters.get("coverImage");
-            if (StrUtil.isNotBlank(coverImage)) {
-                blog.setCoverImage(coverImage);
-            }
-            
-            String category = (String) parameters.get("category");
-            if (StrUtil.isNotBlank(category)) {
-                blog.setCategory(category);
-            }
-            
-            String tags = (String) parameters.get("tags");
-            if (StrUtil.isNotBlank(tags)) {
-                blog.setTags(tags);
-            }
-            
-            String status = (String) parameters.get("status");
-            blog.setStatus(StrUtil.isNotBlank(status) ? status : "0"); // 默认草稿
-            
-            String isTop = (String) parameters.get("isTop");
-            blog.setIsTop(StrUtil.isNotBlank(isTop) ? isTop : "0"); // 默认不置顶
-            
-            String isOriginal = (String) parameters.get("isOriginal");
-            blog.setIsOriginal(StrUtil.isNotBlank(isOriginal) ? isOriginal : "1"); // 默认原创
-            
-            String feishuDocToken = (String) parameters.get("feishuDocToken");
-            if (StrUtil.isNotBlank(feishuDocToken)) {
-                blog.setFeishuDocToken(feishuDocToken);
-            }
-            
-            String feishuDocName = (String) parameters.get("feishuDocName");
-            if (StrUtil.isNotBlank(feishuDocName)) {
-                blog.setFeishuDocName(feishuDocName);
-            }
-            
-            // 设置默认值
-            blog.setViewCount("0");
-            blog.setLikeCount("0");
-            blog.setCommentCount(0L);
-            blog.setFeishuSyncStatus("0"); // 未同步
-            
-            // 如果是已发布状态，设置发布时间
-            if ("1".equals(blog.getStatus())) {
-                blog.setPublishTime(LocalDateTime.now());
-            }
-            
-            // 保存到数据库
-            boolean success = blogService.save(blog);
-            
-            if (success) {
-                // 获取GitHub仓库关联信息（用于生产记录）
-                if (StrUtil.isNotBlank(normalizedRepoUrl)) {
-                    repoUrl = normalizedRepoUrl;
-                }
-                
-                // 保存生产记录
-                AiBlogProductionRecord productionRecord = new AiBlogProductionRecord();
-                // 设置仓库URL（如果有传入则使用，否则为空字符串）
-                productionRecord.setRepoUrl(StrUtil.isNotBlank(repoUrl) ? repoUrl : "");
-                
-                // 解析仓库名称（格式：owner/repo）
-                if (StrUtil.isNotBlank(repoName)) {
-                    if (repoName.contains("/")) {
-                        String[] parts = repoName.split("/", 2);
-                        productionRecord.setRepoOwner(parts[0]);
-                        productionRecord.setRepoTitle(parts.length > 1 ? parts[1] : repoName);
-                    } else {
-                        productionRecord.setRepoTitle(repoName);
-                    }
-                }
-                
-                if (StrUtil.isNotBlank(blog.getBlogId())) {
-                    productionRecord.setBlogId(Long.parseLong(blog.getBlogId()));
-                }
-                productionRecord.setProductionType("blog_generation");
-                productionRecord.setStatus("1"); // 成功
-                productionRecord.setProductionTime(new Date());
-                productionRecord.setCompletionTime(new Date());
-                aiBlogProductionRecordService.save(productionRecord);
-                
-                Map<String, Object> resultData = new java.util.HashMap<>();
-                resultData.put("blogId", blog.getBlogId());
-                resultData.put("title", blog.getTitle());
-                resultData.put("status", getStatusText(blog.getStatus()));
-                resultData.put("category", StrUtil.isNotBlank(blog.getCategory()) ? blog.getCategory() : "未分类");
-                resultData.put("tags", StrUtil.isNotBlank(blog.getTags()) ? blog.getTags() : "无标签");
-                
-                return ToolExecutionResult.saveSuccess(resultData, "博客文章保存成功");
-        } else {
-            return ToolExecutionResult.failure("save", "博客文章保存失败，请检查数据库连接或参数是否正确");
-        }
+        return ToolExecutionResult.saveSuccess(resultData, "博客文章保存成功");
     }
     
     @Override
@@ -280,26 +169,4 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
         """;
     }
     
-    /**
-     * 获取状态文本描述
-     */
-    private String getStatusText(String status) {
-        switch (status) {
-            case "0": return "草稿";
-            case "1": return "已发布";
-            case "2": return "已下线";
-            default: return "未知状态";
-        }
-    }
-
-    private String normalizeRepoUrl(String repoUrl) {
-        if (StrUtil.isBlank(repoUrl)) {
-            return null;
-        }
-        String normalized = repoUrl.trim();
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized;
-    }
 }
