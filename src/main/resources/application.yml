@@ -78,6 +78,14 @@ miniapp:
   translate:
     # 阿里云智能语音交互项目 AppKey（AK/SK 使用密钥管理中的 ALIYUN_RAM）
     nls-app-key: ${MINIAPP_NLS_APP_KEY:}
+    content-security:
+      # 微信内容安全：文本 msgSecCheck、图片 mediaCheckAsync
+      enabled: ${MINIAPP_CONTENT_SECURITY_ENABLED:true}
+      # 场景值：1 资料；2 评论；3 论坛；4 社交日志
+      scene: 4
+      # 图片异步检测等待超时（需配置消息推送服务器接收 wxa_media_check）
+      media-check-timeout-ms: 15000
+      media-check-poll-interval-ms: 300
 
 # 微信公众号（服务号）配置 — 用于后台博客同步到草稿箱
 wechat:

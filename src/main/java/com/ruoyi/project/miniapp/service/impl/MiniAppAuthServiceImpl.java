@@ -45,19 +45,22 @@ public class MiniAppAuthServiceImpl implements IMiniAppAuthService {
     private final MiniAppWxServiceFactory wxServiceFactory;
     private final FileStorageService fileStorageService;
     private final BillMiniAppBootstrapService billMiniAppBootstrapService;
+    private final MiniAppContentSecurityService contentSecurityService;
 
     public MiniAppAuthServiceImpl(IMiniAppService miniAppService,
             IMiniUserService miniUserService,
             IMiniUserAuthService miniUserAuthService,
             MiniAppWxServiceFactory wxServiceFactory,
             FileStorageService fileStorageService,
-            BillMiniAppBootstrapService billMiniAppBootstrapService) {
+            BillMiniAppBootstrapService billMiniAppBootstrapService,
+            MiniAppContentSecurityService contentSecurityService) {
         this.miniAppService = miniAppService;
         this.miniUserService = miniUserService;
         this.miniUserAuthService = miniUserAuthService;
         this.wxServiceFactory = wxServiceFactory;
         this.fileStorageService = fileStorageService;
         this.billMiniAppBootstrapService = billMiniAppBootstrapService;
+        this.contentSecurityService = contentSecurityService;
     }
 
     @Override
@@ -170,7 +173,9 @@ public class MiniAppAuthServiceImpl implements IMiniAppAuthService {
         }
 
         if (StringUtils.hasText(request.getNickname())) {
-            miniUser.setNickname(request.getNickname().trim());
+            String nickname = request.getNickname().trim();
+            contentSecurityService.checkProfileText(loginUser, nickname, nickname);
+            miniUser.setNickname(nickname);
         }
         if (request.getAvatar() != null) {
             miniUser.setAvatar(StringUtils.hasText(request.getAvatar()) ? request.getAvatar().trim() : null);
@@ -200,6 +205,12 @@ public class MiniAppAuthServiceImpl implements IMiniAppAuthService {
         if (!isAllowedAvatarExtension(extension)) {
             throw new ServiceException("头像仅支持 jpg、png、webp、gif 格式");
         }
+
+        contentSecurityService.checkProfileImage(
+                loginUser,
+                file.getBytes(),
+                StrUtil.blankToDefault(file.getContentType(), "image/jpeg"),
+                file.getOriginalFilename());
 
         String objectKey = StrUtil.format(
                 "miniapp/{}/avatar/{}/{}.{}",

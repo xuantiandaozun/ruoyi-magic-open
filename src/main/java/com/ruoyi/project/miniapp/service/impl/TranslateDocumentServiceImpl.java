@@ -14,10 +14,12 @@ import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.storage.FileStorageService;
+import com.ruoyi.common.utils.file.ByteArrayMultipartFile;
 import com.ruoyi.project.miniapp.domain.TranslateDocument;
 import com.ruoyi.project.miniapp.domain.vo.MiniAppLoginUser;
 import com.ruoyi.project.miniapp.mapper.TranslateDocumentMapper;
 import com.ruoyi.project.miniapp.service.ITranslateDocumentService;
+import com.ruoyi.project.miniapp.util.MiniAppDocumentTextExtractor;
 
 import cn.hutool.core.util.StrUtil;
 
@@ -29,9 +31,12 @@ public class TranslateDocumentServiceImpl extends ServiceImpl<TranslateDocumentM
     private static final String[] ALLOWED_EXTENSIONS = { "txt", "docx" };
 
     private final FileStorageService fileStorageService;
+    private final MiniAppContentSecurityService contentSecurityService;
 
-    public TranslateDocumentServiceImpl(FileStorageService fileStorageService) {
+    public TranslateDocumentServiceImpl(FileStorageService fileStorageService,
+            MiniAppContentSecurityService contentSecurityService) {
         this.fileStorageService = fileStorageService;
+        this.contentSecurityService = contentSecurityService;
     }
 
     @Override
@@ -45,6 +50,10 @@ public class TranslateDocumentServiceImpl extends ServiceImpl<TranslateDocumentM
             throw new ServiceException("当前支持 txt 和 docx 文件上传，md 即将支持");
         }
 
+        byte[] fileBytes = file.getBytes();
+        String documentText = MiniAppDocumentTextExtractor.extract(fileBytes, extension);
+        contentSecurityService.checkSocialText(loginUser, documentText);
+
         LocalDate now = LocalDate.now();
         String objectKey = StrUtil.format(
                 "miniapp/{}/{}/{}/{}/{}.{}",
@@ -55,7 +64,9 @@ public class TranslateDocumentServiceImpl extends ServiceImpl<TranslateDocumentM
                 UUID.randomUUID().toString().replace("-", ""),
                 extension);
 
-        String fileUrl = fileStorageService.upload(file, objectKey);
+        String fileUrl = fileStorageService.upload(
+                new ByteArrayMultipartFile("file", originalName, file.getContentType(), fileBytes),
+                objectKey);
 
         TranslateDocument document = new TranslateDocument();
         document.setMiniUserId(loginUser.getMiniUserId());
@@ -65,7 +76,7 @@ public class TranslateDocumentServiceImpl extends ServiceImpl<TranslateDocumentM
         document.setFileExt(extension);
         document.setMimeType(file.getContentType());
         document.setFileSize(file.getSize());
-        document.setContentHash(calculateHash(file));
+        document.setContentHash(calculateHash(fileBytes));
         document.setSourceOssUrl(fileUrl);
         document.setSourceOssKey(objectKey);
         document.setParseStatus("pending");
@@ -100,9 +111,9 @@ public class TranslateDocumentServiceImpl extends ServiceImpl<TranslateDocumentM
         return false;
     }
 
-    private String calculateHash(MultipartFile file) throws Exception {
+    private String calculateHash(byte[] fileBytes) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(file.getBytes());
+        byte[] hash = digest.digest(fileBytes);
         return HexFormat.of().formatHex(hash);
     }
 

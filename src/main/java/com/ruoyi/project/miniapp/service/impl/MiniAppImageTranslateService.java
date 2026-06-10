@@ -11,7 +11,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.project.miniapp.domain.dto.TranslateTextRequest;
+import com.ruoyi.project.miniapp.domain.vo.MiniAppLoginUser;
 import com.ruoyi.project.miniapp.util.BillImageOptimizer;
+import com.ruoyi.project.miniapp.util.MiniAppSecurityUtils;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -29,11 +31,14 @@ public class MiniAppImageTranslateService {
 
     private final AliyunOcrService aliyunOcrService;
     private final MiniAppTextTranslateService textTranslateService;
+    private final MiniAppContentSecurityService contentSecurityService;
 
     public MiniAppImageTranslateService(AliyunOcrService aliyunOcrService,
-            MiniAppTextTranslateService textTranslateService) {
+            MiniAppTextTranslateService textTranslateService,
+            MiniAppContentSecurityService contentSecurityService) {
         this.aliyunOcrService = aliyunOcrService;
         this.textTranslateService = textTranslateService;
+        this.contentSecurityService = contentSecurityService;
     }
 
     public Map<String, String> translateImage(MultipartFile file, String sourceLanguage, String targetLanguage) {
@@ -49,8 +54,15 @@ public class MiniAppImageTranslateService {
 
         String normalizedSource = StrUtil.blankToDefault(sourceLanguage, "Auto");
         long startMs = System.currentTimeMillis();
+        MiniAppLoginUser loginUser = MiniAppSecurityUtils.getLoginUser();
 
         byte[] imageBytes = readImageBytes(file);
+        contentSecurityService.checkImageContent(
+                loginUser,
+                imageBytes,
+                resolveImageMimeType(file),
+                file.getOriginalFilename());
+
         String ocrText = aliyunOcrService.recognizeText(imageBytes, normalizedSource);
         if (StrUtil.isBlank(ocrText)) {
             throw new ServiceException("未识别到文字，请换一张更清晰的图片");

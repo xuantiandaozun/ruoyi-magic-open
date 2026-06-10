@@ -14,6 +14,8 @@ import com.ruoyi.project.ai.service.IAiModelConfigService;
 import com.ruoyi.project.ai.service.IAiModelRouteService;
 import com.ruoyi.project.ai.service.impl.LangChain4jAgentService;
 import com.ruoyi.project.miniapp.domain.dto.TranslateTextRequest;
+import com.ruoyi.project.miniapp.domain.vo.MiniAppLoginUser;
+import com.ruoyi.project.miniapp.util.MiniAppSecurityUtils;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -29,16 +31,22 @@ public class MiniAppTextTranslateService {
     private final LangChain4jAgentService langChain4jAgentService;
     private final IAiModelRouteService modelRouteService;
     private final IAiModelConfigService modelConfigService;
+    private final MiniAppContentSecurityService contentSecurityService;
 
     public MiniAppTextTranslateService(LangChain4jAgentService langChain4jAgentService,
             IAiModelRouteService modelRouteService,
-            IAiModelConfigService modelConfigService) {
+            IAiModelConfigService modelConfigService,
+            MiniAppContentSecurityService contentSecurityService) {
         this.langChain4jAgentService = langChain4jAgentService;
         this.modelRouteService = modelRouteService;
         this.modelConfigService = modelConfigService;
+        this.contentSecurityService = contentSecurityService;
     }
 
     public Map<String, String> translateText(TranslateTextRequest request) {
+        MiniAppLoginUser loginUser = MiniAppSecurityUtils.getLoginUser();
+        contentSecurityService.checkSocialText(loginUser, request.getText());
+
         AiModelConfig modelConfig = resolveModelConfig();
         if (modelConfig == null) {
             throw new ServiceException("未配置可用的翻译模型");

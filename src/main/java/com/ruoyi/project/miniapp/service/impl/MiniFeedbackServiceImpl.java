@@ -13,12 +13,25 @@ import com.ruoyi.project.miniapp.domain.vo.MiniAppLoginUser;
 import com.ruoyi.project.miniapp.mapper.MiniFeedbackMapper;
 import com.ruoyi.project.miniapp.service.IMiniFeedbackService;
 
+import cn.hutool.core.util.StrUtil;
+
 @Service
 public class MiniFeedbackServiceImpl extends ServiceImpl<MiniFeedbackMapper, MiniFeedback>
         implements IMiniFeedbackService {
 
+    private final MiniAppContentSecurityService contentSecurityService;
+
+    public MiniFeedbackServiceImpl(MiniAppContentSecurityService contentSecurityService) {
+        this.contentSecurityService = contentSecurityService;
+    }
+
     @Override
     public MiniFeedback submit(MiniFeedbackSubmitRequest request, MiniAppLoginUser loginUser) {
+        contentSecurityService.checkCommentText(loginUser, request.getContent());
+        if (StrUtil.isNotBlank(request.getContact())) {
+            contentSecurityService.checkCommentText(loginUser, request.getContact().trim());
+        }
+
         MiniFeedback feedback = new MiniFeedback();
         feedback.setMiniUserId(loginUser.getMiniUserId());
         feedback.setMiniAppId(loginUser.getMiniAppId());

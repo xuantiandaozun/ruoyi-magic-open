@@ -125,7 +125,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                                                 "/miniapp/auth/login",
                                                 "/miniapp/common/client-region",
                                                 "/miniapp/common/subscribe-templates",
-                                                "/miniapp/seo/**")
+                                                "/miniapp/seo/**",
+                                                "/miniapp/wx/callback/**")
                                 .order(2); // 优先级2，在签名拦截器之后执行
         }
 }

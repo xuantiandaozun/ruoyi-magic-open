@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.project.miniapp.domain.vo.MiniAppLoginUser;
+import com.ruoyi.project.miniapp.util.MiniAppSecurityUtils;
 
 import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -19,9 +21,12 @@ public class MiniAppVoiceRecognizeService {
     private static final long MAX_AUDIO_SIZE = 2 * 1024 * 1024;
 
     private final AliyunNlsService aliyunNlsService;
+    private final MiniAppContentSecurityService contentSecurityService;
 
-    public MiniAppVoiceRecognizeService(AliyunNlsService aliyunNlsService) {
+    public MiniAppVoiceRecognizeService(AliyunNlsService aliyunNlsService,
+            MiniAppContentSecurityService contentSecurityService) {
         this.aliyunNlsService = aliyunNlsService;
+        this.contentSecurityService = contentSecurityService;
     }
 
     public Map<String, String> recognizeVoice(MultipartFile file, String format, Integer sampleRate) {
@@ -34,8 +39,16 @@ public class MiniAppVoiceRecognizeService {
 
         String normalizedFormat = resolveFormat(file, format);
         byte[] audioBytes = readAudioBytes(file);
+        MiniAppLoginUser loginUser = MiniAppSecurityUtils.getLoginUser();
+        contentSecurityService.checkSocialAudio(
+                loginUser,
+                audioBytes,
+                resolveAudioMimeType(normalizedFormat),
+                file.getOriginalFilename());
+
         long startMs = System.currentTimeMillis();
         String recognizedText = aliyunNlsService.recognizeSpeech(audioBytes, normalizedFormat, sampleRate);
+        contentSecurityService.checkSocialText(loginUser, recognizedText);
 
         Map<String, String> result = new HashMap<>();
         result.put("recognizedText", recognizedText);
@@ -71,5 +84,13 @@ public class MiniAppVoiceRecognizeService {
             return "wav";
         }
         return "mp3";
+    }
+
+    private String resolveAudioMimeType(String format) {
+        return switch (StrUtil.blankToDefault(format, "mp3").toLowerCase(Locale.ROOT)) {
+            case "aac" -> "audio/aac";
+            case "wav" -> "audio/wav";
+            default -> "audio/mpeg";
+        };
     }
 }
