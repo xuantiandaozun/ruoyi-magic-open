@@ -107,7 +107,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                                                 // 插件用户认证接口（Google OAuth 登录，无需已登录）
                                                 "/plugin/auth/google/login",
                                                 "/plugin/auth/logout",
-                                                "/miniapp/**")
+                                                "/miniapp/**",
+                                                "/wechat/mp/callback")
                                 .order(2); // 优先级2，在签名拦截器之后执行
 
                 registry.addInterceptor(miniAppCrawlerInterceptor)
