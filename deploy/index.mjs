@@ -8,7 +8,7 @@ const config = {
   username: 'root',
   password: '@ThMWux7KTZBden',
   remoteDir: '/root',
-  remoteCli: '/root/ruoyi-proxy-linux'
+  remoteCli: '/root/ruoyi-proxy-linux-hub'
 }
 
 async function main() {
@@ -38,9 +38,9 @@ async function main() {
 
     console.log(`正在上传 JAR 到 ${remoteJar} ...`)
     await ssh.putFile(localJar, remoteJar)
-
     console.log('正在执行远端 deploy ...')
-    const command = `chmod +x ${config.remoteCli} && cd ${config.remoteDir} && printf 'deploy\\nexit\\n' | ${config.remoteCli} cli`
+    // 新版 spoke CLI 默认进入 Agent 模式，运维命令须用 /deploy、/exit，否则会走 AI 推理（经 Hub 极慢）
+    const command = `chmod +x ${config.remoteCli} && cd ${config.remoteDir} && printf '/deploy\\n/exit\\n' | ${config.remoteCli} cli`
     const result = await ssh.execCommand(command, { cwd: config.remoteDir })
 
     if (result.stdout) {

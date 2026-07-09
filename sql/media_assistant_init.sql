@@ -1,0 +1,72 @@
+-- 自媒体助手：Reddit/外部内容采集、AI分析、多平台草稿
+
+CREATE TABLE IF NOT EXISTS media_source (
+  source_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '素材ID',
+  source_platform VARCHAR(32) NOT NULL COMMENT '来源平台 reddit/x/github/news',
+  source_url VARCHAR(1024) NOT NULL COMMENT '来源URL',
+  source_external_id VARCHAR(128) DEFAULT NULL COMMENT '平台侧ID，如reddit post id',
+  title VARCHAR(512) DEFAULT NULL COMMENT '原始标题',
+  author VARCHAR(128) DEFAULT NULL COMMENT '作者',
+  community VARCHAR(128) DEFAULT NULL COMMENT '社区，如subreddit',
+  raw_content MEDIUMTEXT COMMENT '原始正文',
+  raw_comments MEDIUMTEXT COMMENT '补充评论JSON',
+  raw_payload JSON COMMENT '完整采集JSON',
+  content_hash CHAR(64) NOT NULL COMMENT '内容哈希，用于去重',
+  collect_status VARCHAR(32) NOT NULL DEFAULT 'pending' COMMENT 'pending/analyzing/done/ignored/failed',
+  fail_reason VARCHAR(1000) DEFAULT NULL COMMENT '失败原因',
+  collected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '采集时间',
+  create_by VARCHAR(64) DEFAULT '' COMMENT '创建者',
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_by VARCHAR(64) DEFAULT '' COMMENT '更新者',
+  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  remark VARCHAR(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (source_id),
+  UNIQUE KEY uk_media_source_url (source_url(512)),
+  UNIQUE KEY uk_media_content_hash (content_hash),
+  KEY idx_media_platform_status (source_platform, collect_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='自媒体助手-原始素材表';
+
+CREATE TABLE IF NOT EXISTS media_ai_analysis (
+  analysis_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '分析ID',
+  source_id BIGINT NOT NULL COMMENT '素材ID',
+  programmer_relevance_score DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '程序员博主相关度 0-100',
+  value_score DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '内容价值分 0-100',
+  originality_risk VARCHAR(32) DEFAULT 'medium' COMMENT '改写原创风险 low/medium/high',
+  recommendation VARCHAR(32) NOT NULL COMMENT 'accept/rewrite/ignore',
+  suitable_platforms JSON COMMENT '适合平台列表',
+  topic_angle VARCHAR(512) DEFAULT NULL COMMENT '推荐切入角度',
+  reason TEXT COMMENT '判断原因',
+  ai_model VARCHAR(128) DEFAULT NULL COMMENT 'AI模型',
+  ai_raw_response MEDIUMTEXT COMMENT 'AI原始响应',
+  create_by VARCHAR(64) DEFAULT '' COMMENT '创建者',
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_by VARCHAR(64) DEFAULT '' COMMENT '更新者',
+  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  remark VARCHAR(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (analysis_id),
+  KEY idx_media_analysis_source (source_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='自媒体助手-AI分析表';
+
+CREATE TABLE IF NOT EXISTS media_content_draft (
+  draft_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '草稿ID',
+  source_id BIGINT NOT NULL COMMENT '素材ID',
+  analysis_id BIGINT DEFAULT NULL COMMENT '分析ID',
+  target_platform VARCHAR(32) NOT NULL COMMENT 'blog/wechat/toutiao/wetoutiao/x/wechat_image',
+  content_type VARCHAR(32) NOT NULL COMMENT 'long_article/short_post/thread/image_caption',
+  title VARCHAR(512) DEFAULT NULL COMMENT '草稿标题',
+  summary VARCHAR(1000) DEFAULT NULL COMMENT '摘要',
+  content MEDIUMTEXT NOT NULL COMMENT '草稿内容',
+  tags VARCHAR(512) DEFAULT NULL COMMENT '标签',
+  cover_prompt TEXT COMMENT '封面/配图提示词',
+  status VARCHAR(32) NOT NULL DEFAULT 'draft' COMMENT 'draft/approved/published/rejected',
+  related_blog_id BIGINT DEFAULT NULL COMMENT '如果生成博客草稿，关联blog_id',
+  publish_result JSON COMMENT '发布结果',
+  create_by VARCHAR(64) DEFAULT '' COMMENT '创建者',
+  create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  update_by VARCHAR(64) DEFAULT '' COMMENT '更新者',
+  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  remark VARCHAR(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (draft_id),
+  KEY idx_media_draft_source (source_id),
+  KEY idx_media_draft_platform_status (target_platform, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='自媒体助手-多平台内容草稿表';

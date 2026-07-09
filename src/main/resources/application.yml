@@ -239,17 +239,29 @@ api:
       - /github/trending/ingest
       - /github/trending/push/feishu
       - /api/blog/ai/publish
+      - /api/media-assistant/**
     # 需要校验请求体摘要的接口
     body-hash-paths:
       - /api/blog/ai/publish
+      - /api/media-assistant/sources/reddit
+      - /api/media-assistant/sources/*/analyze
+      - /api/media-assistant/drafts/*/to-blog
     # 客户端密钥配置（clientId: secret）
     secrets:
       # 云函数客户端（示例）
       cloud-function: ZmZiY2ViZTAtYWQ3MC00ZWI2LTg0YjUtMzhmOGFjZDFkZGQxMzNlZWFiOTktNTg3Ny00OGJlLTkzYjAtMGY4ZjFhMDMxZWZl
       # AI 博客发布 skill 专用客户端
       ai-blog-skill: ${AI_BLOG_SKILL_SECRET:}
+      # Chrome Reddit 自媒体助手插件
+      media-assistant-extension: ${MEDIA_ASSISTANT_EXTENSION_SECRET:}
       # 其他客户端（可添加多个）
       # client-id-2: secret-key-2
+
+# 自媒体助手配置
+media-assistant:
+  ai:
+    # 设置为 ai_model_config.id 后启用真实 AI 分析；留空/0 时使用本地启发式分析兜底
+    model-config-id: ${MEDIA_ASSISTANT_AI_MODEL_CONFIG_ID:0}
       
 # MyBatis-Flex配置
 mybatis-flex:
