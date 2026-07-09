@@ -168,9 +168,9 @@ public class BlogEnSaveLangChain4jTool implements LangChain4jTool {
             boolean success = blogEnService.save(blogEn);
             
             if (success) {
-                return ToolExecutionResult.saveSuccess(blogEn, 
-                    String.format("English blog article saved successfully! Article ID: %s, Title: %s", 
-                        blogEn.getBlogId(), blogEn.getTitle()));
+                return ToolExecutionResult.saveSuccess(blogEn,
+                    String.format("English blog article saved successfully. Blog ID: %s, zhBlogId: %s, Title: %s",
+                        blogEn.getBlogId(), blogEn.getZhBlogId(), blogEn.getTitle()));
         } else {
             return ToolExecutionResult.failure("save", "Failed to save English blog article, please check database connection or parameters");
         }

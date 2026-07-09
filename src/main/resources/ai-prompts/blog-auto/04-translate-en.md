@@ -34,3 +34,6 @@ blog_en_save 工具参数：
   "repoName": "仓库名"
 }
 ```
+
+保存成功后，输出 blog_en_save 的结果摘要，**必须原样包含 Blog ID 与 zhBlogId**，例如：
+`English blog saved successfully. Blog ID: 456, zhBlogId: 123`

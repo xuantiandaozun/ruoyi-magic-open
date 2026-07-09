@@ -1,6 +1,6 @@
 id: blog-auto-v3
 name: 智能博客自动化 V3
-version: 3.0.0
+version: 3.1.0
 modelConfigId: 22
 legacyWorkflowIds:
   - 3
@@ -54,10 +54,7 @@ steps:
 
   - id: cover
     name: 封面图片生成
-    prompt: blog-auto/05-cover.md
-    tools:
-      - ali_image_generation
-      - blog_cover_update
+    handler: blog_cover
     input:
       - chinese_article
       - english_article

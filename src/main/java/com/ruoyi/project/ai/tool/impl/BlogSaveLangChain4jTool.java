@@ -101,7 +101,8 @@ public class BlogSaveLangChain4jTool implements LangChain4jTool {
                     .build()
                     .toJsonString();
         }
-        return ToolExecutionResult.saveSuccess(resultData, "博客文章保存成功");
+        return ToolExecutionResult.saveSuccess(resultData,
+                "博客文章保存成功。Blog ID: " + resultData.get("blogId"));
     }
     
     @Override

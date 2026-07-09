@@ -139,6 +139,7 @@ public class FileWorkflowDefinitionLoader {
             stepInfo.put("stepName", step.getName());
             stepInfo.put("stepOrder", order++);
             stepInfo.put("prompt", step.getPrompt());
+            stepInfo.put("handler", step.getHandler());
             stepInfo.put("tools", step.getTools());
             stepInfo.put("input", step.getInput());
             stepInfo.put("output", step.getOutput());
@@ -214,6 +215,7 @@ public class FileWorkflowDefinitionLoader {
         step.setId(asString(source.get("id")));
         step.setName(asString(source.get("name")));
         step.setPrompt(asString(source.get("prompt")));
+        step.setHandler(asString(source.get("handler")));
         step.setModelConfigId(asLong(source.get("modelConfigId")));
         step.setTools(asStringList(source.get("tools")));
         step.setInput(asStringList(source.get("input")));

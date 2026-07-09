@@ -17,6 +17,11 @@ public class FileWorkflowStepDefinition {
 
     private String prompt;
 
+    /**
+     * 确定性步骤处理器名称。非空时跳过 LLM，直接执行对应 handler（如 blog_cover）。
+     */
+    private String handler;
+
     private Long modelConfigId;
 
     private List<String> tools = new ArrayList<>();

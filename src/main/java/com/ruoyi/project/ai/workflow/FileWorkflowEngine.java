@@ -15,6 +15,7 @@ import com.ruoyi.project.ai.util.PromptVariableProcessor;
 import com.ruoyi.project.ai.util.ToolResultProcessor;
 import com.ruoyi.project.ai.workflow.definition.FileWorkflowDefinition;
 import com.ruoyi.project.ai.workflow.definition.FileWorkflowStepDefinition;
+import com.ruoyi.project.ai.workflow.handler.BlogCoverWorkflowHandler;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
@@ -29,10 +30,13 @@ public class FileWorkflowEngine {
 
     private final FileWorkflowDefinitionLoader definitionLoader;
     private final AiGateway aiGateway;
+    private final BlogCoverWorkflowHandler blogCoverWorkflowHandler;
 
-    public FileWorkflowEngine(FileWorkflowDefinitionLoader definitionLoader, AiGateway aiGateway) {
+    public FileWorkflowEngine(FileWorkflowDefinitionLoader definitionLoader, AiGateway aiGateway,
+            BlogCoverWorkflowHandler blogCoverWorkflowHandler) {
         this.definitionLoader = definitionLoader;
         this.aiGateway = aiGateway;
+        this.blogCoverWorkflowHandler = blogCoverWorkflowHandler;
     }
 
     public boolean supports(String workflowKey) {
@@ -105,17 +109,9 @@ public class FileWorkflowEngine {
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                String promptTemplate = definitionLoader.loadPrompt(step.getPrompt());
-                String userPrompt = PromptVariableProcessor.processVariables(promptTemplate, context);
-                String systemPrompt = buildSystemPrompt(definition, step);
-                Long modelConfigId = step.getModelConfigId() != null ? step.getModelConfigId() : definition.getModelConfigId();
-                if (modelConfigId == null) {
-                    throw new ServiceException("步骤未配置模型: " + step.getId());
-                }
-
-                log.info("执行文件化工作流步骤: workflow={}, step={}, attempt={}/{}",
-                        definition.getId(), step.getId(), attempt, maxAttempts);
-                String result = aiGateway.chat(modelConfigId, systemPrompt, userPrompt, step.getTools());
+                log.info("执行文件化工作流步骤: workflow={}, step={}, handler={}, attempt={}/{}",
+                        definition.getId(), step.getId(), step.getHandler(), attempt, maxAttempts);
+                String result = executeStepBody(definition, step, context);
                 handleStepResult(step, context, output, result, System.currentTimeMillis() - start, attempt);
                 return;
             } catch (Exception e) {
@@ -136,6 +132,30 @@ public class FileWorkflowEngine {
         }
         throw new ServiceException("文件化工作流步骤失败: " + step.getName() + ", "
                 + (lastError != null ? lastError.getMessage() : "未知错误"));
+    }
+
+    private String executeStepBody(FileWorkflowDefinition definition, FileWorkflowStepDefinition step,
+            Map<String, Object> context) {
+        if (StrUtil.isNotBlank(step.getHandler())) {
+            return executeDeterministicHandler(step, context);
+        }
+
+        String promptTemplate = definitionLoader.loadPrompt(step.getPrompt());
+        String userPrompt = PromptVariableProcessor.processVariables(promptTemplate, context);
+        String systemPrompt = buildSystemPrompt(definition, step);
+        Long modelConfigId = step.getModelConfigId() != null ? step.getModelConfigId() : definition.getModelConfigId();
+        if (modelConfigId == null) {
+            throw new ServiceException("步骤未配置模型: " + step.getId());
+        }
+        return aiGateway.chat(modelConfigId, systemPrompt, userPrompt, step.getTools());
+    }
+
+    private String executeDeterministicHandler(FileWorkflowStepDefinition step, Map<String, Object> context) {
+        String handler = StrUtil.trim(step.getHandler());
+        if ("blog_cover".equalsIgnoreCase(handler)) {
+            return blogCoverWorkflowHandler.execute(context);
+        }
+        throw new ServiceException("未知的确定性步骤处理器: " + handler);
     }
 
     private void handleStepResult(FileWorkflowStepDefinition step, Map<String, Object> context,
@@ -169,6 +189,9 @@ public class FileWorkflowEngine {
         stepOutput.put("durationMs", durationMs);
         stepOutput.put("attempt", attempt);
         stepOutput.put("result", result);
+        if (StrUtil.isNotBlank(step.getHandler())) {
+            stepOutput.put("handler", step.getHandler());
+        }
         output.put(step.getId(), stepOutput);
 
         if (StrUtil.isNotBlank(step.getOutput())) {
