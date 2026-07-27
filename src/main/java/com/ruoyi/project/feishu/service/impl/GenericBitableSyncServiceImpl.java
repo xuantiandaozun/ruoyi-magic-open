@@ -1,5 +1,6 @@
 package com.ruoyi.project.feishu.service.impl;
 
+import cn.hutool.core.util.StrUtil;
 import com.ruoyi.project.feishu.config.BitableConfig;
 import com.ruoyi.project.feishu.core.BitableEntityConverter;
 import com.ruoyi.project.feishu.domain.dto.FeishuBitablePageResponseDto;
@@ -12,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * 通用飞书多维表格同步服务实现
@@ -23,6 +23,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class GenericBitableSyncServiceImpl implements IGenericBitableSyncService {
+
+    private static final int MAX_PAGES_PER_SYNC = 10_000;
     
     @Autowired
     private ICompanyFeishuService companyFeishuService;
@@ -213,12 +215,18 @@ public class GenericBitableSyncServiceImpl implements IGenericBitableSyncService
                 FeishuBitablePageResponseDto pageResponse = (FeishuBitablePageResponseDto) response;
                 if (pageResponse.getItems() != null && !pageResponse.getItems().isEmpty()) {
                     FeishuBitableRecordDto record = pageResponse.getItems().get(0);
-                    return BitableEntityConverter.convertToEntity(record.getFields(), entityClass, config);
+                    T entity = BitableEntityConverter.convertToEntity(record.getFields(), entityClass, config);
+                    if (entity == null) {
+                        throw new IllegalStateException("飞书记录存在但字段转换失败，recordId=" + record.getRecordId());
+                    }
+                    setFeishuRecordId(entity, record.getRecordId());
+                    return entity;
                 }
             }
             
         } catch (Exception e) {
             log.error("根据主键查询飞书记录失败", e);
+            throw new RuntimeException("根据主键查询飞书记录失败: " + e.getMessage(), e);
         }
         
         return null;
@@ -320,16 +328,23 @@ public class GenericBitableSyncServiceImpl implements IGenericBitableSyncService
         List<FeishuBitableRecordDto> allRecords = new ArrayList<>();
         boolean hasMore = true;
         String pageToken = null;
+        int pageCount = 0;
+        Set<String> seenPageTokens = new HashSet<>();
         
         while (hasMore) {
             try {
+                if (++pageCount > MAX_PAGES_PER_SYNC) {
+                    throw new IllegalStateException("飞书分页超过安全上限 " + MAX_PAGES_PER_SYNC);
+                }
+
                 Object response = companyFeishuService.searchAppTableRecord(
                     config.getAppToken(),
                     config.getTableId(),
                     config.getViewId(),
                     config.getPageSize(),
                     null,
-                    config.getKeyName() != null ? config.getKeyName() : "我的飞书"
+                    config.getKeyName() != null ? config.getKeyName() : "我的飞书",
+                    pageToken
                 );
                 
                 if (response instanceof FeishuBitablePageResponseDto) {
@@ -339,8 +354,13 @@ public class GenericBitableSyncServiceImpl implements IGenericBitableSyncService
                         allRecords.addAll(pageResponse.getItems());
                     }
                     
-                    hasMore = pageResponse.getHasMore() != null && pageResponse.getHasMore();
-                    pageToken = pageResponse.getPageToken();
+                    hasMore = Boolean.TRUE.equals(pageResponse.getHasMore());
+                    String nextPageToken = pageResponse.getPageToken();
+
+                    if (hasMore && (StrUtil.isBlank(nextPageToken) || !seenPageTokens.add(nextPageToken))) {
+                        throw new IllegalStateException("飞书返回了空或重复的 pageToken，已停止分页以避免内存溢出");
+                    }
+                    pageToken = nextPageToken;
                     
                     // 控制频率
                     if (hasMore) {

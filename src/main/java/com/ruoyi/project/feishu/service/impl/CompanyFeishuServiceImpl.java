@@ -6,6 +6,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -49,6 +52,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
+
+    private static final ConcurrentMap<String, CachedClient> CLIENT_CACHE = new ConcurrentHashMap<>();
     
     @Autowired
     private IFeishuUsersService feishuUsersService;
@@ -71,16 +76,35 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
      * @return 飞书客户端实例
      */    
     private Client getFeishuClient(String keyName) {
-        // 获取飞书配置
         FeishuConfig feishuConfig = FeishuConfigUtils.getFeishuConfig(keyName);
-        log.info("使用密钥名称: {} 获取飞书配置", keyName);
-        
+
         if (feishuConfig == null || !feishuConfig.isValid()) {
             throw new RuntimeException("飞书配置无效，请检查密钥配置");
         }
-        
-        // 构建并返回飞书客户端
-        return Client.newBuilder(feishuConfig.getAppId(), feishuConfig.getAppSecret()).build();
+
+        String cacheKey = StrUtil.blankToDefault(keyName, "公司飞书机器人");
+        int credentialFingerprint = Objects.hash(feishuConfig.getAppId(), feishuConfig.getAppSecret());
+        CachedClient cachedClient = CLIENT_CACHE.compute(cacheKey, (ignored, existing) -> {
+            if (existing != null && existing.credentialFingerprint == credentialFingerprint) {
+                return existing;
+            }
+            log.info("创建并缓存飞书客户端，密钥名称: {}, 应用ID: {}", cacheKey, feishuConfig.getAppId());
+            return new CachedClient(
+                credentialFingerprint,
+                Client.newBuilder(feishuConfig.getAppId(), feishuConfig.getAppSecret()).build()
+            );
+        });
+        return cachedClient.client;
+    }
+
+    private static final class CachedClient {
+        private final int credentialFingerprint;
+        private final Client client;
+
+        private CachedClient(int credentialFingerprint, Client client) {
+            this.credentialFingerprint = credentialFingerprint;
+            this.client = client;
+        }
     }
     
     @Override
@@ -333,6 +357,12 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
      * @return 搜索结果
      */
     public Object searchAppTableRecord(String appToken, String tableId, String viewId, Integer pageSize, String domain, String keyName) {
+        return searchAppTableRecord(appToken, tableId, viewId, pageSize, domain, keyName, null);
+    }
+
+    @Override
+    public Object searchAppTableRecord(String appToken, String tableId, String viewId, Integer pageSize,
+                                       String domain, String keyName, String pageToken) {
         try {
             // 获取飞书客户端
             Client client = getFeishuClient(keyName);
@@ -342,6 +372,10 @@ public class CompanyFeishuServiceImpl implements ICompanyFeishuService {
                     .appToken(appToken)
                     .tableId(tableId)
                     .pageSize(pageSize != null ? pageSize : 20);
+
+            if (StrUtil.isNotBlank(pageToken)) {
+                reqBuilder.pageToken(pageToken);
+            }
             
             // 构建请求体
             SearchAppTableRecordReqBody.Builder bodyBuilder = SearchAppTableRecordReqBody.newBuilder()

@@ -2,11 +2,12 @@ package com.ruoyi.project.feishu.service.impl;
 
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.ruoyi.project.feishu.annotation.FieldType;
 import com.ruoyi.project.feishu.config.BitableConfig;
 import com.ruoyi.project.feishu.config.BitableFieldMapping;
 import com.ruoyi.project.feishu.service.IGenericBitableSyncService;
@@ -38,6 +39,9 @@ public class FeishuBitableSyncServiceImpl implements IFeishuBitableSyncService {
     private static final String TABLE_ID = "tblrCnUgBgzSMpNq";
     private static final String VIEW_ID = "vewEYjlKYX";
     private static final Integer DEFAULT_PAGE_SIZE = 50;
+    private static final int MAX_FEISHU_PAGE_SIZE = 500;
+    private static final long SAFE_WRITE_INTERVAL_MS = 500L;
+    private final AtomicBoolean localToFeishuRunning = new AtomicBoolean(false);
 
     /**
      * 获取域名证书监控配置
@@ -70,7 +74,7 @@ public class FeishuBitableSyncServiceImpl implements IFeishuBitableSyncService {
 
             BitableConfig config = getDomainCertConfig(appToken, tableId, viewId);
             if (pageSize != null) {
-                config.setPageSize(pageSize);
+                config.setPageSize(Math.max(1, Math.min(pageSize, MAX_FEISHU_PAGE_SIZE)));
             }
 
             // 使用通用化服务从飞书同步到本地
@@ -107,23 +111,30 @@ public class FeishuBitableSyncServiceImpl implements IFeishuBitableSyncService {
 
     @Override
     public String syncLocalDataToBitable(String appToken, String tableId) {
+        if (!localToFeishuRunning.compareAndSet(false, true)) {
+            throw new IllegalStateException("本地到飞书同步任务正在执行，请勿重复触发");
+        }
+
         try {
-            log.info("开始同步本地数据库数据到飞书多维表格（使用通用化框架）");
+            log.info("开始逐条同步本地数据库数据到飞书多维表格");
             long startTime = System.currentTimeMillis();
 
             BitableConfig config = getDomainCertConfig(appToken, tableId, VIEW_ID);
 
-            // 获取本地所有记录
-            List<DomainCertMonitor> localRecords = domainCertMonitorService.selectList(null);
-            log.info("获取到本地数据库记录 {} 条", localRecords.size());
+            IGenericBitableSyncService.SyncResult<DomainCertMonitor> result = new IGenericBitableSyncService.SyncResult<>();
+            Long lastProcessedId = null;
 
-            // 使用通用化服务同步到飞书
-            IGenericBitableSyncService.SyncResult<DomainCertMonitor> result = 
-                genericBitableSyncService.syncToFeishu(
-                    config,
-                    localRecords,
-                    this::extractRecordId
-                );
+            while (true) {
+                List<DomainCertMonitor> records = loadNextLocalRecord(lastProcessedId);
+                if (records.isEmpty()) {
+                    break;
+                }
+
+                DomainCertMonitor localRecord = records.get(0);
+                lastProcessedId = localRecord.getId();
+                syncSingleLocalRecord(config, localRecord, result);
+                sleepSafely(SAFE_WRITE_INTERVAL_MS);
+            }
 
             long endTime = System.currentTimeMillis();
             return String.format(
@@ -143,67 +154,26 @@ public class FeishuBitableSyncServiceImpl implements IFeishuBitableSyncService {
         } catch (Exception e) {
             log.error("同步本地数据到飞书多维表格异常", e);
             throw new RuntimeException("同步失败: " + e.getMessage());
+        } finally {
+            localToFeishuRunning.set(false);
         }
     }
 
     @Override
     public String syncBidirectional(String appToken, String tableId, String viewId, Integer pageSize) {
         try {
-            log.info("开始双向同步数据（使用通用化框架）");
+            log.info("开始依次执行两个方向的同步");
             long startTime = System.currentTimeMillis();
 
-            BitableConfig config = getDomainCertConfig(appToken, tableId, viewId);
-            if (pageSize != null) {
-                config.setPageSize(pageSize);
-            }
-
-            // 1. 先执行飞书到本地的同步
-            log.info("第一步：飞书到本地同步");
-            IGenericBitableSyncService.SyncResult<DomainCertMonitor> fromFeishuResult = 
-                genericBitableSyncService.syncFromFeishu(
-                    config,
-                    DomainCertMonitor.class,
-                    this::saveDomainCertMonitor,
-                    this::checkDomainCertExists
-                );
-            log.info("飞书到本地同步完成: {}", fromFeishuResult);
-
-            // 2. 再执行本地到飞书的同步
-            log.info("第二步：本地到飞书同步");
-            List<DomainCertMonitor> localRecords = domainCertMonitorService.selectList(null);
-            IGenericBitableSyncService.SyncResult<DomainCertMonitor> toFeishuResult = 
-                genericBitableSyncService.syncToFeishu(
-                    config,
-                    localRecords,
-                    this::extractRecordId
-                );
-            log.info("本地到飞书同步完成: {}", toFeishuResult);
-
-            // 3. 合并统计结果
-            int totalAdded = fromFeishuResult.getAdded() + toFeishuResult.getAdded();
-            int totalUpdated = fromFeishuResult.getUpdated() + toFeishuResult.getUpdated();
-            int totalSkipped = fromFeishuResult.getSkipped() + toFeishuResult.getSkipped();
-            int totalFailed = fromFeishuResult.getFailed() + toFeishuResult.getFailed();
+            String fromFeishuResult = syncBitableDataToLocal(appToken, tableId, viewId, pageSize);
+            String toFeishuResult = syncLocalDataToBitable(appToken, tableId);
 
             long endTime = System.currentTimeMillis();
             return String.format(
-                "双向数据同步完成（通用化框架）！\n" +
-                "总耗时: %d ms\n\n" +
-                "=== 飞书到本地 ===\n" +
-                "新增: %d, 更新: %d, 跳过: %d, 失败: %d\n\n" +
-                "=== 本地到飞书 ===\n" +
-                "新增: %d, 更新: %d, 跳过: %d, 失败: %d\n\n" +
-                "=== 总计 ===\n" +
-                "新增: %d 条\n" +
-                "更新: %d 条\n" +
-                "跳过: %d 条\n" +
-                "失败: %d 条",
+                "两个方向同步执行完成！\n总耗时: %d ms\n\n=== 飞书到本地 ===\n%s\n\n=== 本地到飞书 ===\n%s",
                 (endTime - startTime),
-                fromFeishuResult.getAdded(), fromFeishuResult.getUpdated(), 
-                fromFeishuResult.getSkipped(), fromFeishuResult.getFailed(),
-                toFeishuResult.getAdded(), toFeishuResult.getUpdated(),
-                toFeishuResult.getSkipped(), toFeishuResult.getFailed(),
-                totalAdded, totalUpdated, totalSkipped, totalFailed
+                fromFeishuResult,
+                toFeishuResult
             );
 
         } catch (Exception e) {
@@ -254,23 +224,82 @@ public class FeishuBitableSyncServiceImpl implements IFeishuBitableSyncService {
             String domain = monitor.getDomain();
             Integer port = monitor.getPort() != null ? monitor.getPort() : 443;
             
-            // 从本地数据库查询
-            List<DomainCertMonitor> existing = domainCertMonitorService.selectList(null);
-            return existing.stream()
-                .filter(m -> domain.equals(m.getDomain()) && port.equals(m.getPort()))
-                .findFirst()
-                .orElse(null);
+            return domainCertMonitorService.selectByDomainAndPort(domain, port);
         } catch (Exception e) {
             log.error("检查域名监控记录存在性失败: {}", monitor.getDomain(), e);
             return null;
         }
     }
 
-    /**
-     * 从实体提取recordId
-     */
-    private String extractRecordId(DomainCertMonitor monitor) {
-        // 从 transient 字段获取飞书 recordId
-        return monitor.getFeishuRecordId();
+    private List<DomainCertMonitor> loadNextLocalRecord(Long lastProcessedId) {
+        QueryWrapper queryWrapper = QueryWrapper.create()
+            .eq("del_flag", "0")
+            .orderBy("id", true)
+            .limit(1);
+        if (lastProcessedId != null) {
+            queryWrapper.gt("id", lastProcessedId);
+        }
+        return domainCertMonitorService.list(queryWrapper);
+    }
+
+    private void syncSingleLocalRecord(
+            BitableConfig config,
+            DomainCertMonitor localRecord,
+            IGenericBitableSyncService.SyncResult<DomainCertMonitor> result) {
+        String domain = localRecord.getDomain();
+        if (StrUtil.isBlank(domain)) {
+            result.incrementFailed();
+            result.addFailedEntity(localRecord);
+            result.addDetail("同步失败: 本地记录 ID=" + localRecord.getId() + " 的域名为空");
+            return;
+        }
+
+        try {
+            DomainCertMonitor feishuRecord = genericBitableSyncService.queryByPrimaryKey(
+                config, domain, DomainCertMonitor.class);
+            if (feishuRecord == null) {
+                String recordId = genericBitableSyncService.createRecord(config, localRecord);
+                if (recordId != null) {
+                    result.incrementAdded();
+                    result.addSuccessEntity(localRecord);
+                    result.addDetail("新增: " + domain);
+                } else {
+                    result.incrementFailed();
+                    result.addFailedEntity(localRecord);
+                    result.addDetail("新增失败: " + domain);
+                }
+                return;
+            }
+
+            String recordId = feishuRecord.getFeishuRecordId();
+            if (StrUtil.isBlank(recordId)) {
+                throw new IllegalStateException("飞书记录缺少 recordId");
+            }
+
+            if (genericBitableSyncService.updateRecord(config, recordId, localRecord)) {
+                result.incrementUpdated();
+                result.addSuccessEntity(localRecord);
+                result.addDetail("更新: " + domain);
+            } else {
+                result.incrementFailed();
+                result.addFailedEntity(localRecord);
+                result.addDetail("更新失败: " + domain);
+            }
+        } catch (Exception e) {
+            log.error("逐条同步本地记录到飞书失败: id={}, domain={}",
+                localRecord.getId(), domain, e);
+            result.incrementFailed();
+            result.addFailedEntity(localRecord);
+            result.addDetail("同步失败: " + domain + " - " + e.getMessage());
+        }
+    }
+
+    private void sleepSafely(long intervalMs) {
+        try {
+            Thread.sleep(intervalMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("同步任务被中断", e);
+        }
     }
 }

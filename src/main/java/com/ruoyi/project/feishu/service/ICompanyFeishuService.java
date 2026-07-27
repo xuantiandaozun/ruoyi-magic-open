@@ -82,6 +82,14 @@ public interface ICompanyFeishuService {
      * @return 多维表格记录数据
      */
     Object searchAppTableRecord(String appToken, String tableId, String viewId, Integer pageSize, String domain, String keyName);
+
+    /**
+     * 分页查询多维表格数据（使用指定密钥名称）
+     *
+     * @param pageToken 上一页返回的分页标记，首页传 null
+     */
+    Object searchAppTableRecord(String appToken, String tableId, String viewId, Integer pageSize,
+                                String domain, String keyName, String pageToken);
     
     /**
      * 新增多维表格记录

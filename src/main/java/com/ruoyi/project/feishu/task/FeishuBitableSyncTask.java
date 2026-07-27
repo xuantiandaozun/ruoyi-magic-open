@@ -9,10 +9,8 @@ import org.springframework.stereotype.Component;
 import com.ruoyi.project.feishu.service.IFeishuBitableSyncService;
 
 /**
- * 飞书多维表格数据同步定时任务
- * 功能：
- * 1. 定期同步飞书多维表格数据到本地数据库
- * 2. 保持数据一致性
+ * 飞书多维表格数据同步定时任务。
+ * 两个同步方向错峰执行，避免同一任务同时持有两边的数据和连续写飞书。
  * 
  * @author ruoyi
  * @date 2026-02-05
@@ -31,30 +29,38 @@ public class FeishuBitableSyncTask {
     private static final String VIEW_ID = "vewEYjlKYX";
     private static final Integer DEFAULT_PAGE_SIZE = 50;
     
-    /**
-     * 执行数据同步任务（每2小时执行一次）
-     * cron表达式：0 0 0/2 * * ?
-     * 秒 分 时 日 月 周
-     */
+    /** 每两个小时整点执行飞书到本地同步。 */
     @Scheduled(cron = "0 0 0/2 * * ?")
-    public void execute() {
-        log.info("========== 开始执行飞书多维表格数据同步定时任务 ==========");
+    public void syncFromFeishu() {
+        log.info("========== 开始执行飞书到本地同步任务 ==========");
         long startTime = System.currentTimeMillis();
-        
+
         try {
-            // 执行双向同步
-            log.info("【步骤1】开始执行双向数据同步...");
-            String syncResult = feishuBitableSyncService.syncBidirectional(
+            String syncResult = feishuBitableSyncService.syncBitableDataToLocal(
                 APP_TOKEN, TABLE_ID, VIEW_ID, DEFAULT_PAGE_SIZE);
-            
-            log.info("【步骤1完成】数据同步结果:\n{}", syncResult);
-            
+            log.info("飞书到本地同步结果:\n{}", syncResult);
         } catch (Exception e) {
-            log.error("飞书多维表格数据同步定时任务执行异常", e);
+            log.error("飞书到本地同步任务执行异常", e);
         }
-        
-        long endTime = System.currentTimeMillis();
-        log.info("========== 飞书多维表格数据同步定时任务执行完成，耗时: {} ms ==========", (endTime - startTime));
+
+        log.info("========== 飞书到本地同步任务完成，耗时: {} ms ==========",
+            System.currentTimeMillis() - startTime);
     }
-    
+
+    /** 每两个小时的第 10 分钟执行本地到飞书同步，与读任务错峰。 */
+    @Scheduled(cron = "0 10 0/2 * * ?")
+    public void syncToFeishu() {
+        log.info("========== 开始执行本地到飞书逐条同步任务 ==========");
+        long startTime = System.currentTimeMillis();
+
+        try {
+            String syncResult = feishuBitableSyncService.syncLocalDataToBitable(APP_TOKEN, TABLE_ID);
+            log.info("本地到飞书同步结果:\n{}", syncResult);
+        } catch (Exception e) {
+            log.error("本地到飞书同步任务执行异常", e);
+        }
+
+        log.info("========== 本地到飞书逐条同步任务完成，耗时: {} ms ==========",
+            System.currentTimeMillis() - startTime);
+    }
 }

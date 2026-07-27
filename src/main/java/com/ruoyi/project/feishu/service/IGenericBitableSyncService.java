@@ -4,7 +4,6 @@ import com.ruoyi.project.feishu.config.BitableConfig;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -120,6 +119,9 @@ public interface IGenericBitableSyncService {
      * 同步结果类
      */
     class SyncResult<T> {
+        private static final int MAX_DETAILS = 200;
+        private static final int MAX_RETAINED_ENTITIES = 100;
+
         private int added;
         private int updated;
         private int skipped;
@@ -151,15 +153,23 @@ public interface IGenericBitableSyncService {
         }
         
         public void addDetail(String detail) {
-            this.details.add(detail);
+            if (this.details.size() < MAX_DETAILS) {
+                this.details.add(detail);
+            } else if (this.details.size() == MAX_DETAILS) {
+                this.details.add("更多处理详情已省略");
+            }
         }
         
         public void addSuccessEntity(T entity) {
-            this.successEntities.add(entity);
+            if (this.successEntities.size() < MAX_RETAINED_ENTITIES) {
+                this.successEntities.add(entity);
+            }
         }
         
         public void addFailedEntity(T entity) {
-            this.failedEntities.add(entity);
+            if (this.failedEntities.size() < MAX_RETAINED_ENTITIES) {
+                this.failedEntities.add(entity);
+            }
         }
         
         // Getters
