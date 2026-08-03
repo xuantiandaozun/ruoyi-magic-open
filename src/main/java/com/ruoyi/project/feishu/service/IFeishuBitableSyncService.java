@@ -20,7 +20,7 @@ public interface IFeishuBitableSyncService {
     String syncBitableDataToLocal(String appToken, String tableId, String viewId, Integer pageSize);
     
     /**
-     * 同步本地数据库数据到飞书多维表格
+     * 增量同步一条本地数据库记录到飞书多维表格
      * 
      * @param appToken 多维表格应用token
      * @param tableId 数据表ID

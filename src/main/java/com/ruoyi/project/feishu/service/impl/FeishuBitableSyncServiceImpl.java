@@ -40,8 +40,8 @@ public class FeishuBitableSyncServiceImpl implements IFeishuBitableSyncService {
     private static final String VIEW_ID = "vewEYjlKYX";
     private static final Integer DEFAULT_PAGE_SIZE = 50;
     private static final int MAX_FEISHU_PAGE_SIZE = 500;
-    private static final long SAFE_WRITE_INTERVAL_MS = 500L;
     private final AtomicBoolean localToFeishuRunning = new AtomicBoolean(false);
+    private volatile Long lastLocalSyncId;
 
     /**
      * 获取域名证书监控配置
@@ -121,30 +121,33 @@ public class FeishuBitableSyncServiceImpl implements IFeishuBitableSyncService {
 
             BitableConfig config = getDomainCertConfig(appToken, tableId, VIEW_ID);
 
-            IGenericBitableSyncService.SyncResult<DomainCertMonitor> result = new IGenericBitableSyncService.SyncResult<>();
-            Long lastProcessedId = null;
-
-            while (true) {
-                List<DomainCertMonitor> records = loadNextLocalRecord(lastProcessedId);
-                if (records.isEmpty()) {
-                    break;
-                }
-
-                DomainCertMonitor localRecord = records.get(0);
-                lastProcessedId = localRecord.getId();
-                syncSingleLocalRecord(config, localRecord, result);
-                sleepSafely(SAFE_WRITE_INTERVAL_MS);
+            List<DomainCertMonitor> records = loadNextLocalRecord(lastLocalSyncId);
+            if (records.isEmpty() && lastLocalSyncId != null) {
+                // 已到末尾，从第一条开始下一轮巡检。
+                lastLocalSyncId = null;
+                records = loadNextLocalRecord(null);
             }
+
+            if (records.isEmpty()) {
+                return "本地没有需要同步到飞书的记录";
+            }
+
+            IGenericBitableSyncService.SyncResult<DomainCertMonitor> result = new IGenericBitableSyncService.SyncResult<>();
+            DomainCertMonitor localRecord = records.get(0);
+            syncSingleLocalRecord(config, localRecord, result);
+            lastLocalSyncId = localRecord.getId();
 
             long endTime = System.currentTimeMillis();
             return String.format(
-                "本地数据同步到飞书多维表格完成（通用化框架）！\n" +
+                "本地数据增量同步到飞书完成，本次仅处理 1 条\n" +
                 "总耗时: %d ms\n" +
+                "本地记录ID: %d\n" +
                 "新增记录: %d 条\n" +
                 "更新记录: %d 条\n" +
                 "失败记录: %d 条\n" +
                 "处理详情:\n%s",
                 (endTime - startTime),
+                localRecord.getId(),
                 result.getAdded(),
                 result.getUpdated(),
                 result.getFailed(),
@@ -294,12 +297,4 @@ public class FeishuBitableSyncServiceImpl implements IFeishuBitableSyncService {
         }
     }
 
-    private void sleepSafely(long intervalMs) {
-        try {
-            Thread.sleep(intervalMs);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("同步任务被中断", e);
-        }
-    }
 }

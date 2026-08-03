@@ -73,7 +73,7 @@ public class FeishuBitableSyncController extends BaseController {
     /**
      * 同步本地数据库数据到飞书多维表格
      */
-    @Operation(summary = "同步本地到飞书", description = "将本地数据库中的数据同步到飞书多维表格")
+    @Operation(summary = "增量同步本地到飞书", description = "按游标将下一条本地记录同步到飞书多维表格")
     @SaCheckPermission("feishu:bitable-sync:tobitable")
     @Log(title = "本地数据同步", businessType = BusinessType.OTHER)
     @PostMapping("/to-bitable")

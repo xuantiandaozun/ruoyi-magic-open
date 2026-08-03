@@ -109,6 +109,13 @@ feishu:
   app-secret: your-feishu-app-secret
   # 授权回调地址
   redirect-uri: http://localhost:3000/feishu
+  bitable-sync:
+    # Linux 进程 RSS 达到该阈值时跳过同步，避免小内存服务器被 OOM Killer 强杀
+    max-process-rss-mb: ${FEISHU_SYNC_MAX_PROCESS_RSS_MB:650}
+    # 飞书到本地：默认每两个小时整点执行
+    from-feishu-cron: ${FEISHU_SYNC_FROM_CRON:0 0 0/2 * * ?}
+    # 本地到飞书：默认每15分钟仅同步一条，并避开整点
+    to-feishu-cron: ${FEISHU_SYNC_TO_CRON:0 7/15 * * * ?}
 
 # knife4j的增强配置，不需要增强可以不配
 knife4j:
