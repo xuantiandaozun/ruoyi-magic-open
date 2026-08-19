@@ -8,6 +8,15 @@ ruoyi:
   copyrightYear: 2024
   # 验证码类型 math 数字计算 char 字符验证
   captchaType: math
+  # 业务线程池（每个工作线程默认约 1MB 栈，核心线程不要预热、不要常驻过大）
+  thread-pool:
+    executor:
+      core-size: 8
+      max-size: 32
+      queue-capacity: 500
+      keep-alive-seconds: 60
+    scheduled:
+      core-size: 4
   # 云存储配置
   cloud-storage:
     # 存储类型：local-本地存储, aliyun-阿里云OSS, tencent-腾讯云COS, amazon-亚马逊S3, azure-微软Azure
@@ -111,11 +120,11 @@ feishu:
   redirect-uri: http://localhost:3000/feishu
   bitable-sync:
     # Linux 进程 RSS 达到该阈值时跳过同步，避免小内存服务器被 OOM Killer 强杀
-    max-process-rss-mb: ${FEISHU_SYNC_MAX_PROCESS_RSS_MB:650}
-    # 飞书到本地：默认每两个小时整点执行
-    from-feishu-cron: ${FEISHU_SYNC_FROM_CRON:0 0 0/2 * * ?}
-    # 本地到飞书：默认每15分钟仅同步一条，并避开整点
-    to-feishu-cron: ${FEISHU_SYNC_TO_CRON:0 7/15 * * * ?}
+    max-process-rss-mb: ${FEISHU_SYNC_MAX_PROCESS_RSS_MB:550}
+    # 小内存服务器采用保守调度：飞书到本地默认每四小时执行一次
+    from-feishu-cron: ${FEISHU_SYNC_FROM_CRON:0 0 0/4 * * ?}
+    # 本地到飞书同样每四小时仅同步一条，并与拉取任务错开 30 分钟
+    to-feishu-cron: ${FEISHU_SYNC_TO_CRON:0 30 0/4 * * ?}
 
 # knife4j的增强配置，不需要增强可以不配
 knife4j:
@@ -148,14 +157,14 @@ server:
   tomcat:
     # tomcat的URI编码
     uri-encoding: UTF-8
-    # 连接数满后的排队数，默认为100
-    accept-count: 1000
+    # 连接数满后的排队数；小内存服务不要开太大，避免积压请求拖住线程
+    accept-count: 100
     threads:
-      # tomcat最大线程数，默认为200
-      max: 800
-      # Tomcat启动初始化的线程数，默认值10
-      min-spare: 100
-  connection-timeout: 10m
+      # HTTP 工作线程上限。512MB 堆场景下 50 已足够，800 会把栈内存顶爆
+      max: 50
+      # 常驻空闲线程。每个线程默认约 1MB 栈，min-spare=100 会白占约 100MB
+      min-spare: 10
+  connection-timeout: 20s
   jetty:
     max-http-form-post-size: 200MB
 
@@ -207,9 +216,12 @@ spring:
       # 连接池名称
       pool-name: HikariPool
       # 最小空闲连接数量
-      minimum-idle: 5
+      minimum-idle: 2
       # 最大连接池数量
-      maximum-pool-size: 20
+      maximum-pool-size: 10
+  quartz:
+    properties:
+      org.quartz.threadPool.threadCount: 4
 
 # 为CDS做准备
 management:

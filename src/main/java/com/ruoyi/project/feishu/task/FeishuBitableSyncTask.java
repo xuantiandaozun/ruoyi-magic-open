@@ -6,6 +6,7 @@ import java.lang.management.MemoryUsage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,13 +37,18 @@ public class FeishuBitableSyncTask {
     private static final String TABLE_ID = "tblrCnUgBgzSMpNq";
     private static final String VIEW_ID = "vewEYjlKYX";
     private static final Integer DEFAULT_PAGE_SIZE = 50;
+    private final AtomicBoolean syncRunning = new AtomicBoolean(false);
 
-    @Value("${feishu.bitable-sync.max-process-rss-mb:650}")
+    @Value("${feishu.bitable-sync.max-process-rss-mb:550}")
     private long maxProcessRssMb;
     
-    /** 默认每两个小时整点执行飞书到本地同步，可通过环境变量调整。 */
-    @Scheduled(cron = "${feishu.bitable-sync.from-feishu-cron:0 0 0/2 * * ?}")
+    /** 默认每四小时整点执行飞书到本地同步，可通过环境变量调整。 */
+    @Scheduled(cron = "${feishu.bitable-sync.from-feishu-cron:0 0 0/4 * * ?}")
     public void syncFromFeishu() {
+        if (!syncRunning.compareAndSet(false, true)) {
+            log.warn("跳过飞书到本地同步：已有飞书同步任务正在执行");
+            return;
+        }
         log.info("========== 开始执行飞书到本地同步任务 ==========");
         long startTime = System.currentTimeMillis();
         MemorySnapshot before = logMemory("飞书到本地任务开始前");
@@ -50,6 +56,7 @@ public class FeishuBitableSyncTask {
         if (isMemoryPressureHigh(before)) {
             log.warn("跳过飞书到本地同步：当前进程 RSS {} MB 已达到安全阈值 {} MB",
                 before.rssMb(), maxProcessRssMb);
+            syncRunning.set(false);
             return;
         }
 
@@ -59,6 +66,8 @@ public class FeishuBitableSyncTask {
             log.info("飞书到本地同步结果:\n{}", syncResult);
         } catch (Exception e) {
             log.error("飞书到本地同步任务执行异常", e);
+        } finally {
+            syncRunning.set(false);
         }
 
         log.info("========== 飞书到本地同步任务完成，耗时: {} ms ==========",
@@ -66,9 +75,13 @@ public class FeishuBitableSyncTask {
         logMemory("飞书到本地任务结束后");
     }
 
-    /** 默认每 15 分钟轮转同步一条，避开整点任务，单轮最多一次查询和一次写请求。 */
-    @Scheduled(cron = "${feishu.bitable-sync.to-feishu-cron:0 7/15 * * * ?}")
+    /** 默认每四小时轮转同步一条，与拉取任务错开 30 分钟。 */
+    @Scheduled(cron = "${feishu.bitable-sync.to-feishu-cron:0 30 0/4 * * ?}")
     public void syncToFeishu() {
+        if (!syncRunning.compareAndSet(false, true)) {
+            log.warn("跳过本地到飞书同步：已有飞书同步任务正在执行");
+            return;
+        }
         log.info("========== 开始执行本地到飞书单条增量同步任务 ==========");
         long startTime = System.currentTimeMillis();
         MemorySnapshot before = logMemory("本地到飞书任务开始前");
@@ -76,6 +89,7 @@ public class FeishuBitableSyncTask {
         if (isMemoryPressureHigh(before)) {
             log.warn("跳过本地到飞书同步：当前进程 RSS {} MB 已达到安全阈值 {} MB",
                 before.rssMb(), maxProcessRssMb);
+            syncRunning.set(false);
             return;
         }
 
@@ -84,6 +98,8 @@ public class FeishuBitableSyncTask {
             log.info("本地到飞书同步结果:\n{}", syncResult);
         } catch (Exception e) {
             log.error("本地到飞书同步任务执行异常", e);
+        } finally {
+            syncRunning.set(false);
         }
 
         log.info("========== 本地到飞书单条增量同步任务完成，耗时: {} ms ==========",
