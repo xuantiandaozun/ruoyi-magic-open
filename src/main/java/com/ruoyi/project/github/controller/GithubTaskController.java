@@ -39,10 +39,8 @@ public class GithubTaskController extends BaseController {
     @PostMapping("/readme/upload")
     public AjaxResult executeReadmeUpload() {
         try {
-            // 异步执行任务，避免接口超时
-            new Thread(() -> {
-                readmeUploadTask.execute();
-            }).start();
+            // 交由受管线程池执行；任务自身会忽略重叠触发。
+            readmeUploadTask.executeAsync();
             
             return success("README上传任务已触发执行，请查看日志");
         } catch (Exception e) {

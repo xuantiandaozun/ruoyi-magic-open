@@ -12,11 +12,13 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -53,6 +55,11 @@ public class GithubReadmeUploadTask {
     /** GitHub API请求间隔(毫秒) */
     private static final long API_INTERVAL = 1000;
 
+    /** 单例客户端复用连接和其内部 SelectorManager 线程。 */
+    private static final HttpClient GITHUB_HTTP_CLIENT = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .build();
+
     @Autowired
     private IGithubTrendingService githubTrendingService;
     
@@ -62,6 +69,9 @@ public class GithubReadmeUploadTask {
     @Value("${github.token:}")
     private String githubToken;
 
+    /** 防止定时、Trending 推送和手工触发同时执行同一批 README 上传。 */
+    private final AtomicBoolean running = new AtomicBoolean(false);
+
     /**
      * 执行README上传任务（每天上午9点执行）
      * cron表达式：0 0 9 * * ?
@@ -69,6 +79,11 @@ public class GithubReadmeUploadTask {
      */
     @Scheduled(cron = "0 0 9 * * ?")
     public void execute() {
+        if (!running.compareAndSet(false, true)) {
+            log.warn("GitHub README上传任务正在执行，跳过重复触发");
+            return;
+        }
+
         log.info("========== 开始执行GitHub README上传OSS定时任务 ==========");
         long startTime = System.currentTimeMillis();
         
@@ -132,7 +147,16 @@ public class GithubReadmeUploadTask {
             log.info("========== GitHub README上传OSS定时任务执行完成 ==========");
             log.info("总数: {}, 成功: {}, 失败: {}, 耗时: {}ms", 
                 totalCount, successCount, failCount, duration);
+            running.set(false);
         }
+    }
+
+    /**
+     * 在受 Spring 管理的线程池中异步执行任务，避免创建无界的原生线程。
+     */
+    @Async("threadPoolTaskExecutor")
+    public void executeAsync() {
+        execute();
     }
 
     /**
@@ -153,14 +177,11 @@ public class GithubReadmeUploadTask {
         // 1. 调用GitHub API获取README信息
         String apiUrl = String.format("%s/repos/%s/%s/readme", GITHUB_API_BASE, owner, repoName);
         
-        HttpClient client = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
-        
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
             .uri(URI.create(apiUrl))
             .header("Accept", "application/vnd.github.v3+json")
             .header("User-Agent", "RuoyiMagic/1.0")
+            .timeout(Duration.ofSeconds(30))
             .GET();
         
         // 如果配置了GitHub Token，添加认证头
@@ -172,7 +193,7 @@ public class GithubReadmeUploadTask {
         HttpResponse<String> response;
         
         try {
-            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            response = GITHUB_HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (Exception e) {
             log.error("调用GitHub API失败: {}", e.getMessage());
             return false;

@@ -106,14 +106,8 @@ public class GithubTrendingController extends BaseController {
         // 如果有新增仓库，异步触发 README 上传任务
         if (response.getNewInserted() != null && response.getNewInserted() > 0) {
             log.info("检测到 {} 个新增仓库，触发 README 上传任务", response.getNewInserted());
-            // 异步执行，避免阻塞响应
-            new Thread(() -> {
-                try {
-                    githubReadmeUploadTask.execute();
-                } catch (Exception e) {
-                    log.error("异步执行 README 上传任务失败", e);
-                }
-            }).start();
+            // 交由受管线程池执行；任务自身会忽略重叠触发。
+            githubReadmeUploadTask.executeAsync();
         }
 
         return success(response);
